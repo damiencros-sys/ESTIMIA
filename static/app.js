@@ -185,6 +185,72 @@ function localStructure(){
   if(/\bchemin[ée]e\b/.test(t)) features.push('Cheminée');
   if(features.length) facts['Éléments relevés']=[...new Set(features)].join(' · ');
 
+
+  // --- Fiche immobilière enrichie V4 ---
+  const floor=extractNumber(t,[/(?:au|situ[ée] au|appartement au)\s*(\d+)(?:er|e|ème)?\s*[ée]tage/,/(\d+)(?:er|e|ème)?\s*[ée]tage/]);
+  if(floor) facts['Étage']=floor;
+  if(/\brez[- ]de[- ]chauss[ée]e\b|\brdc\b/.test(t)) facts['Étage']='Rez-de-chaussée';
+
+  const year=extractNumber(t,[/(?:construit|construction|ann[ée]e de construction)[^0-9]{0,20}((?:18|19|20)\d{2})/]);
+  if(year) facts['Année de construction']=year;
+
+  const charges=extractNumber(t,[/(?:charges?(?: de copropri[ée]t[ée])?)[^0-9]{0,20}(\d+(?:[.,]\d+)?)\s*(?:€|euros?)/]);
+  if(charges) facts['Charges']=charges.replace('.',',')+' € (périodicité à vérifier)';
+  const tax=extractNumber(t,[/(?:taxe fonci[eè]re)[^0-9]{0,20}(\d+(?:[.,]\d+)?)\s*(?:€|euros?)/]);
+  if(tax) facts['Taxe foncière']=tax.replace('.',',')+' €';
+
+  if(/\bcopropri[ée]t[ée]\b/.test(t)) facts['Copropriété']='Oui / mentionnée';
+  if(/pas de copropri[ée]t[ée]|hors copropri[ée]t[ée]/.test(t)) facts['Copropriété']='Non';
+
+  const kitchen=[];
+  if(/cuisine[^.]{0,30}ouverte|cuisine am[ée]ricaine/.test(t)) kitchen.push('Ouverte');
+  if(/cuisine[^.]{0,30}s[ée]par[ée]e/.test(t)) kitchen.push('Séparée');
+  if(/cuisine[^.]{0,30}[ée]quip[ée]e/.test(t)) kitchen.push('Équipée');
+  if(/cuisine[^.]{0,30}am[ée]nag[ée]e/.test(t)) kitchen.push('Aménagée');
+  if(kitchen.length) facts['Cuisine']=[...new Set(kitchen)].join(' · ');
+
+  const bath=[];
+  if(/salle de bains?/.test(t)) bath.push('Salle de bains');
+  if(/salle d[' ]eau/.test(t)) bath.push("Salle d’eau");
+  if(/douche [àa] l[' ]italienne/.test(t)) bath.push("Douche à l’italienne");
+  if(/baignoire/.test(t)) bath.push('Baignoire');
+  if(bath.length) facts['Sanitaires']=[...new Set(bath)].join(' · ');
+  if(/wc[^.]{0,20}s[ée]par[ée]|toilettes?[^.]{0,20}s[ée]par[ée]/.test(t)) facts['WC']='Séparé(s)';
+
+  const shutters=[];
+  if(/volets? roulants?[^.]{0,20}[ée]lectriques?/.test(t)) shutters.push('Volets roulants électriques');
+  else if(/volets? roulants?/.test(t)) shutters.push('Volets roulants');
+  if(/persiennes?/.test(t)) shutters.push('Persiennes');
+  if(/volets? bois/.test(t)) shutters.push('Volets bois');
+  if(shutters.length) facts['Fermetures']=[...new Set(shutters)].join(' · ');
+
+  const defects=[];
+  if(/bruit|bruyant|nuisance sonore/.test(t)) defects.push('Nuisance sonore mentionnée');
+  if(/vis[- ]?[àa][- ]?vis/.test(t)) defects.push('Vis-à-vis mentionné');
+  if(/humidit[ée]/.test(t)) defects.push('Humidité mentionnée');
+  if(/fissure/.test(t)) defects.push('Fissure(s) mentionnée(s)');
+  if(/toiture[^.]{0,30}[àa] refaire|toit[^.]{0,30}[àa] refaire/.test(t)) defects.push('Toiture à reprendre');
+  if(/electricit[ée][^.]{0,30}[àa] refaire/.test(t)) defects.push('Électricité à reprendre');
+  if(defects.length) facts['Points de vigilance']=defects.join(' · ');
+
+  const positives=[];
+  if(/lumineux|lumineuse|tr[eè]s clair/.test(t)) positives.push('Lumineux');
+  if(/calme/.test(t)) positives.push('Calme');
+  if(/sans vis[- ]?[àa][- ]?vis/.test(t)) positives.push('Sans vis-à-vis');
+  if(/vue[^.]{0,40}panoramique/.test(t)) positives.push('Vue panoramique');
+  else if(/vue[^.]{0,40}d[ée]gag[ée]e/.test(t)) positives.push('Vue dégagée');
+  else if(/belle vue|vue[^.]{0,30}belle/.test(t)) positives.push('Belle vue');
+  if(/montagne/.test(t) && /\bvue\b/.test(t)) positives.push('Vue montagne');
+  if(/mer/.test(t) && /\bvue\b/.test(t)) positives.push('Vue mer');
+  if(positives.length) facts['Atouts']=[...new Set(positives)].join(' · ');
+
+  const diagnostics=[];
+  if(/diagnostics?[^.]{0,30}(?:sans anomalie|aucun probl[eè]me|ras)/.test(t)) diagnostics.push('Pas d’anomalie signalée dans la dictée');
+  if(/amiante/.test(t)) diagnostics.push('Amiante mentionné');
+  if(/plomb/.test(t)) diagnostics.push('Plomb mentionné');
+  if(/termites?/.test(t)) diagnostics.push('Termites mentionnées');
+  if(diagnostics.length) facts['Diagnostics – notes agent']=diagnostics.join(' · ');
+
   facts['Notes de visite']=raw;
   return facts;
 }
