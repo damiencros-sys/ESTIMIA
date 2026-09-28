@@ -13,3 +13,13 @@ textarea{resize:vertical}.cols{display:grid;grid-template-columns:1fr 1fr;gap:10
 .fact{display:grid;grid-template-columns:42% 58%;gap:8px;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}.fact span{color:var(--muted)}.empty{padding:18px 0;color:var(--muted)}
 .small{font-size:12px;margin-bottom:0}audio{width:100%;margin:8px 0}
 @media(max-width:520px){.cols{grid-template-columns:1fr}.gallery{grid-template-columns:repeat(3,1fr)}main{padding:10px}.card{padding:14px}}
+
+.voiceActions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.miniBtn{border:1px solid #bfd0d7;background:#fff;color:var(--ink);border-radius:11px;padding:10px;font-weight:750;cursor:pointer}
+.miniBtn.danger{color:#8b2525;border-color:#e2bcbc}
+.liveSpeech{min-height:44px;border:1px dashed #b9cbd3;border-radius:11px;padding:10px;margin:8px 0;color:var(--muted);background:#fafcfd;font-size:14px}
+.liveSpeech.active{border-color:var(--accent);color:var(--ink);background:var(--accent2)}
+.historyBox{margin:8px 0 12px;font-size:13px}.historyBox summary{cursor:pointer;font-weight:750;color:var(--accent)}
+.history{margin-top:8px}.historyItem{padding:9px;border:1px solid var(--line);border-radius:10px;margin:6px 0;background:#fafcfd}
+.historyItem small{display:block;color:var(--muted);margin-bottom:3px}
+@media(max-width:520px){.voiceActions{grid-template-columns:1fr}}

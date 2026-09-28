@@ -37,9 +37,14 @@
   <h2>Raconte ta visite</h2>
   <p>Appuie sur le micro et parle normalement. Tu n’as pas besoin de dicter des champs.</p>
   <button id="record" class="bigbtn">🎙️ Démarrer la dictée</button>
+  <div id="liveSpeech" class="liveSpeech">Le texte reconnu en direct apparaîtra ici.</div>
   <div id="recordStatus" class="status"></div>
-  <audio id="playback" controls hidden></audio>
-  <textarea id="notes" rows="9" placeholder="La dictée apparaîtra ici. Tu peux aussi écrire ou corriger le texte."></textarea>
+  <div class="voiceActions">
+    <button id="undoDictation" class="miniBtn" type="button">↩️ Annuler dernière dictée</button>
+    <button id="clearDictation" class="miniBtn danger" type="button">🗑️ Effacer la dictée</button>
+  </div>
+  <textarea id="notes" rows="9" placeholder="La dictée nettoyée apparaîtra ici. Tu peux aussi écrire ou corriger le texte."></textarea>
+  <details class="historyBox"><summary>Historique des dictées</summary><div id="dictationHistory" class="history"></div></details>
   <button id="analyse" class="bigbtn">✨ Transformer en fiche gratuitement</button>
 </section>
 
@@ -54,7 +59,7 @@
   <div class="step">4 · DOSSIER</div>
   <button id="save" class="bigbtn">💾 Enregistrer le dossier</button>
   <div id="saveStatus" class="status"></div>
-  <p class="small">V4 gratuite : photos + dictée vocale + fiche immobilière détaillée. ESTIM’IA structure la visite sans clé API payante. Prochaine étape : DVF, cadastre, urbanisme, Géorisques, comparables et estimation.</p>
+  <p class="small">V5 Dictée Pro gratuite : dictées successives, nettoyage des hésitations, corrections orales, historique, annulation et fiche immobilière détaillée. Sans clé API payante.</p>
 </section>
 </main>
 <script src="/static/app.js"></script>

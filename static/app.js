@@ -13,66 +13,111 @@ $('#photos').addEventListener('change',e=>{
 });
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let dictationHistory=[];
 
-function appendTranscript(text){
-  const notes=$('#notes');
-  const old=notes.value.trim();
-  notes.value=(old?old+' ':'')+text.trim();
-  notes.dispatchEvent(new Event('input'));
+function cleanDictation(text){
+  let x=' '+String(text||'').trim()+' ';
+  // Oral fillers: deliberately conservative so useful words are not removed.
+  x=x.replace(/\b(?:euh+|heu+|hum+|hmm+)\b[,.…]*/gi,' ');
+  x=x.replace(/\b(?:ben|bah)\b[,.…]*/gi,' ');
+  x=x.replace(/\s+/g,' ').trim();
+
+  // Remove immediate accidental repetitions ("la la terrasse", "garage garage").
+  x=x.replace(/\b([\p{L}\d'-]{2,})\s+\1\b/giu,'$1');
+
+  // Natural correction markers. Keep the corrected clause and remove the immediately
+  // preceding value/short clause when a clear "non/pardon/correction" is present.
+  x=x.replace(/(\d+(?:[.,]\d+)?(?:\s*m(?:2|²)|\s*mètres?\s*carrés?)?)\s*(?:,|-)?\s*(?:non(?:\s+c['’]est)?|non pardon|pardon|je corrige|correction)\s+(\d+(?:[.,]\d+)?(?:\s*m(?:2|²)|\s*mètres?\s*carrés?)?)/gi,'$2');
+  x=x.replace(/\s+([,.;:!?])/g,'$1').replace(/([,.;:!?])([^\s])/g,'$1 $2');
+  return x.trim();
 }
+
+function renderHistory(){
+  const box=$('#dictationHistory');
+  if(!box) return;
+  box.innerHTML=dictationHistory.length ? dictationHistory.map((d,i)=>
+    `<div class="historyItem"><small>Dictée ${i+1} · ${esc(d.time)}</small>${esc(d.cleaned)}</div>`
+  ).join('') : '<div class="empty">Aucune dictée pour le moment.</div>';
+}
+function rebuildNotes(){
+  $('#notes').value=dictationHistory.map(d=>d.cleaned).join(' ').trim();
+  $('#notes').dispatchEvent(new Event('input'));
+}
+function addDictation(raw){
+  const cleaned=cleanDictation(raw);
+  if(!cleaned) return;
+  dictationHistory.push({raw,cleaned,time:new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})});
+  rebuildNotes(); renderHistory();
+}
+function appendTranscript(text){ addDictation(text); }
+
+$('#undoDictation').addEventListener('click',()=>{
+  if(!dictationHistory.length){setStatus('#recordStatus','Aucune dictée à annuler.');return}
+  dictationHistory.pop(); rebuildNotes(); renderHistory();
+  setStatus('#recordStatus','↩️ Dernière dictée annulée.');
+});
+$('#clearDictation').addEventListener('click',()=>{
+  if(!$('#notes').value.trim() && !dictationHistory.length) return;
+  if(confirm('Effacer toute la dictée de cette visite ?')){
+    dictationHistory=[]; $('#notes').value=''; renderHistory();
+    $('#liveSpeech').textContent='Le texte reconnu en direct apparaîtra ici.';
+    setStatus('#recordStatus','🗑️ Dictée effacée. Tu peux recommencer.');
+  }
+});
 
 $('#record').addEventListener('click',()=>{
   if(!SpeechRecognition){
     setStatus('#recordStatus',"La dictée directe n'est pas disponible dans ce navigateur. Sur Samsung, ouvre ESTIM’IA dans Chrome. Tu peux aussi utiliser le micro du clavier Samsung/Google dans la zone de notes.");
-    $('#notes').focus();
-    return;
+    $('#notes').focus(); return;
   }
-  if(recognizing && recognition){
-    recognition.stop();
-    return;
-  }
+  if(recognizing && recognition){ recognition.stop(); return; }
 
   recognition=new SpeechRecognition();
-  recognition.lang='fr-FR';
-  recognition.continuous=true;
-  recognition.interimResults=true;
+  recognition.lang='fr-FR'; recognition.continuous=true; recognition.interimResults=true;
+  recognition.maxAlternatives=3;
+
+  // Contextual vocabulary where supported by the browser. Failure is harmless.
+  try{
+    if('phrases' in recognition && window.SpeechRecognitionPhrase){
+      const vocab=['Carrez','DPE','GES','copropriété','tantièmes','pompe à chaleur','PAC','VMC','cumulus',
+        'tout-à-l’égout','assainissement','mitoyen','mitoyenne','persiennes','volets roulants',
+        'double vitrage','climatisation','cellier','mezzanine','vide sanitaire','taxe foncière'];
+      recognition.phrases=vocab.map(p=>new SpeechRecognitionPhrase(p,5.0));
+    }
+  }catch(e){}
 
   let finalText='';
   recognition.onstart=()=>{
-    recognizing=true;
-    $('#record').textContent='⏹️ Arrêter la dictée';
-    $('#record').classList.add('recording');
-    setStatus('#recordStatus','🎙️ Dictée en cours… parle normalement.');
+    recognizing=true; $('#record').textContent='⏹️ Arrêter la dictée'; $('#record').classList.add('recording');
+    $('#liveSpeech').classList.add('active');
+    setStatus('#recordStatus','🎙️ Dictée en cours… parle naturellement, même avec des hésitations.');
   };
   recognition.onresult=(event)=>{
     let interim='';
     for(let i=event.resultIndex;i<event.results.length;i++){
       const t=event.results[i][0].transcript;
-      if(event.results[i].isFinal) finalText+=t+' ';
-      else interim+=t;
+      if(event.results[i].isFinal) finalText+=t+' '; else interim+=t;
     }
-    setStatus('#recordStatus', interim ? '🎙️ '+interim : '🎙️ Dictée en cours…');
+    $('#liveSpeech').textContent=cleanDictation((finalText+' '+interim).trim()) || 'Je t’écoute…';
   };
   recognition.onerror=(event)=>{
-    const map={
-      'not-allowed':"Micro non autorisé. Autorise le micro pour ce site.",
+    const map={'not-allowed':"Micro non autorisé. Autorise le micro pour ce site.",
       'no-speech':"Je n’ai pas entendu de parole. Réessaie.",
-      'network':"La reconnaissance vocale du navigateur n’est pas disponible pour le moment."
-    };
+      'network':"La reconnaissance vocale du navigateur n’est pas disponible pour le moment."};
     setStatus('#recordStatus',map[event.error]||('Erreur de dictée : '+event.error));
   };
   recognition.onend=()=>{
-    recognizing=false;
-    $('#record').textContent='🎙️ Démarrer la dictée';
-    $('#record').classList.remove('recording');
+    recognizing=false; $('#record').textContent='🎙️ Démarrer la dictée'; $('#record').classList.remove('recording');
+    $('#liveSpeech').classList.remove('active');
     if(finalText.trim()){
-      appendTranscript(finalText);
-      setStatus('#recordStatus','✓ Dictée ajoutée aux notes. Tu peux corriger le texte.');
+      addDictation(finalText);
+      $('#liveSpeech').textContent='Dictée ajoutée. Tu peux reprendre le micro pour compléter ou corriger.';
+      setStatus('#recordStatus','✓ Dictée ajoutée et nettoyée. Tu peux en faire une autre.');
     }
   };
   try{recognition.start()}catch(e){setStatus('#recordStatus','Impossible de démarrer la dictée : '+e.message)}
 });
-
+renderHistory();
 
 const WORDNUM = {
  'un':1,'une':1,'deux':2,'trois':3,'quatre':4,'cinq':5,'six':6,'sept':7,'huit':8,'neuf':9,'dix':10,
@@ -89,11 +134,15 @@ function normalizeFrenchNumbers(text){
   return out.trim();
 }
 function extractNumber(text, patterns){
+  let best=null, bestIndex=-1;
   for(const p of patterns){
-    const m=text.match(p);
-    if(m) return m[1].replace(',','.');
+    const flags=p.flags.includes('g')?p.flags:p.flags+'g';
+    const rx=new RegExp(p.source,flags);
+    for(const m of text.matchAll(rx)){
+      if(m.index>=bestIndex){best=m[1];bestIndex=m.index;}
+    }
   }
-  return null;
+  return best ? best.replace(',','.') : null;
 }
 function yesNo(text, yesPatterns, noPatterns=[]){
   if(noPatterns.some(p=>p.test(text))) return 'Non';
@@ -102,7 +151,10 @@ function yesNo(text, yesPatterns, noPatterns=[]){
 }
 function localStructure(){
   const raw=$('#notes').value.trim();
-  const t=normalizeFrenchNumbers(raw);
+  const correction=$('#correction').value.trim();
+  // A correction is appended last so extraction rules can preferentially use the latest explicit information.
+  const combined=cleanDictation((raw+' '+correction).trim());
+  const t=normalizeFrenchNumbers(combined);
   const facts={};
   const address=$('#address').value.trim(), type=$('#type').value.trim(), surfaceField=$('#surface').value.trim();
   if(address) facts['Adresse']=address;
@@ -251,7 +303,21 @@ function localStructure(){
   if(/termites?/.test(t)) diagnostics.push('Termites mentionnées');
   if(diagnostics.length) facts['Diagnostics – notes agent']=diagnostics.join(' · ');
 
+  const roomMeasures=[];
+  const roomRx=/\b(chambre(?:\s+\d+)?|s[ée]jour|salon|cuisine|bureau|cellier|garage|terrasse|salle d[' ]eau|salle de bains?)\s+(?:fait|mesure|de)?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|mètres?\s*carrés?)/g;
+  for(const m of t.matchAll(roomRx)) roomMeasures.push(`${m[1]} : ${m[2].replace('.',',')} m²`);
+  if(roomMeasures.length) facts['Surfaces par pièce']=[...new Set(roomMeasures)].join(' · ');
+
+  if(/\b(?:[àa] v[ée]rifier|pas v[ée]rifi[ée]|je n[' ]ai pas v[ée]rifi[ée])\b/.test(t)){
+    const checks=[];
+    if(/assainissement[^.]{0,35}(?:[àa] v[ée]rifier|pas v[ée]rifi[ée])/.test(t)) checks.push('Assainissement');
+    if(/toiture[^.]{0,35}(?:[àa] v[ée]rifier|pas v[ée]rifi[ée])/.test(t)) checks.push('Toiture');
+    if(/surface[^.]{0,35}(?:[àa] v[ée]rifier|pas v[ée]rifi[ée])/.test(t)) checks.push('Surface');
+    if(checks.length) facts['À vérifier']=checks.join(' · ');
+  }
+
   facts['Notes de visite']=raw;
+  if(correction) facts['Corrections agent']=correction;
   return facts;
 }
 
