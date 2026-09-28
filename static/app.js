@@ -18,12 +18,9 @@ let dictationHistory=[];
 
 function cleanDictation(text){
   let x=String(text||'').trim();
-  // Nettoyage volontairement prudent : ne touche pas au moteur vocal.
   x=x.replace(/\b(?:euh+|heu+|hum+|hmm+)\b[,.…]*/gi,' ');
   x=x.replace(/\s+/g,' ').trim();
   x=x.replace(/\b([\p{L}\d'-]{2,})\s+\1\b/giu,'$1');
-  // Correction chiffrée simple : "30 m² non pardon 25 m²".
-  x=x.replace(/(\d+(?:[.,]\d+)?(?:\s*m(?:2|²))?)\s*(?:,|-)?\s*(?:non pardon|pardon|non|je corrige|correction)\s+(\d+(?:[.,]\d+)?(?:\s*m(?:2|²))?)/gi,'$2');
   return x.trim();
 }
 function renderHistory(){
@@ -118,6 +115,77 @@ document.addEventListener('DOMContentLoaded',()=>{
   });
 });
 
+
+const NUMWORDS_V6={
+  'zéro':0,'zero':0,'un':1,'une':1,'deux':2,'trois':3,'quatre':4,'cinq':5,'six':6,
+  'sept':7,'huit':8,'neuf':9,'dix':10,'onze':11,'douze':12,'treize':13,'quatorze':14,
+  'quinze':15,'seize':16,'vingt':20,'trente':30,'quarante':40,'cinquante':50,'soixante':60
+};
+function lastMatch(text, rx){
+  const flags=rx.flags.includes('g')?rx.flags:rx.flags+'g';
+  const r=new RegExp(rx.source,flags); let out=null;
+  for(const m of text.matchAll(r)) out=m;
+  return out;
+}
+function numberToken(v){
+  if(v==null) return null;
+  const s=String(v).toLowerCase().trim();
+  if(/^\d+(?:[.,]\d+)?$/.test(s)) return s.replace('.',',');
+  return Object.prototype.hasOwnProperty.call(NUMWORDS_V6,s) ? String(NUMWORDS_V6[s]) : null;
+}
+function correctionAwareText(raw){
+  let x=cleanDictation(raw);
+  // Rewrite explicit correction sequences so the corrected value is closest to the noun.
+  // "3 chambres pardon deux chambres" -> "deux chambres"
+  x=x.replace(/(?:\d+|un|une|deux|trois|quatre|cinq|six|sept|huit|neuf)\s+chambres?\s+(?:pardon|non(?:\s+pardon)?|je corrige|correction|rectification|en fait)\s+(?:il y a\s+)?(\d+|un|une|deux|trois|quatre|cinq|six|sept|huit|neuf)(?:\s+chambres?)?/gi,'$1 chambres');
+  x=x.replace(/terrasse\s+(?:de\s+)?(\d+(?:[.,]\d+)?)\s*m(?:2|²)[^.!?]{0,28}?(?:non(?:\s+je corrige)?|pardon|je corrige|correction|rectification)\s*(?:la terrasse\s+)?(?:fait\s+)?(\d+(?:[.,]\d+)?)\s*m(?:2|²)/gi,'terrasse $2 m²');
+  x=x.replace(/(\d+(?:[.,]\d+)?)\s*m(?:2|²)\s+(?:pardon|non(?:\s+pardon)?|je corrige|correction|rectification)\s+(\d+(?:[.,]\d+)?)\s*m(?:2|²)/gi,'$2 m²');
+  x=x.replace(/chauffage\s+(?:au |à l['’])?(gaz|électrique|electrique|fioul)[^.!?]{0,25}?(?:non|pardon|en fait|je corrige|correction)\s+(?:chauffage\s+)?(?:au |à l['’])?(gaz|électrique|electrique|fioul|pompe à chaleur|pac)/gi,'chauffage $2');
+  return x;
+}
+function extractProfessional(raw){
+  const t=normalizeFrenchNumbers(correctionAwareText(raw).toLowerCase());
+  const p={};
+
+  let m=lastMatch(t,/\b(\d+|un|une|deux|trois|quatre|cinq|six|sept|huit|neuf)\s+chambres?\b/gi);
+  if(m) p['Chambres']=numberToken(m[1]);
+
+  m=lastMatch(t,/\bterrasse(?:\s+de|\s+fait|\s+mesure)?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|mètres?\s*carrés?)/gi);
+  if(m) p['Terrasse']=m[1].replace('.',',')+' m²';
+
+  const rooms=[];
+  const roomRx=/\b(chambre\s*(?:\d+|un|une|deux|trois)?|séjour|sejour|salon|cuisine|bureau|cellier|buanderie|garage|terrasse|salle d['’ ]eau|salle de bains?)\s*(?:fait|mesure|de)?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|mètres?\s*carrés?)/gi;
+  for(const r of t.matchAll(roomRx)){
+    const label=r[1].replace(/\s+/g,' ').trim();
+    rooms.push(`${label} : ${r[2].replace('.',',')} m²`);
+  }
+  if(rooms.length) p['Surfaces par pièce']=[...new Set(rooms)].join(' · ');
+
+  const verify=[];
+  const checks=[
+    ['Assainissement','assainissement'],['Toiture','toiture'],['Surface','surface'],
+    ['Taxe foncière','taxe foncière'],['Urbanisme','urbanisme'],['Électricité','électricité|electricite']
+  ];
+  for(const [label,term] of checks){
+    const rr=new RegExp(`(?:${term})[^.!?]{0,45}(?:pas v[ée]rifi[ée]|non v[ée]rifi[ée]|[àa] v[ée]rifier|je ne l['’ ]ai pas v[ée]rifi[ée]|je n['’ ]ai pas v[ée]rifi[ée]|je ne sais pas|inconnu)`,`i`);
+    if(rr.test(t)) verify.push(label);
+  }
+  if(verify.length) p['À vérifier']=[...new Set(verify)].join(' · ');
+
+  let view=[];
+  if(/vue[^.!?]{0,45}d[ée]gag[ée]e/.test(t) || /belle vue d[ée]gag[ée]e/.test(t)) view.push('dégagée');
+  if(/vue[^.!?]{0,55}montagnes?/.test(t) || (/\bvue\b/.test(t)&&/\bmontagnes?\b/.test(t))) view.push('sur les montagnes');
+  if(/vue[^.!?]{0,45}mer\b/.test(t)) view.push('mer');
+  if(/vue[^.!?]{0,45}panoramique/.test(t)) view.push('panoramique');
+  if(view.length) p['Vue']=[...new Set(view)].join(' ');
+
+  const source=[];
+  if(/(?:le propriétaire|la propriétaire|le vendeur|la vendeuse)\s+(?:me dit|indique|précise|declare|déclare)/.test(t))
+    source.push('Certaines informations proviennent d’une déclaration du propriétaire/vendeur');
+  if(source.length) p['Provenance / prudence']=source.join(' · ');
+
+  return p;
+}
 const WORDNUM = {
  'un':1,'une':1,'deux':2,'trois':3,'quatre':4,'cinq':5,'six':6,'sept':7,'huit':8,'neuf':9,'dix':10,
  'onze':11,'douze':12,'treize':13,'quatorze':14,'quinze':15,'seize':16,'vingt':20,'trente':30,'quarante':40,
@@ -295,6 +363,8 @@ function localStructure(){
   if(/termites?/.test(t)) diagnostics.push('Termites mentionnées');
   if(diagnostics.length) facts['Diagnostics – notes agent']=diagnostics.join(' · ');
 
+  const pro=extractProfessional(raw+' '+correction);
+  Object.assign(facts,pro);
   facts['Notes de visite']=raw;
   return facts;
 }
