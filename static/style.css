@@ -1,0 +1,15 @@
+
+:root{--ink:#183246;--muted:#687985;--bg:#f3f6f8;--card:#fff;--line:#dce4e8;--accent:#0c6b58;--accent2:#eaf5f2}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink)}
+header{position:sticky;top:0;z-index:5;background:#15324a;color:white;padding:14px 16px;display:flex;justify-content:space-between;align-items:center}
+header b{font-size:22px}header small{display:block;opacity:.78;margin-top:2px}header button{border:1px solid #ffffff55;background:#ffffff12;color:white;border-radius:12px;padding:10px 12px;font-weight:700}
+main{max-width:760px;margin:auto;padding:14px}.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:17px;margin-bottom:14px}
+.step{font-size:12px;letter-spacing:.08em;font-weight:800;color:var(--accent)}h2{font-size:20px;margin:5px 0 4px}p{color:var(--muted);line-height:1.4;margin:7px 0 14px}
+label{display:block;font-size:13px;font-weight:700;margin:10px 0}input,textarea{width:100%;font:inherit;font-size:16px;border:1px solid #cbd6dc;border-radius:12px;padding:12px;margin-top:6px;color:var(--ink);background:white}
+textarea{resize:vertical}.cols{display:grid;grid-template-columns:1fr 1fr;gap:10px}.bigbtn{width:100%;min-height:52px;border:0;border-radius:14px;background:var(--accent);color:white;font-size:16px;font-weight:800;padding:13px;margin:7px 0;cursor:pointer}
+.bigbtn.secondary{display:flex;align-items:center;justify-content:center;background:var(--accent2);color:var(--accent);border:1px solid #b8d9d1}
+.bigbtn.recording{background:#9d2d2d}.status{font-size:13px;color:var(--muted);min-height:20px;margin:4px 0}.gallery{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:10px}
+.gallery img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px}.facts{border-top:1px solid var(--line);margin-top:10px}
+.fact{display:grid;grid-template-columns:42% 58%;gap:8px;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}.fact span{color:var(--muted)}.empty{padding:18px 0;color:var(--muted)}
+.small{font-size:12px;margin-bottom:0}audio{width:100%;margin:8px 0}
+@media(max-width:520px){.cols{grid-template-columns:1fr}.gallery{grid-template-columns:repeat(3,1fr)}main{padding:10px}.card{padding:14px}}
