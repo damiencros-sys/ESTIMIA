@@ -73,6 +73,21 @@ $('#record').addEventListener('click',()=>{
   try{recognition.start()}catch(e){setStatus('#recordStatus','Impossible de démarrer la dictée : '+e.message)}
 });
 
+
+const WORDNUM = {
+ 'un':1,'une':1,'deux':2,'trois':3,'quatre':4,'cinq':5,'six':6,'sept':7,'huit':8,'neuf':9,'dix':10,
+ 'onze':11,'douze':12,'treize':13,'quatorze':14,'quinze':15,'seize':16,'vingt':20,'trente':30,'quarante':40,
+ 'cinquante':50,'soixante':60
+};
+function normalizeFrenchNumbers(text){
+  let out=' '+text.toLowerCase().replace(/[’']/g,"'")+' ';
+  Object.entries(WORDNUM).forEach(([w,n])=>{
+    out=out.replace(new RegExp(`\\b${w}\\b`,'g'),String(n));
+  });
+  // "48 50 m²" => "48,50 m²" (common speech-recognition rendering of decimals)
+  out=out.replace(/\b(\d{1,4})\s+(\d{1,2})\s*(m(?:2|²)|mètres?\s*carrés?)/g,'$1,$2 $3');
+  return out.trim();
+}
 function extractNumber(text, patterns){
   for(const p of patterns){
     const m=text.match(p);
@@ -87,65 +102,88 @@ function yesNo(text, yesPatterns, noPatterns=[]){
 }
 function localStructure(){
   const raw=$('#notes').value.trim();
-  const t=raw.toLowerCase();
+  const t=normalizeFrenchNumbers(raw);
   const facts={};
-  const address=$('#address').value.trim(), type=$('#type').value.trim(), surface=$('#surface').value.trim();
+  const address=$('#address').value.trim(), type=$('#type').value.trim(), surfaceField=$('#surface').value.trim();
   if(address) facts['Adresse']=address;
   if(type) facts['Type']=type;
-  if(surface) facts['Surface habitable / Carrez']=surface+' m²';
 
-  const rooms=extractNumber(t,[/(\d+)\s*pi[eè]ces?/,/\bt\s*(\d+)\b/]);
-  const bedrooms=extractNumber(t,[/(\d+)\s*chambres?/,/chambre[^0-9]{0,15}(\d+)/]);
-  const land=extractNumber(t,[/(?:terrain|parcelle)[^0-9]{0,20}(\d+(?:[.,]\d+)?)\s*m/]);
-  const terrace=extractNumber(t,[/terrasse[^0-9]{0,20}(\d+(?:[.,]\d+)?)\s*m/]);
-  const garage=extractNumber(t,[/garage[^0-9]{0,20}(\d+(?:[.,]\d+)?)\s*m/]);
-  const cellar=extractNumber(t,[/(?:cave|cellier)[^0-9]{0,20}(\d+(?:[.,]\d+)?)\s*m/]);
-  const parking=extractNumber(t,[/(\d+)\s*(?:places?|stationnements?)/]);
-  const dpe=(t.match(/\bdpe\s*[:\-]?\s*([a-g])\b/)||[])[1];
+  let surface=surfaceField || extractNumber(t,[
+    /(?:surface(?:\s+habitable|\s+carrez)?|loi carrez)[^0-9]{0,20}(\d+(?:[.,]\d+)?)\s*(?:m2|m²|mètres?\s*carrés?)/,
+    /(?:appartement|maison|villa|studio)[^0-9]{0,25}(?:de|d'environ|environ)?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|mètres?\s*carrés?)/,
+    /\b(\d+(?:[.,]\d+)?)\s*(?:m2|m²|mètres?\s*carrés?)\b/
+  ]);
+  if(surface) facts['Surface habitable / Carrez']=String(surface).replace('.',',')+' m²';
+
+  const rooms=extractNumber(t,[/\b(\d+)\s*pi[eè]ces?\b/,/\bt\s*(\d+)\b/]);
+  const bedrooms=extractNumber(t,[/\b(\d+)\s*chambres?\b/]);
+  const levels=extractNumber(t,[/\b(?:sur|avec)\s*(\d+)\s*niveaux?\b/,/\b(\d+)\s*niveaux?\b/]);
+  const land=extractNumber(t,[/(?:terrain|parcelle)[^0-9]{0,20}(\d+(?:[.,]\d+)?)\s*(?:m2|m²|mètres?\s*carrés?)/]);
+  const terrace=extractNumber(t,[/terrasse[^0-9]{0,20}(\d+(?:[.,]\d+)?)\s*(?:m2|m²|mètres?\s*carrés?)/]);
+  const balcony=extractNumber(t,[/balcon[^0-9]{0,20}(\d+(?:[.,]\d+)?)\s*(?:m2|m²|mètres?\s*carrés?)/]);
+  const garage=extractNumber(t,[/garage[^0-9]{0,20}(\d+(?:[.,]\d+)?)\s*(?:m2|m²|mètres?\s*carrés?)/]);
+  const cellar=extractNumber(t,[/(?:cave|cellier)[^0-9]{0,20}(\d+(?:[.,]\d+)?)\s*(?:m2|m²|mètres?\s*carrés?)/]);
+  const parking=extractNumber(t,[/\b(\d+)\s*(?:places?|stationnements?)\b/]);
+  const dpe=(t.match(/\bdpe\s*(?:est|class[ée]|:|-)?\s*([a-g])\b/)||[])[1];
 
   if(rooms) facts['Pièces']=rooms;
   if(bedrooms) facts['Chambres']=bedrooms;
-  if(land) facts['Terrain']=land+' m²';
-  if(terrace) facts['Terrasse']=terrace+' m²';
-  if(garage) facts['Garage']=garage+' m²';
-  if(cellar) facts['Cave / cellier']=cellar+' m²';
+  if(levels) facts['Niveaux']=levels;
+  if(land) facts['Terrain']=land.replace('.',',')+' m²';
+  if(terrace) facts['Terrasse']=terrace.replace('.',',')+' m²';
+  if(balcony) facts['Balcon']=balcony.replace('.',',')+' m²';
+  if(garage) facts['Garage']=garage.replace('.',',')+' m²';
+  if(cellar) facts['Cave / cellier']=cellar.replace('.',',')+' m²';
   if(parking) facts['Stationnement']=parking+' place(s)';
+  else if(/\bparking\b|\bstationnement\b/.test(t)) facts['Stationnement']='Mentionné';
   if(dpe) facts['DPE']=dpe.toUpperCase();
 
-  const exposures=['sud-est','sud est','sud-ouest','sud ouest','plein sud','sud','nord-est','nord est','nord-ouest','nord ouest','est','ouest','nord'];
-  const exp=exposures.find(x=>t.includes(x));
-  if(exp) facts['Exposition']=exp.replace('plein ','').replace('-', ' ').toUpperCase();
+  // Exposure only when explicitly attached to an orientation concept; avoids "la vue est belle" => EST.
+  const expPatterns=[
+    [/(?:expos[ée]|exposition|orient[ée]|orientation)\s+(?:plein\s+)?sud[\s-]?est\b/,'SUD-EST'],
+    [/(?:expos[ée]|exposition|orient[ée]|orientation)\s+(?:plein\s+)?sud[\s-]?ouest\b/,'SUD-OUEST'],
+    [/(?:expos[ée]|exposition|orient[ée]|orientation)\s+nord[\s-]?est\b/,'NORD-EST'],
+    [/(?:expos[ée]|exposition|orient[ée]|orientation)\s+nord[\s-]?ouest\b/,'NORD-OUEST'],
+    [/(?:expos[ée]|exposition|orient[ée]|orientation)\s+(?:plein\s+)?sud\b/,'SUD'],
+    [/(?:expos[ée]|exposition|orient[ée]|orientation)\s+(?:plein\s+)?ouest\b/,'OUEST'],
+    [/(?:expos[ée]|exposition|orient[ée]|orientation)\s+(?:plein\s+)?est\b/,'EST'],
+    [/(?:expos[ée]|exposition|orient[ée]|orientation)\s+(?:plein\s+)?nord\b/,'NORD']
+  ];
+  const ep=expPatterns.find(([r])=>r.test(t)); if(ep) facts['Exposition']=ep[1];
 
   const heating=[];
-  if(/chauffage[^.]{0,40}électrique|radiateurs?\s+électriques?/.test(t)) heating.push('Électrique');
-  if(/pompe à chaleur|pac\b/.test(t)) heating.push('Pompe à chaleur');
-  if(/gaz/.test(t)) heating.push('Gaz');
-  if(/fioul/.test(t)) heating.push('Fioul');
-  if(/po[eê]le/.test(t)) heating.push('Poêle');
+  if(/chauffage[^.]{0,45}[ée]lectrique|radiateurs?\s+[ée]lectriques?/.test(t)) heating.push('Électrique');
+  if(/pompe [àa] chaleur|\bpac\b/.test(t)) heating.push('Pompe à chaleur');
+  if(/chauffage[^.]{0,30}gaz|chaudi[eè]re[^.]{0,20}gaz/.test(t)) heating.push('Gaz');
+  if(/\bfioul\b/.test(t)) heating.push('Fioul');
+  if(/\bpo[eê]le\b/.test(t)) heating.push('Poêle');
   if(heating.length) facts['Chauffage']=[...new Set(heating)].join(' + ');
 
-  const dg=yesNo(t,[/double vitrage/],[/simple vitrage/]);
-  if(dg) facts['Double vitrage']=dg;
-  const ac=yesNo(t,[/climatisation|clim\b/],[/pas de clim|sans clim/]);
-  if(ac) facts['Climatisation']=ac;
-  const pool=yesNo(t,[/piscine/],[/pas de piscine|sans piscine/]);
-  if(pool) facts['Piscine']=pool;
+  const dg=yesNo(t,[/double vitrage/],[/simple vitrage/]); if(dg) facts['Double vitrage']=dg;
+  const ac=yesNo(t,[/climatisation|\bclim\b/],[/pas de climatisation|pas de clim\b|sans climatisation|sans clim\b/]); if(ac) facts['Climatisation']=ac;
+  const pool=yesNo(t,[/\bpiscine\b/],[/pas de piscine|sans piscine/]); if(pool) facts['Piscine']=pool;
+  const elevator=yesNo(t,[/ascenseur/],[/sans ascenseur|pas d'ascenseur/]); if(elevator) facts['Ascenseur']=elevator;
 
   const states=[
-    [/tr[eè]s bon [ée]tat/,'Très bon état'],
+    [/tr[eè]s bon [ée]tat|excellent [ée]tat/,'Très bon état'],
     [/bon [ée]tat/,'Bon état'],
-    [/rafra[iî]chissement|à rafra[iî]chir/,'Rafraîchissement à prévoir'],
-    [/travaux|à r[ée]nover|r[ée]novation/,'Travaux / rénovation à prévoir']
+    [/rafra[iî]chissement|[àa] rafra[iî]chir/,'Rafraîchissement à prévoir'],
+    [/gros travaux|[àa] r[ée]nover|r[ée]novation compl[eè]te/,'Rénovation importante à prévoir'],
+    [/\btravaux\b|\br[ée]novation\b/,'Travaux à prévoir']
   ];
-  const st=states.find(([p])=>p.test(t)); if(st) facts['État']=st[1];
+  const st=states.find(([r])=>r.test(t)); if(st) facts['État']=st[1];
 
   const features=[];
-  if(/vue/.test(t)) features.push('Vue mentionnée');
+  if(/\bvue\b/.test(t)) features.push('Vue mentionnée');
+  if(/vue[^.]{0,30}(belle|d[ée]gag[ée]e|panoramique|mer|montagne)/.test(t)) features.push('Vue valorisante à vérifier');
   if(/plain[- ]pied/.test(t)) features.push('Plain-pied mentionné');
   if(/volets? roulants?/.test(t)) features.push('Volets roulants');
   if(/persiennes?/.test(t)) features.push('Persiennes');
-  if(/fibre/.test(t)) features.push('Fibre');
-  if(features.length) facts['Éléments relevés']=features.join(' · ');
+  if(/\bfibre\b/.test(t)) features.push('Fibre');
+  if(/\bjardin\b/.test(t)) features.push('Jardin');
+  if(/\bcour\b/.test(t)) features.push('Cour');
+  if(/\bchemin[ée]e\b/.test(t)) features.push('Cheminée');
+  if(features.length) facts['Éléments relevés']=[...new Set(features)].join(' · ');
 
   facts['Notes de visite']=raw;
   return facts;
