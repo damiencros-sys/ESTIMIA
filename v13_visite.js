@@ -20,8 +20,15 @@ function owner(t){
  return '';
 }
 function commune(t){
- let m=t.match(/(?:commune de|sur la commune de|à|sur)\s+([A-ZÀ-ÖØ-Ý][\p{L}'’-]+(?:[-\s][A-ZÀ-ÖØ-Ýa-zà-öø-ÿ][\p{L}'’-]+){0,3})(?=\s*(?:,|section|parcelle|cadastre|\.|$))/u);
- return m?clean(m[1]):'';
+ const tidy=v=>clean(v).replace(/\s+(?:section|parcelle|cadastre|cadastrale|code postal)\b.*$/iu,'').replace(/[,:;.\s]+$/,'');
+ let m=t.match(/\b(\d{5})\s+([^,.;!?]+)/iu);
+ if(m)return {name:tidy(m[2]),postcode:m[1]};
+ m=t.match(/(?:code postal|cp)\s*(\d{5})[^.!?]{0,35}?(?:commune(?: de)?|ville(?: de)?|à|sur)\s+([^,.;!?]+)/iu);
+ if(m)return {name:tidy(m[2]),postcode:m[1]};
+ m=t.match(/(?:commune de|sur la commune de|ville de)\s+([^,.;!?]+)/iu);
+ if(m)return {name:tidy(m[1]),postcode:''};
+ m=t.match(/(?:à|sur)\s+([^,.;!?]+?)(?:\s+(?:section|parcelle|cadastre)\b|[,;.!?])/iu);
+ return m?{name:tidy(m[1]),postcode:''}:null;
 }
 function cad(t){
  let m=t.match(/(?:r[ée]f[ée]rence cadastrale|cadastre|cadastrale?|parcelle)[^.!?]{0,80}?\bsection\s+([a-z]{1,3})[^0-9]{0,30}(?:parcelle|num[ée]ro|n°)?\s*(\d{1,4})/i);
@@ -167,21 +174,39 @@ function state(t){
  if(/retrait de cr[eé]pi/i.test(t))r.push(['Enduit / crépi','Retrait de crépi signalé']);
  if(/humidit[ée]/i.test(t))r.push(['Humidité','Humidité signalée']);return r;
 }
-async function normalizeCommune(q){
+async function normalizeCommune(q,postcode=''){
  if(!q)return null;
+ const query=[postcode,q].filter(Boolean).join(' ').trim();
  try{
-  const r=await fetch('/api/commune?q='+encodeURIComponent(q)),j=await r.json();
-  if(j.result){$('#cadCommune').value=j.result.name;return j.result} 
- }catch(e){} return null;
+  const r=await fetch('/api/commune?q='+encodeURIComponent(query)),j=await r.json();
+  if(r.ok&&j.result){
+   $('#cadCommune').value=j.result.name||q;
+   $('#cadCommune').dataset.insee=j.result.code||'';
+   $('#cadCommune').dataset.postcode=j.result.postcode||postcode||'';
+   return j.result;
+  }
+ }catch(e){}
+ if(!$('#cadCommune').value)$('#cadCommune').value=q;
+ return null;
 }
 async function parcelSearch(){
- const com=$('#cadCommune').value.trim(),sec=$('#cadSection').value.trim(),par=$('#cadParcel').value.trim();
+ const field=$('#cadCommune'),sec=$('#cadSection').value.trim().toUpperCase(),par=$('#cadParcel').value.trim();
+ let com=field.value.trim();
  if(!com||!sec||!par){$('#cadStatus').textContent='Commune, section et parcelle nécessaires.';return}
- $('#cadStatus').textContent='Recherche cadastrale…';
+ $('#cadStatus').textContent='Recherche de la commune puis de la parcelle…';
  try{
-  const r=await fetch(`/api/cadastre?commune=${encodeURIComponent(com)}&section=${encodeURIComponent(sec)}&numero=${encodeURIComponent(par)}`),j=await r.json();
+  let insee=field.dataset.insee||'';
+  if(!insee){
+   const n=await normalizeCommune(com,field.dataset.postcode||'');
+   if(n){insee=n.code||'';com=n.name||com}
+  }
+  const r=await fetch(`/api/cadastre?commune=${encodeURIComponent(insee||com)}&section=${encodeURIComponent(sec)}&numero=${encodeURIComponent(par)}`),j=await r.json();
   if(!r.ok)throw new Error(j.detail||'Erreur');
-  $('#cadStatus').textContent=j.found?`✓ ${j.commune||com} — section ${j.section} — parcelle ${parseInt(j.numero,10)}`:'Parcelle non trouvée.';
+  if(j.found){
+   field.value=j.commune||com; field.dataset.insee=j.code_insee||insee;
+   $('#cadSection').value=j.section||sec; $('#cadParcel').value=String(parseInt(j.numero,10));
+   $('#cadStatus').textContent=`✓ Parcelle trouvée : ${j.commune||com} — section ${j.section} — parcelle ${parseInt(j.numero,10)}`;
+  }else $('#cadStatus').textContent=`Parcelle non trouvée pour ${j.commune||com} — section ${j.section||sec} — parcelle ${parseInt(j.numero||par,10)}.`;
  }catch(e){$('#cadStatus').textContent='Recherche impossible : '+e.message}
 }
 async function render(){
@@ -189,7 +214,7 @@ async function render(){
  const o=owner(t);if(o&&!$('#owner').value)$('#owner').value=o;
  const a=address(t);if(a&&!$('#address').value)$('#address').value=a;
  const c=cad(t);if(c.section&&!$('#cadSection').value)$('#cadSection').value=c.section;if(c.parcel&&!$('#cadParcel').value)$('#cadParcel').value=c.parcel;
- const cm=commune(t);if(cm&&!$('#cadCommune').value)await normalizeCommune(cm);
+ const cm=commune(t);if(cm&&!$('#cadCommune').value)await normalizeCommune(cm.name,cm.postcode);
  const typ=typeOf(t);if(typ&&!$('#type').value)$('#type').value=typ;
  const ss=surfaces(t), total=ss.filter(x=>x.cat==='Intérieur').reduce((a,x)=>a+x.val,0);
  let out='<div class="proGrid">'+card('Bien & construction','🏠',buildInfo(t))+'</div>';
