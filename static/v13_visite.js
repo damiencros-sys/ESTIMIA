@@ -208,7 +208,7 @@ function renderCadPlan(j){
  const box=ensureCadPlanBox();box.innerHTML='';if(!j||!j.found||!j.geometry)return;
  const title=document.createElement('div');title.innerHTML='<b>Plan cadastral — '+(j.commune||'')+' — section '+(j.section||'')+' — parcelle '+parseInt(j.numero,10)+'</b>';
  const img=document.createElement('img');img.alt='Plan de la parcelle cadastrale';img.style.cssText='display:block;width:100%;max-width:720px;max-height:460px;object-fit:contain;margin-top:8px;border:1px solid #ddd;border-radius:8px;background:#fff';
- img.src='/api/cadastre/map.png?commune='+encodeURIComponent(j.code_insee||j.commune||'')+'&section='+encodeURIComponent(j.section||'')+'&numero='+encodeURIComponent(parseInt(j.numero,10))+'&v=13.7';
+ img.src='/api/cadastre/map.png?commune='+encodeURIComponent(j.code_insee||j.commune||'')+'&section='+encodeURIComponent(j.section||'')+'&numero='+encodeURIComponent(parseInt(j.numero,10))+'&v=13.8';
  img.dataset.cadMap='1';
  const link=document.createElement('a');link.href=img.src;link.target='_blank';link.rel='noopener';link.textContent='Ouvrir le plan cadastral';link.style.cssText='display:inline-block;margin-top:8px';
  box.append(title,img,link);
@@ -265,22 +265,24 @@ function ficheTitle(){
 }
 
 async function verifyAddressV137(){
- const q=$('#address')?.value?.trim(); if(!q)return;
- $('#addressStatus').textContent='Vérification de l’adresse officielle…';
+ const input=$('#address'), original=input?.value?.trim(); if(!original)return;
+ const commune=$('#cadCommune')?.value?.trim()||'';
+ const insee=$('#cadCommune')?.dataset.insee||'';
+ const cp=$('#cadCommune')?.dataset.postcode||((original.match(/\b\d{5}\b/)||[])[0]||'');
+ $('#addressStatus').textContent='Vérification dans la Base Adresse Nationale (adresses issues des BAL)…';
  try{
-  const r=await fetch('/api/geocode?q='+encodeURIComponent(q));const j=await r.json();
-  if(!r.ok)throw new Error(j.detail||'Recherche impossible');
-  const items=j.results||[];
-  if(!items.length){$('#addressStatus').textContent='Aucune adresse officielle proche trouvée.';return}
-  const x=items[0];
-  $('#address').value=x.label||q;
-  if(x.city){$('#cadCommune').value=x.city;$('#cadCommune').dataset.insee=x.citycode||'';$('#cadCommune').dataset.postcode=x.postcode||''}
-  $('#addressStatus').textContent='✓ Adresse vérifiée : '+(x.label||q);
- }catch(e){$('#addressStatus').textContent='Vérification indisponible : '+e.message}
+  const qs=new URLSearchParams({q:original}); if(cp)qs.set('postcode',cp); if(commune&&!/^\d{5}$/.test(commune))qs.set('city',commune); if(insee)qs.set('citycode',insee);
+  const r=await fetch('/api/geocode?'+qs.toString()), j=await r.json(); if(!r.ok)throw new Error(j.detail||'Recherche impossible');
+  const x=(j.results||[])[0];
+  if(!x){ $('#addressStatus').textContent='⚠ Adresse non retrouvée dans la BAL/BAN pour cette commune — adresse dictée conservée.'; return; }
+  input.value=x.label||original;
+  if(x.city){$('#cadCommune').value=x.city;$('#cadCommune').dataset.insee=x.citycode||insee;$('#cadCommune').dataset.postcode=x.postcode||cp}
+  $('#addressStatus').textContent='✓ Adresse vérifiée dans la BAL/BAN : '+(x.label||original);
+ }catch(e){ $('#addressStatus').textContent='⚠ Vérification indisponible — adresse dictée conservée.'; }
 }
 function cadMapURL(){
  const c=$('#cadCommune')?.value?.trim(),s=$('#cadSection')?.value?.trim(),p=$('#cadParcel')?.value?.trim();
- return c&&s&&p?'/api/cadastre/map.png?commune='+encodeURIComponent(c)+'&section='+encodeURIComponent(s)+'&numero='+encodeURIComponent(p)+'&v=13.7':'';
+ return c&&s&&p?'/api/cadastre/map.png?commune='+encodeURIComponent(c)+'&section='+encodeURIComponent(s)+'&numero='+encodeURIComponent(p)+'&v=13.8':'';
 }
 async function downloadWord(){
  const payload={
