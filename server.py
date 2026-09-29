@@ -1,10 +1,10 @@
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from pathlib import Path
-import os, json, uuid, urllib.request, urllib.error, urllib.parse, mimetypes, re
+import os, json, uuid, urllib.request, urllib.error, urllib.parse, mimetypes, re, math, io
 
 BASE=Path(__file__).resolve().parent
 DATA=BASE/"data"; DATA.mkdir(exist_ok=True)
@@ -161,6 +161,110 @@ def cadastre_plan(commune:str, section:str, numero:str):
         return Response(content=svg,media_type="image/svg+xml",headers={"Cache-Control":"no-store"})
     except HTTPException: raise
     except Exception: raise HTTPException(502,"Impossible de générer le plan cadastral pour le moment.")
+
+def _lonlat_points(geometry):
+    rings=_geom_rings(geometry)
+    return [(float(p[0]),float(p[1])) for ring in rings for p in ring if isinstance(p,list) and len(p)>=2]
+
+def _tile_xy(lon,lat,z):
+    lat=max(min(lat,85.05112878),-85.05112878)
+    n=2**z
+    x=(lon+180.0)/360.0*n
+    y=(1.0-math.asinh(math.tan(math.radians(lat)))/math.pi)/2.0*n
+    return x,y
+
+def _context_map_png(commune,section,numero,width=760,height=520):
+    from PIL import Image, ImageDraw, ImageFont
+    f,name,code,sec,no=_parcel_feature(commune,section,numero)
+    if not f: raise HTTPException(404,"Parcelle non trouvée.")
+    geom=f.get("geometry"); pts=_lonlat_points(geom)
+    if not pts: raise HTTPException(404,"Géométrie cadastrale indisponible.")
+    lon=sum(p[0] for p in pts)/len(pts); lat=sum(p[1] for p in pts)/len(pts)
+    z=18
+    cx,cy=_tile_xy(lon,lat,z); tx,ty=int(cx),int(cy)
+    tile=256; radius=2
+    canvas=Image.new("RGB",(tile*(radius*2+1),tile*(radius*2+1)),"white")
+    for ix in range(tx-radius,tx+radius+1):
+        for iy in range(ty-radius,ty+radius+1):
+            try:
+                u=f"https://tile.openstreetmap.org/{z}/{ix}/{iy}.png"
+                req=urllib.request.Request(u,headers={"User-Agent":"ESTIMIA/13.7 contact: local-real-estate-tool"})
+                with urllib.request.urlopen(req,timeout=12) as r:
+                    im=Image.open(io.BytesIO(r.read())).convert("RGB")
+                canvas.paste(im,((ix-(tx-radius))*tile,(iy-(ty-radius))*tile))
+            except Exception:
+                pass
+    # coordinates in stitched tile canvas
+    ox=(tx-radius)*tile; oy=(ty-radius)*tile
+    def px(p):
+        x,y=_tile_xy(float(p[0]),float(p[1]),z)
+        return ((x*tile)-ox,(y*tile)-oy)
+    draw=ImageDraw.Draw(canvas,"RGBA")
+    for ring in _geom_rings(geom):
+        poly=[px(p) for p in ring if len(p)>=2]
+        if len(poly)>=3:
+            draw.polygon(poly,fill=(255,40,40,65),outline=(230,0,0,255),width=5)
+    mx,my=px((lon,lat))
+    draw.ellipse((mx-12,my-12,mx+12,my+12),fill=(35,190,70,255),outline=(255,255,255,255),width=3)
+    # crop around parcel center
+    left=max(0,int(mx-width/2)); top=max(0,int(my-height/2))
+    left=min(left,max(0,canvas.width-width)); top=min(top,max(0,canvas.height-height))
+    out=canvas.crop((left,top,left+width,top+height))
+    d=ImageDraw.Draw(out,"RGBA")
+    d.rectangle((0,height-28,width, height),fill=(255,255,255,220))
+    d.text((8,height-22),f"{name} - Section {sec} - Parcelle {int(no)} | Fond © OpenStreetMap contributors",fill=(20,20,20,255))
+    bio=io.BytesIO(); out.save(bio,format="PNG",optimize=True); bio.seek(0)
+    return bio,name,code,sec,no
+
+@app.get("/api/cadastre/map.png")
+def cadastre_context_map(commune:str, section:str, numero:str):
+    bio,_,_,_,_=_context_map_png(commune,section,numero)
+    return StreamingResponse(bio,media_type="image/png",headers={"Cache-Control":"no-store"})
+
+class WordPayload(BaseModel):
+    owner:str=""
+    phone:str=""
+    address:str=""
+    commune:str=""
+    section:str=""
+    parcel:str=""
+    property_type:str=""
+    surface:str=""
+    facts:str=""
+
+@app.post("/api/word")
+def word_export(p:WordPayload):
+    from docx import Document
+    from docx.shared import Inches, Pt
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+    doc=Document()
+    sec=doc.sections[0]; sec.top_margin=Inches(.55);sec.bottom_margin=Inches(.55);sec.left_margin=Inches(.65);sec.right_margin=Inches(.65)
+    h=doc.add_heading("FICHE DE VISITE IMMOBILIÈRE",0); h.alignment=WD_ALIGN_PARAGRAPH.CENTER
+    table=doc.add_table(rows=0,cols=2); table.alignment=WD_TABLE_ALIGNMENT.CENTER
+    meta=[("Propriétaire",p.owner),("Téléphone",p.phone),("Adresse",p.address),("Commune",p.commune),
+          ("Section",p.section),("Parcelle",p.parcel),("Type",p.property_type),("Surface annoncée",(p.surface+" m²") if p.surface else "")]
+    for k,v in meta:
+        if v:
+            cells=table.add_row().cells; cells[0].text=k; cells[1].text=v
+    if p.commune and p.section and p.parcel:
+        try:
+            img,_,_,_,_=_context_map_png(p.commune,p.section,p.parcel,760,500)
+            doc.add_heading("Plan cadastral",level=1)
+            doc.add_picture(img,width=Inches(6.7))
+            cap=doc.paragraphs[-1]; cap.alignment=WD_ALIGN_PARAGRAPH.CENTER
+            q=doc.add_paragraph(f"Section {p.section.upper()} — Parcelle {int(re.sub(r'\\D','',p.parcel) or '0')}")
+            q.alignment=WD_ALIGN_PARAGRAPH.CENTER
+        except Exception:
+            doc.add_paragraph("Plan cadastral indisponible au moment de l’export.")
+    if p.facts.strip():
+        doc.add_heading("Fiche de visite",level=1)
+        for line in [x.strip() for x in p.facts.splitlines() if x.strip()]:
+            doc.add_paragraph(line)
+    out=io.BytesIO(); doc.save(out); out.seek(0)
+    safe=re.sub(r"[^A-Za-z0-9_-]+","_",p.owner or p.address or "bien").strip("_") or "bien"
+    return StreamingResponse(out,media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition":f'attachment; filename="Fiche_visite_{safe}.docx"'})
 
 @app.post("/api/transcribe")
 async def transcribe(audio: UploadFile=File(...)):
