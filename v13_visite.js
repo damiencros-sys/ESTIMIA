@@ -45,24 +45,35 @@ function buildInfo(t){
 // Un simple "étage" passe au 1er étage s'il n'y a pas encore eu d'étage, puis
 // au niveau suivant seulement lorsqu'il est employé comme annonce de nouvelle zone.
 function markers(text){
- const rx=/(retour (?:au|à l[' ])\s*(?:rez[- ]de[- ]chauss[ée]e|rdc|1er|premier|2e|2ème|deuxi[eè]me|3e|3ème|troisi[eè]me)(?:\s+[ée]tage)?|sous[- ]sol|rez[- ]de[- ]jardin|rez[- ]de[- ]chauss[ée]e|\brdc\b|combles?|(?:au |à l[' ]|le )?(?:1er|premier|2e|2ème|deuxi[eè]me|3e|3ème|troisi[eè]me|4e|4ème|quatri[eè]me)\s+[ée]tage|(?:à l[' ]autre|autre|[ée]tage) [ée]tage|[ée]tage sup[ée]rieur|on monte encore(?: d[' ]un [ée]tage)?|on monte (?:à|au) l[' ][ée]tage|(?:^|[.!?,;:]\s*)[ée]tage(?=\s*[:,.-]|\s+(?:il y a|on trouve|avec|chambre|salle|bureau|palier|d[ée]gagement|wc)))/ig;
- const a=[]; let currentFloor=0, seenFloor=false;
- for(const m of text.matchAll(rx)){
-   const x=low(m[0]); let name='', floor=null;
-   if(/sous-sol/.test(x)){name='Sous-sol';}
-   else if(/rez-de-jardin/.test(x)){name='Rez-de-jardin';}
-   else if(/rez-de-chaussée|\brdc\b/.test(x)){name='Rez-de-chaussée';currentFloor=0;}
-   else if(/combles?/.test(x)){name='Combles';}
-   else if(/4e|4ème|quatrième/.test(x)){floor=4;}
-   else if(/3e|3ème|troisième/.test(x)){floor=3;}
-   else if(/2e|2ème|deuxième/.test(x)){floor=2;}
-   else if(/1er|premier/.test(x)){floor=1;}
-   else if(/autre étage|étage supérieur|monte encore/.test(x)){floor=Math.max(1,currentFloor+1);}
-   else { floor=seenFloor?Math.max(1,currentFloor+1):1; }
-   if(floor!==null){currentFloor=floor;seenFloor=true;name=floor===1?'1er étage':floor+'e étage';}
-   if(name)a.push({i:m.index,end:m.index+m[0].length,name});
+ const candidates=[];
+ const add=(rx,kind,floor=null)=>{for(const m of text.matchAll(rx))candidates.push({i:m.index,end:m.index+m[0].length,kind,floor})};
+ add(/\b(?:rez\s*[- ]?\s*de\s*[- ]?\s*chauss[ée]e|rdc)\b/ig,'rdc');
+ add(/\brez\s*[- ]?\s*de\s*[- ]?\s*jardin\b/ig,'rdj');
+ add(/\bsous\s*[- ]?\s*sol\b/ig,'ss');
+ add(/\bcombles?\b/ig,'combles');
+ add(/\b(?:1er|premier)\s+[ée]tage\b/ig,'floor',1);
+ add(/\b(?:2e|2ème|deuxi[eè]me)\s+[ée]tage\b/ig,'floor',2);
+ add(/\b(?:3e|3ème|troisi[eè]me)\s+[ée]tage\b/ig,'floor',3);
+ add(/\b(?:4e|4ème|quatri[eè]me)\s+[ée]tage\b/ig,'floor',4);
+ add(/(?:[aà]\s+l['’ ]?\s*autre\s+[ée]tage|autre\s+[ée]tage|[ée]tage\s+sup[ée]rieur|on\s+monte\s+encore(?:\s+d['’ ]un\s+[ée]tage)?)/ig,'next');
+ add(/(?:[aà]\s+l['’ ]?\s*[ée]tage|au\s+[ée]tage|on\s+(?:passe|monte)\s+(?:[aà]\s+l['’ ]?\s*|au\s+)[ée]tage)/ig,'implicit');
+ add(/(?:^|[.!?,;:]\s*)[ée]tage(?=\s*[:,.-]|\s+(?:il\s+y\s+a|on\s+trouve|avec|chambre|salle|bureau|palier|d[ée]gagement|wc|nous|je))/ig,'implicit');
+ candidates.sort((x,y)=>x.i-y.i||(y.end-y.i)-(x.end-x.i));
+ const chosen=[];for(const c of candidates){if(chosen.some(z=>c.i<z.end&&c.end>z.i))continue;chosen.push(c)}
+ chosen.sort((x,y)=>x.i-y.i);
+ const out=[];let current=0,seen=false;
+ for(const c of chosen){
+  let name='';
+  if(c.kind==='rdc'){name='Rez-de-chaussée';current=0}
+  else if(c.kind==='rdj')name='Rez-de-jardin';
+  else if(c.kind==='ss')name='Sous-sol';
+  else if(c.kind==='combles')name='Combles';
+  else if(c.kind==='floor'){current=c.floor;seen=true;name=current===1?'1er étage':current+'e étage'}
+  else if(c.kind==='next'){current=Math.max(1,current+1);seen=true;name=current===1?'1er étage':current+'e étage'}
+  else {current=seen?Math.max(1,current+1):1;seen=true;name=current===1?'1er étage':current+'e étage'}
+  out.push({i:c.i,end:c.end,name});
  }
- return a;
+ return out;
 }
 function surfaces(text){
  const ms=markers(text), out=[];
