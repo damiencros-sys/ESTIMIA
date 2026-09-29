@@ -4,7 +4,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from pathlib import Path
-import os, json, uuid, urllib.request, urllib.error, mimetypes, re
+import os, json, uuid, urllib.request, urllib.error, urllib.parse, mimetypes, re
 
 BASE=Path(__file__).resolve().parent
 DATA=BASE/"data"; DATA.mkdir(exist_ok=True)
@@ -13,6 +13,70 @@ app.mount("/static",StaticFiles(directory=BASE/"static"),name="static")
 
 @app.get("/")
 def home(): return FileResponse(BASE/"static"/"index.html")
+
+
+def get_json(url, timeout=20):
+    req=urllib.request.Request(url,headers={"User-Agent":"ESTIMIA/10"})
+    with urllib.request.urlopen(req,timeout=timeout) as r:
+        return json.loads(r.read())
+
+@app.get("/api/geocode")
+def geocode(q:str):
+    """Recherche/normalisation d'adresse via le service public IGN Géoplateforme."""
+    q=q.strip()
+    if len(q)<3: return {"results":[]}
+    url="https://data.geopf.fr/geocodage/search/?"+urllib.parse.urlencode({"q":q,"limit":6})
+    try:
+        data=get_json(url)
+        out=[]
+        for f in data.get("features",[])[:6]:
+            p=f.get("properties",{})
+            out.append({
+                "label":p.get("label") or p.get("name") or "",
+                "postcode":p.get("postcode") or "",
+                "city":p.get("city") or p.get("municipality") or "",
+                "citycode":p.get("citycode") or p.get("city_code") or "",
+                "score":p.get("score"),
+                "parcels":p.get("cad_parcelles") or p.get("parcelles") or [],
+                "coordinates":(f.get("geometry") or {}).get("coordinates")
+            })
+        return {"results":out}
+    except Exception as e:
+        raise HTTPException(502,"Le service public d'adresses ne répond pas pour le moment.")
+
+@app.get("/api/cadastre")
+def cadastre(commune:str, section:str, numero:str):
+    """Recherche directe d'une parcelle cadastrale. Le code INSEE est préférable."""
+    commune=commune.strip()
+    code_insee=commune if re.fullmatch(r"\d{5}",commune) else ""
+    if not code_insee:
+        # Résout d'abord le nom de commune avec le géocodeur public.
+        try:
+            u="https://data.geopf.fr/geocodage/search/?"+urllib.parse.urlencode({"q":commune,"type":"municipality","limit":1})
+            d=get_json(u)
+            fs=d.get("features",[])
+            if fs:
+                pr=fs[0].get("properties",{})
+                code_insee=pr.get("citycode") or pr.get("city_code") or ""
+        except Exception:
+            pass
+    if not code_insee:
+        raise HTTPException(400,"Commune non reconnue : indique le nom exact ou le code INSEE.")
+    sec=section.upper().strip()
+    no=re.sub(r"\D","",numero).zfill(4)
+    url="https://apicarto.ign.fr/api/cadastre/parcelle?"+urllib.parse.urlencode({"code_insee":code_insee,"section":sec,"numero":no})
+    try:
+        d=get_json(url)
+        fs=d.get("features",[])
+        if not fs: return {"found":False,"code_insee":code_insee}
+        pr=fs[0].get("properties",{})
+        return {"found":True,"code_insee":code_insee,"section":sec,"numero":no,
+                "label":f"{code_insee} section {sec} parcelle {int(no)}",
+                "properties":pr}
+    except Exception:
+        raise HTTPException(502,"Le service cadastral public ne répond pas pour le moment.")
+
+
 
 def api_key():
     k=os.getenv("OPENAI_API_KEY")
@@ -93,10 +157,14 @@ points_a_pondérer, questions_a_confirmer."""
     except Exception as e: raise HTTPException(500,str(e))
 
 @app.post("/api/save")
-async def save(address:str=Form(""),type:str=Form(""),surface:str=Form(""),notes:str=Form(""),correction:str=Form(""),photos:list[UploadFile]=File(default=[])):
+async def save(address:str=Form(""),type:str=Form(""),surface:str=Form(""),notes:str=Form(""),correction:str=Form(""),
+               owner:str=Form(""),owner_phone:str=Form(""),cad_commune:str=Form(""),cad_section:str=Form(""),cad_parcel:str=Form(""),
+               photos:list[UploadFile]=File(default=[])):
     did="EST-"+uuid.uuid4().hex[:8].upper()
     folder=DATA/did; folder.mkdir()
-    meta={"id":did,"address":address,"type":type,"surface":surface,"notes":notes,"correction":correction}
+    meta={"id":did,"owner":owner,"owner_phone":owner_phone,"address":address,"type":type,"surface":surface,
+          "cadastre":{"commune":cad_commune,"section":cad_section,"parcel":cad_parcel},
+          "notes":notes,"correction":correction}
     saved=0
     for i,p in enumerate(photos[:60],1):
         raw=await p.read()

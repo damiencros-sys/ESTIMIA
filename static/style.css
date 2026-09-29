@@ -49,3 +49,25 @@ textarea{resize:vertical}.cols{display:grid;grid-template-columns:1fr 1fr;gap:10
  body{background:#fff}.card{box-shadow:none;border:0}.proGroup{break-inside:avoid}
  .rawNotes{display:none}.proGrid{grid-template-columns:1fr 1fr}
 }
+
+/* V10 */
+.identityGrid,.cadGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.addressLine{display:flex;gap:8px}.addressLine input{flex:1}
+.cadastreBox{margin:12px 0;padding:12px;border:1px solid var(--line);border-radius:14px;background:#f8fbfc}
+.cadGrid{grid-template-columns:2fr 1fr 1fr auto;margin-top:8px;align-items:end}
+.suggestions{display:grid;gap:6px;margin:8px 0}
+.suggestion{text-align:left;border:1px solid var(--line);background:#fff;border-radius:12px;padding:10px;cursor:pointer}
+.suggestion b,.suggestion small{display:block}.suggestion small{margin-top:3px;color:var(--muted)}
+.dossierHead{display:grid;grid-template-columns:1fr 2fr;gap:10px;margin-bottom:14px}
+.dossierHead>div{border:1px solid var(--line);border-radius:14px;padding:12px;background:#fff}
+.dossierHead span,.dossierHead strong{display:block}.dossierHead span{font-size:12px;color:var(--muted);margin-bottom:5px}
+.surfaceHero{border:2px solid var(--accent);border-radius:16px;padding:14px;margin:0 0 16px;background:#fff}
+.surfaceHero>h3{margin:0 0 12px;color:var(--accent)}
+.surfaceDeclared,.surfaceRow,.surfaceTotal,.grandTotal{display:flex;justify-content:space-between;gap:15px;padding:7px 2px;border-bottom:1px solid #edf1f3}
+.levelBlock{margin:12px 0}.levelBlock h4,.otherSurface h4{margin:8px 0}
+.surfaceTotal{font-weight:800;border-top:1px solid var(--line)}
+.grandTotal{margin-top:12px;padding:12px;border-radius:10px;background:#eef5f8;border:0;font-size:17px}
+.surfaceDiff{padding:9px 2px}.surfaceDiff.warn{font-weight:700}
+.otherSurface{margin-top:12px;padding-top:5px;border-top:1px solid var(--line)}
+@media(max-width:650px){.identityGrid,.dossierHead{grid-template-columns:1fr}.cadGrid{grid-template-columns:1fr 1fr}.cadGrid label:first-child{grid-column:1/-1}.addressLine{align-items:stretch}.addressLine .miniBtn{white-space:nowrap}}
+@media print{.cadastreBox,#addressSuggestions,#addressStatus{display:none!important}.surfaceHero{break-inside:avoid}.dossierHead{grid-template-columns:1fr 2fr}}

@@ -385,6 +385,8 @@ $('#save').addEventListener('click',async()=>{
   const fd=new FormData();
   fd.append('address',$('#address').value);fd.append('type',$('#type').value);fd.append('surface',$('#surface').value);
   fd.append('notes',$('#notes').value);fd.append('correction',$('#correction').value);
+  fd.append('owner',$('#owner')?.value||'');fd.append('owner_phone',$('#ownerPhone')?.value||'');
+  fd.append('cad_commune',$('#cadCommune')?.value||'');fd.append('cad_section',$('#cadSection')?.value||'');fd.append('cad_parcel',$('#cadParcel')?.value||'');
   photoFiles.forEach(f=>fd.append('photos',f));
   try{
     const r=await fetch('/api/save',{method:'POST',body:fd});const j=await r.json();if(!r.ok)throw new Error(j.detail||'Erreur');
