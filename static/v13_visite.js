@@ -117,72 +117,93 @@ function surfHTML(rows){
  if(ext.length)s+=`<div class="otherSurface"><h4>🌳 Extérieurs — hors total intérieur</h4>${ext.map(x=>`<div class="surfaceRow"><span>${E(x.name)} — ${E(x.lvl)}</span><b>${fmt(x.val)}</b></div>`).join('')}</div>`;
  return s+'</section>';
 }
+// V13.9 — extraction factuelle : une information = un fait immobilier.
+function clauses(t){
+ const x=clean(t).replace(/\s+(?=(?:présence|absence|la maison|le bien|il y a|avec|sans|compteur|chauffage|eau chaude|fibre|assainissement|charpente|toiture|façade|jardin|terrasse|cabanon|taxe foncière)\b)/gi,'. ');
+ return x.split(/(?<=[.!?;])\s+|\s*,\s*(?=(?:présence|absence|compteur|fibre|assainissement|charpente|toiture|façade|jardin|terrasse|cabanon)\b)/i).map(clean).filter(Boolean);
+}
+function factClause(t,rx){return clauses(t).filter(c=>rx.test(c));}
+function locAfter(c,rx){
+ const m=c.match(rx); if(!m)return '';
+ return clean(m[1]||'').replace(/\s+(?:pour|avec|et|mais|qui|la maison|le bien)\b.*$/i,'').replace(/[,. ]+$/,'');
+}
+function countExplicit(t,nounRx){
+ const m=t.match(new RegExp('\\b(\\d+)\\s+(?:'+nounRx+')','i'));return m?parseInt(m[1],10):null;
+}
 function sanitary(t){
- const occurrences=(rx)=>[...t.matchAll(rx)].length;
- const explicit=rx=>{const m=t.match(rx);return m?m[1]:''};
- let wc=explicit(/\b(\d+)\s+wc\b/i)||String(occurrences(/\bwc\b/gi)||'');
- let showers=explicit(/\b(\d+)\s+douches?\b/i)||String(occurrences(/\bdouche\b/gi)||'');
- let sde=explicit(/\b(\d+)\s+salles? d[' ]eau\b/i)||String(occurrences(/salle d[' ]eau/gi)||'');
- let sdb=explicit(/\b(\d+)\s+salles? de bains?\b/i)||String(occurrences(/salle de bains?/gi)||'');
- return [['Salle(s) d’eau',sde],['Douche(s)',showers],['Salle(s) de bains',sdb],['WC',wc],
- ['Équipements',uniq([/douche à l[' ]italienne/i.test(t)?"Douche à l'italienne":'',/double vasque/i.test(t)?'Double vasque':'',/s[eè]che[- ]serviettes/i.test(t)?'Sèche-serviettes':'']).join(' · ')]];
+ const cl=clauses(t), rows=[];
+ const sde=countExplicit(t,"salles? d[' ]eau") ?? cl.filter(c=>/salle d[' ]eau/i.test(c)&&/\b(?:une|1)\b|salle d[' ]eau/i.test(c)).length;
+ const sdb=countExplicit(t,'salles? de bains?') ?? cl.filter(c=>/salle de bains?/i.test(c)).length;
+ const wc=countExplicit(t,'wc|toilettes?') ?? cl.filter(c=>/\b(?:wc|toilettes?)\b/i.test(c)).length;
+ const shower=countExplicit(t,'douches?') ?? cl.filter(c=>/\bdouche\b/i.test(c)).length;
+ if(sde)rows.push(['Salle(s) d’eau',String(sde)]);if(sdb)rows.push(['Salle(s) de bains',String(sdb)]);if(shower)rows.push(['Douche(s)',String(shower)]);if(wc)rows.push(['WC',String(wc)]);
+ const eq=uniq([/douche à l[' ]italienne/i.test(t)?"Douche à l'italienne":'',/double vasque/i.test(t)?'Double vasque':'',/s[eè]che[- ]serviettes/i.test(t)?'Sèche-serviettes':'']);if(eq.length)rows.push(['Équipements',eq.join(' · ')]);
+ return rows;
 }
 function heating(t){
- let heat=[];
- if(/chaudi[eè]re[^.!?]{0,60}condensation[^.!?]{0,30}gaz|chaudi[eè]re[^.!?]{0,30}gaz[^.!?]{0,30}condensation/i.test(t))heat.push('Chaudière gaz à condensation');
- else if(/chaudi[eè]re[^.!?]{0,30}gaz/i.test(t))heat.push('Chaudière gaz');
- if(/po[eê]le[^.!?]{0,20}bois/i.test(t))heat.push('Poêle à bois');if(/po[eê]le[^.!?]{0,20}granul/i.test(t))heat.push('Poêle à granulés');
- if(/radiateurs?[^.!?]{0,25}[ée]lectriques?/i.test(t))heat.push('Radiateurs électriques');
+ const heat=[];
+ if(/chaudi[eè]re[^.!?]{0,70}condensation[^.!?]{0,40}gaz|chaudi[eè]re[^.!?]{0,40}gaz[^.!?]{0,40}condensation/i.test(t))heat.push('Chaudière gaz à condensation');
+ else if(/chaudi[eè]re[^.!?]{0,40}gaz/i.test(t))heat.push('Chaudière gaz');
+ if(/po[eê]le[^.!?]{0,25}bois/i.test(t))heat.push('Poêle à bois');if(/po[eê]le[^.!?]{0,25}granul/i.test(t))heat.push('Poêle à granulés');
+ if(/radiateurs?[^.!?]{0,30}[ée]lectriques?/i.test(t))heat.push('Radiateurs électriques');
  let ecs='';
- if(/(?:eau chaude|production d[' ]eau chaude)[^.!?]{0,100}chaudi[eè]re/i.test(t)||/chaudi[eè]re[^.!?]{0,100}(?:eau chaude|production d[' ]eau chaude)/i.test(t))
-  ecs=/condensation/i.test(t)&&/gaz/i.test(t)?'Chaudière gaz à condensation':'Chaudière';
- else if(/ballon thermodynamique/i.test(t))ecs='Ballon thermodynamique';else if(/cumulus|ballon[^.!?]{0,25}[ée]lectrique/i.test(t))ecs='Ballon électrique';
- return [['Mode(s) de chauffage',heat.join(' + ')],["Production d'eau chaude",ecs]];
+ if(/(?:eau chaude|ecs|production d[' ]eau chaude)[^.!?]{0,100}chaudi[eè]re|chaudi[eè]re[^.!?]{0,100}(?:eau chaude|ecs|production d[' ]eau chaude)/i.test(t)) ecs=/condensation/i.test(t)&&/gaz/i.test(t)?'Chaudière gaz à condensation':'Chaudière';
+ else if(/ballon thermodynamique/i.test(t))ecs='Ballon thermodynamique';else if(/cumulus|ballon[^.!?]{0,30}[ée]lectrique/i.test(t))ecs='Ballon électrique';
+ return [['Mode(s) de chauffage',uniq(heat).join(' + ')],["Production d'eau chaude",ecs]];
 }
-function contextLocation(t,word){
- const i=low(t).indexOf(word);if(i<0)return '';
- const frag=clean(t.slice(Math.max(0,i-70),Math.min(t.length,i+140)));
- const m=frag.match(/(?:situ[ée]|plac[ée]|install[ée]|se trouve|est)\s+(?:dans|à|au|aux|sur|en)\s+([^,.!?]{2,55})/i);
- return m?clean(m[1]):'';
-}
-// No free-form snippets in Networks: only facts belonging to the correct family.
 function networks(t){
- const r=[];
- if(/\blinky\b/i.test(t)){const loc=contextLocation(t,'linky');r.push(['Électricité','Compteur Linky'+(loc?' — '+loc:'')]);}
- const gaz=/compteur[^.!?]{0,35}gaz|gaz[^.!?]{0,35}compteur/i.test(t);if(gaz){const loc=contextLocation(t,'gaz');r.push(['Gaz','Compteur gaz'+(loc?' — '+loc:'')]);}
- const eau=/compteur[^.!?]{0,35}eau|eau[^.!?]{0,35}compteur/i.test(t);if(eau){const loc=contextLocation(t,'eau');r.push(['Eau','Compteur d’eau'+(loc?' — '+loc:'')]);}
- if(/tout[- ]à[- ]l[' ]égout|tout à l[' ]égout/i.test(t))r.push(['Assainissement',"Connecté au tout-à-l'égout"]);
- if(/\bfibre\b/i.test(t)){
-  const neg=/(?:fibre[^.!?]{0,55}(?:non|pas)\s+(?:connect[ée]e|raccord[ée]e)|(?:non|pas)\s+(?:connect[ée]e|raccord[ée]e)[^.!?]{0,55}fibre)/i.test(t);
-  r.push(['Fibre',neg?'Non connectée / non raccordée':'Fibre mentionnée']);
+ const rows=[],cl=clauses(t);
+ const linky=cl.find(c=>/\blinky\b/i.test(c));
+ if(linky){let loc=locAfter(linky,/(?:linky|compteur linky)[^,.!?]{0,30}?(?:dans|au|à l['’]|sur)\s+([^,.!?]{2,40})/i);rows.push(['Électricité','Compteur Linky'+(loc?' — localisation : '+loc:'')]);}
+ const elec=cl.find(c=>/installation [ée]lectrique|tableau [ée]lectrique/i.test(c));if(elec&&!linky)rows.push(['Électricité',clean(elec)]);
+ const water=cl.find(c=>/compteur d['’ ]?eau|compteur eau/i.test(c));
+ if(water){let loc=locAfter(water,/compteur d['’ ]?eau[^,.!?]{0,35}?(?:est|se trouve|situ[ée])?\s*(?:dans|au|à l['’]|sur)\s+([^,.!?]{2,40})/i);if(!loc&&/extérieur/i.test(water))loc='extérieur';rows.push(['Eau','Compteur d’eau'+(loc?' — localisation : '+loc:'')]);}
+ const gas=cl.find(c=>/compteur (?:de )?gaz/i.test(c));if(gas){let loc=locAfter(gas,/compteur (?:de )?gaz[^,.!?]{0,35}?(?:dans|au|à l['’]|sur)\s+([^,.!?]{2,40})/i);rows.push(['Gaz','Compteur gaz'+(loc?' — localisation : '+loc:'')]);}
+ if(/tout[- ]à[- ]l['’ ]égout|tout à l['’ ]égout/i.test(t))rows.push(['Assainissement',"Raccordé au tout-à-l'égout"]);
+ const fibre=cl.find(c=>/\bfibre\b/i.test(c));
+ if(fibre){
+  const neg=/(?:pas|non)\s+(?:de\s+)?(?:connexion|connect[ée]e?|raccord[ée]e?)\s+(?:à\s+)?la?\s*fibre|fibre[^.!?]{0,70}(?:pas|non)\s+(?:connect[ée]e?|raccord[ée]e?)/i.test(fibre);
+  const prise=/prise\s+(?:de\s+)?fibre|prise\s+fibre/i.test(fibre);
+  rows.push(['Fibre',neg?'Non raccordée / non connectée':'Raccordement fibre mentionné']);
+  if(prise){let loc='';if(/salon/i.test(fibre))loc='salon';else if(/s[ée]jour/i.test(fibre))loc='séjour';rows.push(['Prise fibre','Présente'+(loc?' — '+loc:'')]);}
  }
- return r;
+ if(/adoucisseur/i.test(t)){const c=cl.find(x=>/adoucisseur/i.test(x))||'';let loc=/buanderie/i.test(c)?'buanderie':'';rows.push(['Adoucisseur','Présent'+(loc?' — '+loc:'')]);}
+ return rows;
 }
 function annexes(t){
- const r=[];
- if(/\bgarage\b/i.test(t)){
-  let v='Garage';
-  if(/garage[^.!?]{0,100}mezzanine|mezzanine[^.!?]{0,100}garage/i.test(t))v+=' avec mezzanine';
-  r.push(['Garage',v]);
- }
- if(/\bcave\b/i.test(t))r.push(['Cave','Cave']);if(/\bbuanderie\b/i.test(t))r.push(['Buanderie','Buanderie']);
- if(/\bcellier\b/i.test(t))r.push(['Cellier','Cellier']);if(/\batelier\b/i.test(t))r.push(['Atelier','Atelier']);
+ const r=[],cl=clauses(t);
+ if(/\bgarage\b/i.test(t)){let v='Garage';if(/garage[^.!?]{0,130}mezzanine|mezzanine[^.!?]{0,130}garage/i.test(t))v+=' avec mezzanine';r.push(['Garage',v]);}
+ if(/\bbuanderie\b/i.test(t))r.push(['Buanderie','Présente']);if(/\bcellier\b/i.test(t))r.push(['Cellier','Présent']);if(/\bcave\b/i.test(t))r.push(['Cave','Présente']);if(/\batelier\b/i.test(t))r.push(['Atelier','Présent']);
+ const cab=cl.find(c=>/cabanon|abri de jardin/i.test(c));if(cab){const m=cab.match(/(\d+(?:[.,]\d+)?)\s*(?:-|à|a)?\s*(\d+(?:[.,]\d+)?)?\s*m[²2]/i);let v=/fer|m[ée]tal/i.test(cab)?'Cabanon métallique':'Cabanon';if(m)v+=' — env. '+m[1]+(m[2]?' à '+m[2]:'')+' m²';if(/outil/i.test(cab))v+=' — rangement outils';r.push(['Cabanon / abri',v]);}
  return r;
 }
 function menu(t){
  const men=uniq([/pvc blanc/i.test(t)?'PVC blanc':'',/double vitrage/i.test(t)?'Double vitrage':'',/triple vitrage/i.test(t)?'Triple vitrage':'',/\baluminium\b|\balu\b/i.test(t)?'Aluminium':'']);
- let mos='';
- if(/moustiquaires?/i.test(t)){
-  const i=low(t).indexOf('moustiqu');const frag=low(t.slice(Math.max(0,i-100),i+130));
-  mos=/rez[- ]de[- ]chauss[ée]e|\brdc\b/.test(frag)?'Moustiquaires au rez-de-chaussée':'Moustiquaires';
- }
- const shut=uniq([/volets? roulants?[^.!?]{0,30}[ée]lectriques?/i.test(t)?'Volets roulants électriques':'',mos]);
+ const shut=uniq([/volets? roulants?[^.!?]{0,35}[ée]lectriques?/i.test(t)?'Volets roulants électriques':'',/moustiquaires?/i.test(t)?(/rez[- ]de[- ]chauss[ée]e|\brdc\b/i.test((factClause(t,/moustiquaires?/i)[0]||''))?'Moustiquaires au rez-de-chaussée':'Moustiquaires'):'']);
  return [['Menuiseries / vitrages',men.join(' · ')],['Fermetures',shut.join(' · ')]];
+}
+function structure(t){
+ const r=[],cl=clauses(t);
+ const charp=cl.find(c=>/charpente|plafonnette|plancher béton|dalle béton/i.test(c));if(charp){let v='';if(/béton/i.test(charp))v='Structure / charpente béton';if(/plafonnette/i.test(charp))v+=(v?' — ':'')+'plafonnettes mentionnées';if(/pas de bois|sans bois/i.test(charp))v+=(v?' — ':'')+'absence de bois signalée';r.push(['Charpente / structure',v||clean(charp)]);}
+ const comb=cl.find(c=>/trappe|accès[^.!?]{0,30}combles?|combles?[^.!?]{0,30}accès/i.test(c));if(comb){let v='Accès aux combles';if(/haut de l['’]escalier|en haut de l['’]escalier/i.test(comb))v+=' — en haut de l’escalier';r.push(['Combles',v]);}
+ const facade=cl.find(c=>/façade|crépi|enduit/i.test(c));if(facade&&/retrait|décollement|fissure/i.test(facade))r.push(['Façade / enduit',/retrait de cr[eé]pi/i.test(facade)?'Retrait de crépi signalé':clean(facade)]);
+ return r;
+}
+function exteriors(t){
+ const r=[],cl=clauses(t);
+ const garden=cl.find(c=>/\bjardin\b/i.test(c));if(garden){let v='Jardin';if(/arbres?|arbor[ée]/i.test(garden))v+=' avec arbres';r.push(['Jardin',v]);}
+ const rear=cl.find(c=>/terrasse[^.!?]{0,80}(?:arri[eè]re|salon)|(?:arri[eè]re|salon)[^.!?]{0,80}terrasse/i.test(c));if(rear){let v='Terrasse arrière';if(/donne[^.!?]{0,25}(?:dans|sur) le salon|salon/i.test(rear))v+=' — accès / liaison avec le salon';r.push(['Terrasse',v]);}
+ return r;
+}
+function finance(t){
+ const r=[];
+ const m=t.match(/taxe fonci[eè]re[^.!?]{0,90}?(\d[\d\s]*(?:[.,]\d+)?)\s*(?:€|euros?)/i);
+ if(m){let v=m[1].replace(/\s/g,'')+' €';const frag=(factClause(t,/taxe fonci[eè]re/i)[0]||'');if(/ordures m[ée]nag[eè]res|tom/i.test(frag))v+=' — montant indiqué comme correspondant uniquement aux ordures ménagères';r.push(['Taxe foncière / fiscalité',v]);}
+ return r;
 }
 function state(t){
  const r=[];if(/pas de fissures? apparentes?|aucune fissure apparente/i.test(t))r.push(['Fissures','Aucune fissure apparente signalée']);
- if(/retrait de cr[eé]pi/i.test(t))r.push(['Enduit / crépi','Retrait de crépi signalé']);
- if(/humidit[ée]/i.test(t))r.push(['Humidité','Humidité signalée']);return r;
+ if(/retrait de cr[eé]pi/i.test(t))r.push(['Enduit / crépi','Retrait de crépi signalé']);if(/humidit[ée]/i.test(t))r.push(['Humidité','Humidité signalée']);return r;
 }
 async function normalizeCommune(q,postcode=''){
  if(!q)return null;
@@ -208,7 +229,7 @@ function renderCadPlan(j){
  const box=ensureCadPlanBox();box.innerHTML='';if(!j||!j.found||!j.geometry)return;
  const title=document.createElement('div');title.innerHTML='<b>Plan cadastral — '+(j.commune||'')+' — section '+(j.section||'')+' — parcelle '+parseInt(j.numero,10)+'</b>';
  const img=document.createElement('img');img.alt='Plan de la parcelle cadastrale';img.style.cssText='display:block;width:100%;max-width:720px;max-height:460px;object-fit:contain;margin-top:8px;border:1px solid #ddd;border-radius:8px;background:#fff';
- img.src='/api/cadastre/map.png?commune='+encodeURIComponent(j.code_insee||j.commune||'')+'&section='+encodeURIComponent(j.section||'')+'&numero='+encodeURIComponent(parseInt(j.numero,10))+'&v=13.8';
+ img.src='/api/cadastre/map.png?commune='+encodeURIComponent(j.code_insee||j.commune||'')+'&section='+encodeURIComponent(j.section||'')+'&numero='+encodeURIComponent(parseInt(j.numero,10))+'&v=13.9';
  img.dataset.cadMap='1';
  const link=document.createElement('a');link.href=img.src;link.target='_blank';link.rel='noopener';link.textContent='Ouvrir le plan cadastral';link.style.cssText='display:inline-block;margin-top:8px';
  box.append(title,img,link);
@@ -253,7 +274,7 @@ async function render(){
  out+=surfHTML(ss);
  if(total)out+=`<div class="calculatedTop">📏 <span>Surface intérieure calculée à partir des pièces dictées</span><strong>${fmt(total)}</strong></div>`;
  out+='<div class="proGrid">';
- out+=card('Sanitaires','🚿',sanitary(t))+card('Chauffage & eau chaude','🔥',heating(t))+card('Réseaux & compteurs','⚡',networks(t))+card('Annexes','🏚️',annexes(t))+card('Menuiseries & fermetures','🪟',menu(t))+card('État / désordres','⚠️',state(t));
+ out+=card('Sanitaires','🚿',sanitary(t))+card('Chauffage & eau chaude','🔥',heating(t))+card('Réseaux & compteurs','⚡',networks(t))+card('Construction / structure','🏗️',structure(t))+card('Annexes','🏚️',annexes(t))+card('Extérieurs','🌳',exteriors(t))+card('Menuiseries & fermetures','🪟',menu(t))+card('État / désordres','⚠️',state(t))+card('Fiscalité','💶',finance(t));
  out+='</div><details class="rawNotes"><summary>📝 Voir la dictée originale complète</summary><div>'+E(raw)+'</div></details>';
  $('#facts').innerHTML=out;
 }
@@ -282,7 +303,7 @@ async function verifyAddressV137(){
 }
 function cadMapURL(){
  const c=$('#cadCommune')?.value?.trim(),s=$('#cadSection')?.value?.trim(),p=$('#cadParcel')?.value?.trim();
- return c&&s&&p?'/api/cadastre/map.png?commune='+encodeURIComponent(c)+'&section='+encodeURIComponent(s)+'&numero='+encodeURIComponent(p)+'&v=13.8':'';
+ return c&&s&&p?'/api/cadastre/map.png?commune='+encodeURIComponent(c)+'&section='+encodeURIComponent(s)+'&numero='+encodeURIComponent(p)+'&v=13.9':'';
 }
 async function downloadWord(){
  const payload={
