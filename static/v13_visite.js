@@ -44,8 +44,9 @@ function cad(t){
  return {section,parcel};
 }
 function address(t){
- let m=t.match(/(?:adresse(?: du bien)?(?: est| :)?|situ[ée]e? (?:au|à)|nous sommes au|bien (?:au|à))\s+(\d{1,4}(?:\s*(?:bis|ter))?\s+(?:rue|avenue|boulevard|chemin|impasse|place|route|all[ée]e|lotissement|quai|passage|mont[ée]e|hameau|lieu[- ]dit)\s+[^,.!?]{2,100})/iu);
- return m?clean(m[1]):'';
+ let m=t.match(/(?:bien\s+(?:est\s+)?situ[ée]\s+[aà]|adresse(?:\s+du\s+bien)?\s*(?:est|:)?|nous\s+sommes\s+(?:au|à)|maison\s+situ[ée]e?\s+[aà]|appartement\s+(?:situ[ée]\s+)?(?:au|à))\s+(.+?)\s+(\d{5})\s+([^,.;!?]+?)(?=\s+(?:section|parcelle|cadastre)\b|[,.;!?]|$)/iu);
+ if(!m)return null;
+ return {street:clean(m[1]).replace(/^(?:au|à)\s+/i,'').replace(/[,:;.\s]+$/,''),postcode:m[2],city:clean(m[3]).replace(/\s+(?:section|parcelle|cadastre).*$/iu,'').replace(/[,:;.\s]+$/,'')};
 }
 function typeOf(t){return (t.match(/\b(maison de village|maison|villa|appartement|studio|immeuble|terrain|local commercial)\b/i)||[])[1]||''}
 function buildInfo(t){
@@ -198,11 +199,25 @@ async function normalizeCommune(q,postcode=''){
  if(!$('#cadCommune').value)$('#cadCommune').value=q;
  return null;
 }
+function ensureCadPlanBox(){
+ let box=document.getElementById('cadPlanBox');if(box)return box;
+ const status=$('#cadStatus');box=document.createElement('div');box.id='cadPlanBox';box.style.marginTop='10px';
+ status.parentNode.insertBefore(box,status.nextSibling);return box;
+}
+function renderCadPlan(j){
+ const box=ensureCadPlanBox();box.innerHTML='';if(!j||!j.found||!j.geometry)return;
+ const title=document.createElement('div');title.innerHTML='<b>Plan cadastral — '+(j.commune||'')+' — section '+(j.section||'')+' — parcelle '+parseInt(j.numero,10)+'</b>';
+ const img=document.createElement('img');img.alt='Plan de la parcelle cadastrale';img.style.cssText='display:block;width:100%;max-width:720px;max-height:460px;object-fit:contain;margin-top:8px;border:1px solid #ddd;border-radius:8px;background:#fff';
+ img.src='/api/cadastre/plan?commune='+encodeURIComponent(j.code_insee||j.commune||'')+'&section='+encodeURIComponent(j.section||'')+'&numero='+encodeURIComponent(parseInt(j.numero,10))+'&v=13.6';
+ const link=document.createElement('a');link.href=img.src;link.target='_blank';link.rel='noopener';link.textContent='Ouvrir le plan cadastral';link.style.cssText='display:inline-block;margin-top:8px';
+ box.append(title,img,link);
+}
 async function parcelSearch(){
  const field=$('#cadCommune'),sec=$('#cadSection').value.trim().toUpperCase(),par=$('#cadParcel').value.trim();
  let com=field.value.trim();
  if(!com||!sec||!par){$('#cadStatus').textContent='Commune, section et parcelle nécessaires.';return}
  $('#cadStatus').textContent='Recherche de la commune puis de la parcelle…';
+ const oldPlan=document.getElementById('cadPlanBox');if(oldPlan)oldPlan.innerHTML='';
  try{
   let insee=field.dataset.insee||'';
   if(!insee){
@@ -215,13 +230,14 @@ async function parcelSearch(){
    field.value=j.commune||com; field.dataset.insee=j.code_insee||insee;
    $('#cadSection').value=j.section||sec; $('#cadParcel').value=String(parseInt(j.numero,10));
    $('#cadStatus').textContent=`✓ Parcelle trouvée : ${j.commune||com} — section ${j.section} — parcelle ${parseInt(j.numero,10)}`;
+   renderCadPlan(j);
   }else $('#cadStatus').textContent=`Parcelle non trouvée pour ${j.commune||com} — section ${j.section||sec} — parcelle ${parseInt(j.numero||par,10)}.`;
  }catch(e){$('#cadStatus').textContent='Recherche impossible : '+e.message}
 }
 async function render(){
  const raw=$('#notes').value||'',corr=$('#correction').value||'',t=clean(raw+' '+corr);
  const o=owner(t);if(o&&!$('#owner').value)$('#owner').value=o;
- const a=address(t);if(a&&!$('#address').value)$('#address').value=a;
+ const a=address(t);if(a){if(!$('#address').value)$('#address').value=a.street;if(!$('#cadCommune').value)$('#cadCommune').value=a.city;$('#cadCommune').dataset.postcode=a.postcode||'';}
  const c=cad(t);if(c.section&&!$('#cadSection').value)$('#cadSection').value=c.section;if(c.parcel&&!$('#cadParcel').value)$('#cadParcel').value=c.parcel;
  const cm=commune(t);
  if(cm&&!$('#cadCommune').value){
