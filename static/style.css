@@ -76,3 +76,13 @@ textarea{resize:vertical}.cols{display:grid;grid-template-columns:1fr 1fr;gap:10
 .dossierHead{margin-bottom:12px}
 #facts>.proGrid:first-of-type{margin-bottom:14px}
 .surfaceHero{margin-top:0}
+
+.calculatedTop{display:flex;justify-content:space-between;gap:12px;align-items:center;margin:-4px 0 16px;padding:13px 15px;border:1px solid var(--line);border-radius:14px;background:#fff}
+.calculatedTop strong{font-size:19px}
+
+/* V13 export */
+#save,#printVisit,#downloadVisit{margin-right:7px;margin-bottom:8px}
+@media print{
+  header,.toolbar,.actions,#save,#printVisit,#downloadVisit,#mic,#analyse,#undo,#clear,#photos,.cadastreBox,#addressSuggestions,#addressStatus,form>label,.cols,.identityGrid{display:none!important}
+  #facts{display:block!important}
+}

@@ -44,57 +44,59 @@ def geocode(q:str):
     except Exception as e:
         raise HTTPException(502,"Le service public d'adresses ne répond pas pour le moment.")
 
+
+@app.get("/api/commune")
+def commune_lookup(q:str):
+    """Normalise un nom de commune, avec tolérance aux erreurs de dictée via géocodage IGN."""
+    q=q.strip()
+    if not q: return {"result":None}
+    try:
+        url="https://data.geopf.fr/geocodage/search/?"+urllib.parse.urlencode({"q":q,"type":"municipality","limit":5})
+        d=get_json(url)
+        fs=d.get("features",[])
+        if not fs:
+            url="https://data.geopf.fr/geocodage/search/?"+urllib.parse.urlencode({"q":q,"limit":8})
+            fs=get_json(url).get("features",[])
+        if not fs:return {"result":None}
+        p=fs[0].get("properties",{})
+        return {"result":{"name":p.get("city") or p.get("name") or p.get("label") or q,
+                          "code":p.get("citycode") or p.get("city_code") or "",
+                          "postcode":p.get("postcode") or ""}}
+    except Exception:
+        raise HTTPException(502,"Service de recherche des communes indisponible.")
+
 @app.get("/api/cadastre")
 def cadastre(commune:str, section:str, numero:str):
-    """Recherche directe d'une parcelle cadastrale. Le code INSEE est préférable."""
     commune=commune.strip()
     code_insee=commune if re.fullmatch(r"\d{5}",commune) else ""
+    commune_name=commune
     if not code_insee:
-        # Résout d'abord le nom de commune avec le géocodeur public.
         try:
-            u="https://data.geopf.fr/geocodage/search/?"+urllib.parse.urlencode({"q":commune,"type":"municipality","limit":1})
-            d=get_json(u)
-            fs=d.get("features",[])
+            u="https://data.geopf.fr/geocodage/search/?"+urllib.parse.urlencode({"q":commune,"type":"municipality","limit":5})
+            fs=get_json(u).get("features",[])
+            if not fs:
+                u="https://data.geopf.fr/geocodage/search/?"+urllib.parse.urlencode({"q":commune,"limit":8})
+                fs=get_json(u).get("features",[])
             if fs:
                 pr=fs[0].get("properties",{})
                 code_insee=pr.get("citycode") or pr.get("city_code") or ""
+                commune_name=pr.get("city") or pr.get("name") or pr.get("label") or commune
         except Exception:
             pass
     if not code_insee:
-        raise HTTPException(400,"Commune non reconnue : indique le nom exact ou le code INSEE.")
-    sec=section.upper().strip()
+        raise HTTPException(400,"Commune non reconnue.")
+    sec=section.upper().strip().zfill(2)
     no=re.sub(r"\D","",numero).zfill(4)
+    # Parameters verified against IGN API Carto documentation: code_insee, section, numero.
     url="https://apicarto.ign.fr/api/cadastre/parcelle?"+urllib.parse.urlencode({"code_insee":code_insee,"section":sec,"numero":no})
     try:
         d=get_json(url)
         fs=d.get("features",[])
-        if not fs: return {"found":False,"code_insee":code_insee}
-        pr=fs[0].get("properties",{})
-        return {"found":True,"code_insee":code_insee,"section":sec,"numero":no,
-                "label":f"{code_insee} section {sec} parcelle {int(no)}",
-                "properties":pr}
+        if not fs:return {"found":False,"commune":commune_name,"code_insee":code_insee,"section":sec,"numero":no}
+        return {"found":True,"commune":commune_name,"code_insee":code_insee,"section":sec,"numero":no,
+                "properties":fs[0].get("properties",{})}
     except Exception:
-        raise HTTPException(502,"Le service cadastral public ne répond pas pour le moment.")
-
-
-
-def api_key():
-    k=os.getenv("OPENAI_API_KEY")
-    if not k: raise HTTPException(503,"La clé OPENAI_API_KEY n'est pas encore configurée sur le serveur.")
-    return k
-
-def multipart_request(url, fields, files, headers):
-    boundary="----ESTIMIA"+uuid.uuid4().hex
-    body=bytearray()
-    for name,value in fields.items():
-        body.extend(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n".encode())
-    for name,filename,content,ctype in files:
-        body.extend(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"; filename=\"{filename}\"\r\nContent-Type: {ctype}\r\n\r\n".encode())
-        body.extend(content); body.extend(b"\r\n")
-    body.extend(f"--{boundary}--\r\n".encode())
-    h={**headers,"Content-Type":f"multipart/form-data; boundary={boundary}"}
-    req=urllib.request.Request(url,data=bytes(body),headers=h,method="POST")
-    with urllib.request.urlopen(req,timeout=120) as r: return json.loads(r.read())
+        raise HTTPException(502,"Le service cadastral IGN ne répond pas pour le moment.")
 
 @app.post("/api/transcribe")
 async def transcribe(audio: UploadFile=File(...)):
