@@ -1,6 +1,6 @@
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from pathlib import Path
@@ -116,6 +116,51 @@ def cadastre(commune:str, section:str, numero:str):
                 "properties":fs[0].get("properties",{}),"geometry":fs[0].get("geometry")}
     except Exception:
         raise HTTPException(502,"Le service cadastral IGN ne répond pas pour le moment.")
+
+def _parcel_feature(commune:str, section:str, numero:str):
+    commune=(commune or "").strip()
+    resolved={"name":commune,"code":commune,"postcode":""} if re.fullmatch(r"\d{5}",commune) else _resolve_commune(commune)
+    if not resolved or not resolved.get("code"): raise HTTPException(400,"Commune non reconnue.")
+    code_insee=str(resolved["code"]); commune_name=resolved.get("name") or commune
+    sec=re.sub(r"[^A-Za-z0-9]","",section.upper().strip())
+    if sec.isdigit(): sec=sec.zfill(2)
+    no=re.sub(r"\D","",numero).zfill(4)
+    url="https://apicarto.ign.fr/api/cadastre/parcelle?"+urllib.parse.urlencode({"code_insee":code_insee,"section":sec,"numero":no})
+    d=get_json(url); fs=d.get("features",[])
+    if not fs:return None,commune_name,code_insee,sec,no
+    return fs[0],commune_name,code_insee,sec,no
+
+def _geom_rings(g):
+    if not g:return []
+    c=g.get("coordinates") or []
+    if g.get("type")=="Polygon": return c
+    if g.get("type")=="MultiPolygon":
+        out=[]
+        for poly in c: out.extend(poly)
+        return out
+    return []
+
+@app.get("/api/cadastre/plan")
+def cadastre_plan(commune:str, section:str, numero:str):
+    try:
+        f,name,code,sec,no=_parcel_feature(commune,section,numero)
+        if not f: raise HTTPException(404,"Parcelle non trouvée.")
+        rings=_geom_rings(f.get("geometry")); pts=[p for ring in rings for p in ring if isinstance(p,list) and len(p)>=2]
+        if not pts: raise HTTPException(404,"Géométrie cadastrale indisponible.")
+        xs=[float(p[0]) for p in pts]; ys=[float(p[1]) for p in pts]
+        xmin,xmax=min(xs),max(xs); ymin,ymax=min(ys),max(ys); dx=max(xmax-xmin,1e-9); dy=max(ymax-ymin,1e-9)
+        W,H,P=900,520,45; scale=min((W-2*P)/dx,(H-2*P)/dy)
+        def xy(p): return f"{P+(float(p[0])-xmin)*scale:.1f},{H-P-(float(p[1])-ymin)*scale:.1f}"
+        paths=["M "+" L ".join(xy(p) for p in ring)+" Z" for ring in rings if len(ring)>=3]
+        label=f"{name} - Section {sec} - Parcelle {int(no)}"; path_data=" ".join(paths)
+        svg=("<svg xmlns='http://www.w3.org/2000/svg' width='900' height='520' viewBox='0 0 900 520'>"
+             "<rect width='100%' height='100%' fill='white'/>"
+             f"<text x='45' y='28' font-family='Arial,sans-serif' font-size='18' font-weight='700'>{label}</text>"
+             f"<path d='{path_data}' fill='#f4f4f4' stroke='#222' stroke-width='3'/>"
+             "<text x='45' y='505' font-family='Arial,sans-serif' font-size='12'>Contour cadastral officiel IGN - representation indicative</text></svg>")
+        return Response(content=svg,media_type="image/svg+xml",headers={"Cache-Control":"no-store"})
+    except HTTPException: raise
+    except Exception: raise HTTPException(502,"Impossible de générer le plan cadastral pour le moment.")
 
 @app.post("/api/transcribe")
 async def transcribe(audio: UploadFile=File(...)):
