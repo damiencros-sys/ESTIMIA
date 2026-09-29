@@ -208,7 +208,8 @@ function renderCadPlan(j){
  const box=ensureCadPlanBox();box.innerHTML='';if(!j||!j.found||!j.geometry)return;
  const title=document.createElement('div');title.innerHTML='<b>Plan cadastral — '+(j.commune||'')+' — section '+(j.section||'')+' — parcelle '+parseInt(j.numero,10)+'</b>';
  const img=document.createElement('img');img.alt='Plan de la parcelle cadastrale';img.style.cssText='display:block;width:100%;max-width:720px;max-height:460px;object-fit:contain;margin-top:8px;border:1px solid #ddd;border-radius:8px;background:#fff';
- img.src='/api/cadastre/plan?commune='+encodeURIComponent(j.code_insee||j.commune||'')+'&section='+encodeURIComponent(j.section||'')+'&numero='+encodeURIComponent(parseInt(j.numero,10))+'&v=13.6';
+ img.src='/api/cadastre/map.png?commune='+encodeURIComponent(j.code_insee||j.commune||'')+'&section='+encodeURIComponent(j.section||'')+'&numero='+encodeURIComponent(parseInt(j.numero,10))+'&v=13.7';
+ img.dataset.cadMap='1';
  const link=document.createElement('a');link.href=img.src;link.target='_blank';link.rel='noopener';link.textContent='Ouvrir le plan cadastral';link.style.cssText='display:inline-block;margin-top:8px';
  box.append(title,img,link);
 }
@@ -230,6 +231,7 @@ async function parcelSearch(){
    field.value=j.commune||com; field.dataset.insee=j.code_insee||insee;
    $('#cadSection').value=j.section||sec; $('#cadParcel').value=String(parseInt(j.numero,10));
    $('#cadStatus').textContent=`✓ Parcelle trouvée : ${j.commune||com} — section ${j.section} — parcelle ${parseInt(j.numero,10)}`;
+   if(j.commune){$('#cadCommune').value=j.commune;$('#cadCommune').dataset.insee=j.code_insee||'';}
    renderCadPlan(j);
   }else $('#cadStatus').textContent=`Parcelle non trouvée pour ${j.commune||com} — section ${j.section||sec} — parcelle ${parseInt(j.numero||par,10)}.`;
  }catch(e){$('#cadStatus').textContent='Recherche impossible : '+e.message}
@@ -261,8 +263,42 @@ function ficheTitle(){
  const addr=$('#address')?.value?.trim()||'Adresse non renseignée';
  return `Fiche de visite — ${owner} — ${addr}`;
 }
+
+async function verifyAddressV137(){
+ const q=$('#address')?.value?.trim(); if(!q)return;
+ $('#addressStatus').textContent='Vérification de l’adresse officielle…';
+ try{
+  const r=await fetch('/api/geocode?q='+encodeURIComponent(q));const j=await r.json();
+  if(!r.ok)throw new Error(j.detail||'Recherche impossible');
+  const items=j.results||[];
+  if(!items.length){$('#addressStatus').textContent='Aucune adresse officielle proche trouvée.';return}
+  const x=items[0];
+  $('#address').value=x.label||q;
+  if(x.city){$('#cadCommune').value=x.city;$('#cadCommune').dataset.insee=x.citycode||'';$('#cadCommune').dataset.postcode=x.postcode||''}
+  $('#addressStatus').textContent='✓ Adresse vérifiée : '+(x.label||q);
+ }catch(e){$('#addressStatus').textContent='Vérification indisponible : '+e.message}
+}
+function cadMapURL(){
+ const c=$('#cadCommune')?.value?.trim(),s=$('#cadSection')?.value?.trim(),p=$('#cadParcel')?.value?.trim();
+ return c&&s&&p?'/api/cadastre/map.png?commune='+encodeURIComponent(c)+'&section='+encodeURIComponent(s)+'&numero='+encodeURIComponent(p)+'&v=13.7':'';
+}
+async function downloadWord(){
+ const payload={
+  owner:$('#owner')?.value||'',phone:$('#ownerPhone')?.value||'',address:$('#address')?.value||'',
+  commune:$('#cadCommune')?.value||'',section:$('#cadSection')?.value||'',parcel:$('#cadParcel')?.value||'',
+  property_type:$('#type')?.value||'',surface:$('#surface')?.value||'',facts:$('#facts')?.innerText||''
+ };
+ try{
+  const r=await fetch('/api/word',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  if(!r.ok){let j={};try{j=await r.json()}catch{};throw new Error(j.detail||'Export impossible')}
+  const b=await r.blob(),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;
+  a.download='Fiche_visite_'+((payload.owner||payload.address||'bien').replace(/[^\p{L}\p{N}-]+/gu,'_'))+'.docx';
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1500);
+ }catch(e){alert('Export Word impossible : '+e.message)}
+}
 function printableHTML(){
- const title=ficheTitle(), facts=$('#facts')?.innerHTML||'';
+ const title=ficheTitle(), facts=$('#facts')?.innerHTML||'', mapUrl=cadMapURL();
+ const mapBlock=mapUrl?`<section class="cadPrint"><h2>Plan cadastral</h2><img src="${mapUrl}" alt="Plan cadastral"><div>Section ${E($('#cadSection')?.value||'')} — Parcelle ${E($('#cadParcel')?.value||'')}</div></section>`:'';
  const meta=[
   ['Propriétaire',$('#owner')?.value||''],
   ['Téléphone',$('#ownerPhone')?.value||''],
@@ -275,8 +311,8 @@ function printableHTML(){
  ].filter(x=>x[1]);
  const head=meta.map(x=>`<div class="m"><span>${E(x[0])}</span><b>${E(x[1])}</b></div>`).join('');
  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${E(title)}</title>
- <style>body{font-family:Arial,sans-serif;color:#17212b;margin:28px}h1{font-size:23px;margin-bottom:5px}.date{color:#667;font-size:12px;margin-bottom:18px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px}.m{border:1px solid #ccd5db;border-radius:8px;padding:8px}.m span,.m b{display:block}.m span{font-size:11px;color:#667;margin-bottom:3px}.proGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.proGroup,.surfaceHero{border:1px solid #ccd5db;border-radius:10px;padding:10px;margin:0 0 10px;break-inside:avoid}.proGroup h3,.surfaceHero h3{margin:0 0 8px}.proRow,.surfaceRow,.surfaceTotal,.grandTotal{display:flex;justify-content:space-between;gap:15px;padding:5px 0;border-bottom:1px solid #eee}.grandTotal{font-weight:bold;font-size:16px}.rawNotes{margin-top:14px}.dossierHead,.calculatedTop{display:none}@media print{body{margin:10mm}.proGroup,.surfaceHero{break-inside:avoid}}</style></head><body>
- <h1>FICHE DE VISITE IMMOBILIÈRE</h1><div class="date">Document généré le ${new Date().toLocaleString('fr-FR')}</div><div class="meta">${head}</div>${facts}</body></html>`;
+ <style>body{font-family:Arial,sans-serif;color:#17212b;margin:28px}h1{font-size:23px;margin-bottom:5px}.date{color:#667;font-size:12px;margin-bottom:18px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px}.m{border:1px solid #ccd5db;border-radius:8px;padding:8px}.m span,.m b{display:block}.m span{font-size:11px;color:#667;margin-bottom:3px}.proGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.proGroup,.surfaceHero{border:1px solid #ccd5db;border-radius:10px;padding:10px;margin:0 0 10px;break-inside:avoid}.proGroup h3,.surfaceHero h3{margin:0 0 8px}.proRow,.surfaceRow,.surfaceTotal,.grandTotal{display:flex;justify-content:space-between;gap:15px;padding:5px 0;border-bottom:1px solid #eee}.grandTotal{font-weight:bold;font-size:16px}.rawNotes{margin-top:14px}.cadPrint{break-inside:avoid;margin:15px 0}.cadPrint img{width:100%;max-width:760px;border:1px solid #ccd5db;border-radius:8px}.dossierHead,.calculatedTop{display:none}@media print{body{margin:10mm}.proGroup,.surfaceHero{break-inside:avoid}}</style></head><body>
+ <h1>FICHE DE VISITE IMMOBILIÈRE</h1><div class="date">Document généré le ${new Date().toLocaleString('fr-FR')}</div><div class="meta">${head}</div>${mapBlock}${facts}</body></html>`;
 }
 function downloadVisit(){
  const blob=new Blob([printableHTML()],{type:'text/html;charset=utf-8'});
@@ -293,7 +329,9 @@ function printVisit(){
 document.addEventListener('DOMContentLoaded',()=>{
  $('#analyse')?.addEventListener('click',()=>setTimeout(render,80));
  $('#findParcel')?.addEventListener('click',parcelSearch);
+ $('#checkAddress')?.addEventListener('click',verifyAddressV137);
  $('#printVisit')?.addEventListener('click',printVisit);
  $('#downloadVisit')?.addEventListener('click',downloadVisit);
+ $('#downloadWord')?.addEventListener('click',downloadWord);
 });
 })();
