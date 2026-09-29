@@ -41,3 +41,11 @@ textarea{resize:vertical}.cols{display:grid;grid-template-columns:1fr 1fr;gap:10
 .missingGroup p{margin:0;line-height:1.5}
 @media(min-width:850px){.proGrid{grid-template-columns:1fr 1fr}.rawNotes{grid-column:1/-1}}
 @media(max-width:520px){.proRow{grid-template-columns:1fr}.proRow strong{margin-top:-5px}}
+
+/* V9 dossier mandat */
+.proGroup h3{font-size:16px}.proRow strong{word-break:normal}
+@media print{
+ header,#record,#analyse,#save,.voiceActions,#correction,.historyBox{display:none!important}
+ body{background:#fff}.card{box-shadow:none;border:0}.proGroup{break-inside:avoid}
+ .rawNotes{display:none}.proGrid{grid-template-columns:1fr 1fr}
+}
