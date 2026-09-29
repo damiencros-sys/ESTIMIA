@@ -21,27 +21,37 @@ def get_json(url, timeout=20):
         return json.loads(r.read())
 
 @app.get("/api/geocode")
-def geocode(q:str):
-    """Recherche/normalisation d'adresse via le service public IGN Géoplateforme."""
-    q=q.strip()
+def geocode(q:str, postcode:str="", city:str="", citycode:str=""):
+    """Vérification stricte dans le référentiel national d'adresse alimenté par les BAL.
+    Une réponse située dans une autre commune n'est jamais renvoyée.
+    """
+    q=q.strip(); postcode=postcode.strip(); city=city.strip(); citycode=citycode.strip()
     if len(q)<3: return {"results":[]}
-    url="https://data.geopf.fr/geocodage/search/?"+urllib.parse.urlencode({"q":q,"limit":6})
+    params={"q":q,"limit":15}
+    if postcode: params["postcode"]=postcode
+    if citycode: params["citycode"]=citycode
+    url="https://data.geopf.fr/geocodage/search/?"+urllib.parse.urlencode(params)
     try:
-        data=get_json(url)
-        out=[]
-        for f in data.get("features",[])[:6]:
-            p=f.get("properties",{})
+        data=get_json(url); out=[]; wanted_city=_norm_name(city)
+        for f in data.get("features",[]):
+            pr=f.get("properties",{}); pc=str(pr.get("postcode") or "")
+            cc=str(pr.get("citycode") or pr.get("city_code") or "")
+            cn=pr.get("city") or pr.get("municipality") or ""
+            if isinstance(cn,list): cn=cn[0] if cn else ""
+            if isinstance(pc,list): pc=pc[0] if pc else ""
+            if isinstance(cc,list): cc=cc[0] if cc else ""
+            # Verrou commune : aucune proposition hors commune/CP demandé.
+            if citycode and cc != citycode: continue
+            if postcode and pc != postcode: continue
+            if wanted_city and _norm_name(str(cn)) != wanted_city: continue
             out.append({
-                "label":p.get("label") or p.get("name") or "",
-                "postcode":p.get("postcode") or "",
-                "city":p.get("city") or p.get("municipality") or "",
-                "citycode":p.get("citycode") or p.get("city_code") or "",
-                "score":p.get("score"),
-                "parcels":p.get("cad_parcelles") or p.get("parcelles") or [],
+                "label":pr.get("label") or pr.get("name") or "", "postcode":pc,
+                "city":cn, "citycode":cc, "score":pr.get("score"),
+                "parcels":pr.get("cad_parcelles") or pr.get("parcelles") or [],
                 "coordinates":(f.get("geometry") or {}).get("coordinates")
             })
         return {"results":out}
-    except Exception as e:
+    except Exception:
         raise HTTPException(502,"Le service public d'adresses ne répond pas pour le moment.")
 
 
@@ -173,46 +183,50 @@ def _tile_xy(lon,lat,z):
     y=(1.0-math.asinh(math.tan(math.radians(lat)))/math.pi)/2.0*n
     return x,y
 
+def _mercator(lon,lat):
+    lat=max(min(float(lat),85.05112878),-85.05112878); lon=float(lon)
+    R=6378137.0
+    return R*math.radians(lon), R*math.log(math.tan(math.pi/4+math.radians(lat)/2))
+
 def _context_map_png(commune,section,numero,width=760,height=520):
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image, ImageDraw
     f,name,code,sec,no=_parcel_feature(commune,section,numero)
     if not f: raise HTTPException(404,"Parcelle non trouvée.")
-    geom=f.get("geometry"); pts=_lonlat_points(geom)
-    if not pts: raise HTTPException(404,"Géométrie cadastrale indisponible.")
-    lon=sum(p[0] for p in pts)/len(pts); lat=sum(p[1] for p in pts)/len(pts)
-    z=18
-    cx,cy=_tile_xy(lon,lat,z); tx,ty=int(cx),int(cy)
-    tile=256; radius=2
-    canvas=Image.new("RGB",(tile*(radius*2+1),tile*(radius*2+1)),"white")
-    for ix in range(tx-radius,tx+radius+1):
-        for iy in range(ty-radius,ty+radius+1):
-            try:
-                u=f"https://tile.openstreetmap.org/{z}/{ix}/{iy}.png"
-                req=urllib.request.Request(u,headers={"User-Agent":"ESTIMIA/13.7 contact: local-real-estate-tool"})
-                with urllib.request.urlopen(req,timeout=12) as r:
-                    im=Image.open(io.BytesIO(r.read())).convert("RGB")
-                canvas.paste(im,((ix-(tx-radius))*tile,(iy-(ty-radius))*tile))
-            except Exception:
-                pass
-    # coordinates in stitched tile canvas
-    ox=(tx-radius)*tile; oy=(ty-radius)*tile
-    def px(p):
-        x,y=_tile_xy(float(p[0]),float(p[1]),z)
-        return ((x*tile)-ox,(y*tile)-oy)
-    draw=ImageDraw.Draw(canvas,"RGBA")
-    for ring in _geom_rings(geom):
+    geom=f.get("geometry"); rings=_geom_rings(geom)
+    mpts=[_mercator(p[0],p[1]) for ring in rings for p in ring if len(p)>=2]
+    if not mpts: raise HTTPException(404,"Géométrie cadastrale indisponible.")
+    xs=[p[0] for p in mpts]; ys=[p[1] for p in mpts]
+    cx=(min(xs)+max(xs))/2; cy=(min(ys)+max(ys))/2
+    span=max(max(xs)-min(xs),max(ys)-min(ys),55.0)*5.0
+    # Emprise contextuelle, avec correction du ratio de l'image.
+    aspect=width/height
+    half_y=span/2; half_x=half_y*aspect
+    bbox=(cx-half_x,cy-half_y,cx+half_x,cy+half_y)
+    layers="AMORCES_CAD,LIEUDIT,CP.CadastralParcel,SUBFISCAL,CLOTURE,DETAIL_TOPO,HYDRO,VOIE_COMMUNICATION,BU.Building,BORNE_REPERE"
+    params={"service":"WMS","version":"1.3","request":"GetMap","layers":layers,"styles":"",
+            "format":"image/png","crs":"EPSG:3857","bbox":",".join(f"{v:.3f}" for v in bbox),
+            "width":str(width),"height":str(height),"language":"fre"}
+    url=f"https://inspire.cadastre.gouv.fr/scpc/{code}.wms?"+urllib.parse.urlencode(params)
+    try:
+        req=urllib.request.Request(url,headers={"User-Agent":"ESTIMIA/13.8"})
+        with urllib.request.urlopen(req,timeout=20) as r:
+            raw=r.read(); ctype=r.headers.get("Content-Type","")
+        if "image" not in ctype.lower(): raise ValueError("Réponse WMS non image")
+        out=Image.open(io.BytesIO(raw)).convert("RGB")
+    except Exception:
+        raise HTTPException(502,"Le plan cadastral officiel DGFiP est momentanément indisponible.")
+    draw=ImageDraw.Draw(out,"RGBA")
+    xmin,ymin,xmax,ymax=bbox
+    def px(pt):
+        x,y=_mercator(pt[0],pt[1])
+        return ((x-xmin)/(xmax-xmin)*width, height-(y-ymin)/(ymax-ymin)*height)
+    for ring in rings:
         poly=[px(p) for p in ring if len(p)>=2]
-        if len(poly)>=3:
-            draw.polygon(poly,fill=(255,40,40,65),outline=(230,0,0,255),width=5)
-    mx,my=px((lon,lat))
-    draw.ellipse((mx-12,my-12,mx+12,my+12),fill=(35,190,70,255),outline=(255,255,255,255),width=3)
-    # crop around parcel center
-    left=max(0,int(mx-width/2)); top=max(0,int(my-height/2))
-    left=min(left,max(0,canvas.width-width)); top=min(top,max(0,canvas.height-height))
-    out=canvas.crop((left,top,left+width,top+height))
-    d=ImageDraw.Draw(out,"RGBA")
-    d.rectangle((0,height-28,width, height),fill=(255,255,255,220))
-    d.text((8,height-22),f"{name} - Section {sec} - Parcelle {int(no)} | Fond © OpenStreetMap contributors",fill=(20,20,20,255))
+        if len(poly)>=3: draw.polygon(poly,fill=(255,35,35,55),outline=(235,0,0,255),width=4)
+    mx=(cx-xmin)/(xmax-xmin)*width; my=height-(cy-ymin)/(ymax-ymin)*height
+    draw.ellipse((mx-10,my-10,mx+10,my+10),fill=(35,190,70,255),outline=(255,255,255,255),width=3)
+    draw.rectangle((0,height-28,width,height),fill=(255,255,255,225))
+    draw.text((8,height-22),f"{name} - Section {sec} - Parcelle {int(no)} | Plan cadastral officiel DGFiP",fill=(20,20,20,255))
     bio=io.BytesIO(); out.save(bio,format="PNG",optimize=True); bio.seek(0)
     return bio,name,code,sec,no
 
