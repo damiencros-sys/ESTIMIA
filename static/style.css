@@ -25,3 +25,19 @@ textarea{resize:vertical}.cols{display:grid;grid-template-columns:1fr 1fr;gap:10
 
 /* V7 pro: long technical values remain readable */
 .fact b{white-space:normal;line-height:1.35}
+
+/* V8 — fiche technique professionnelle */
+.proGrid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:8px}
+.proGroup{border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:#fff}
+.proGroup h3{margin:0 0 8px;font-size:15px;color:var(--accent);border-bottom:1px solid var(--line);padding-bottom:7px}
+.proRow{display:grid;grid-template-columns:minmax(135px,38%) 1fr;gap:12px;padding:7px 0;border-bottom:1px solid #edf1f3}
+.proRow:last-child{border-bottom:0}
+.proRow span{color:var(--muted)}
+.proRow strong{font-weight:750;line-height:1.35}
+.rawNotes{margin-top:14px;border:1px solid var(--line);border-radius:14px;padding:12px;background:#fafcfd}
+.rawNotes summary{cursor:pointer;font-weight:800;color:var(--accent)}
+.rawNotes div{white-space:pre-wrap;margin-top:10px;line-height:1.5;color:var(--ink)}
+.missingGroup{background:#fffdf7}
+.missingGroup p{margin:0;line-height:1.5}
+@media(min-width:850px){.proGrid{grid-template-columns:1fr 1fr}.rawNotes{grid-column:1/-1}}
+@media(max-width:520px){.proRow{grid-template-columns:1fr}.proRow strong{margin-top:-5px}}
