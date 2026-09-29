@@ -45,56 +45,75 @@ def geocode(q:str):
         raise HTTPException(502,"Le service public d'adresses ne répond pas pour le moment.")
 
 
+def _norm_name(s):
+    import unicodedata
+    s=unicodedata.normalize("NFD",s or "")
+    s="".join(c for c in s if unicodedata.category(c)!="Mn").lower()
+    return re.sub(r"[^a-z0-9]+"," ",s).strip()
+
+def _resolve_commune(q):
+    q=(q or "").strip()
+    if re.fullmatch(r"\d{5}",q): return {"name":q,"code":q,"postcode":""}
+    mcp=re.search(r"\b(\d{5})\b",q); cp=mcp.group(1) if mcp else ""
+    wanted=re.sub(r"\b\d{5}\b"," ",q).strip(" ,.-")
+    if cp:
+        try:
+            rows=get_json(f"https://apicarto.ign.fr/api/codes-postaux/communes/{cp}")
+            if isinstance(rows,dict): rows=rows.get("communes") or rows.get("results") or []
+            nw=_norm_name(wanted); choices=[]
+            for row in rows or []:
+                name=row.get("nomCommune") or row.get("nom") or row.get("libelle") or row.get("name") or ""
+                code=row.get("codeCommune") or row.get("code_insee") or row.get("insee") or row.get("code") or ""
+                if name and code:
+                    score=4 if _norm_name(name)==nw else (2 if nw and (nw in _norm_name(name) or _norm_name(name) in nw) else 0)
+                    choices.append((score,{"name":name,"code":str(code),"postcode":cp}))
+            if choices:
+                choices.sort(key=lambda x:x[0],reverse=True)
+                if choices[0][0]>0 or len(choices)==1:return choices[0][1]
+        except Exception: pass
+    for query in [q,wanted]:
+        if not query: continue
+        try:
+            u="https://data.geopf.fr/geocodage/search/?"+urllib.parse.urlencode({"q":query,"limit":10})
+            fs=get_json(u).get("features",[]); nw=_norm_name(wanted or query); choices=[]
+            for f in fs:
+                pr=f.get("properties",{})
+                code=pr.get("citycode") or pr.get("city_code") or ""
+                name=pr.get("city") or pr.get("municipality") or pr.get("name") or ""
+                pc=pr.get("postcode") or cp or ""
+                if isinstance(name,list): name=name[0] if name else ""
+                if isinstance(code,list): code=code[0] if code else ""
+                if isinstance(pc,list): pc=pc[0] if pc else ""
+                if not name or not code: continue
+                score=4 if _norm_name(name)==nw else (2 if nw and (nw in _norm_name(name) or _norm_name(name) in nw) else 0)
+                if cp and str(pc)==cp: score+=3
+                choices.append((score,{"name":name,"code":str(code),"postcode":str(pc)}))
+            if choices:
+                choices.sort(key=lambda x:x[0],reverse=True); return choices[0][1]
+        except Exception: pass
+    return None
+
 @app.get("/api/commune")
 def commune_lookup(q:str):
-    """Normalise un nom de commune, avec tolérance aux erreurs de dictée via géocodage IGN."""
-    q=q.strip()
-    if not q: return {"result":None}
-    try:
-        url="https://data.geopf.fr/geocodage/search/?"+urllib.parse.urlencode({"q":q,"type":"municipality","limit":5})
-        d=get_json(url)
-        fs=d.get("features",[])
-        if not fs:
-            url="https://data.geopf.fr/geocodage/search/?"+urllib.parse.urlencode({"q":q,"limit":8})
-            fs=get_json(url).get("features",[])
-        if not fs:return {"result":None}
-        p=fs[0].get("properties",{})
-        return {"result":{"name":p.get("city") or p.get("name") or p.get("label") or q,
-                          "code":p.get("citycode") or p.get("city_code") or "",
-                          "postcode":p.get("postcode") or ""}}
-    except Exception:
-        raise HTTPException(502,"Service de recherche des communes indisponible.")
+    return {"result":_resolve_commune(q)}
 
 @app.get("/api/cadastre")
 def cadastre(commune:str, section:str, numero:str):
     commune=commune.strip()
-    code_insee=commune if re.fullmatch(r"\d{5}",commune) else ""
-    commune_name=commune
-    if not code_insee:
-        try:
-            u="https://data.geopf.fr/geocodage/search/?"+urllib.parse.urlencode({"q":commune,"type":"municipality","limit":5})
-            fs=get_json(u).get("features",[])
-            if not fs:
-                u="https://data.geopf.fr/geocodage/search/?"+urllib.parse.urlencode({"q":commune,"limit":8})
-                fs=get_json(u).get("features",[])
-            if fs:
-                pr=fs[0].get("properties",{})
-                code_insee=pr.get("citycode") or pr.get("city_code") or ""
-                commune_name=pr.get("city") or pr.get("name") or pr.get("label") or commune
-        except Exception:
-            pass
-    if not code_insee:
-        raise HTTPException(400,"Commune non reconnue.")
-    sec=section.upper().strip().zfill(2)
+    resolved={"name":commune,"code":commune,"postcode":""} if re.fullmatch(r"\d{5}",commune) else _resolve_commune(commune)
+    if not resolved or not resolved.get("code"): raise HTTPException(400,"Commune non reconnue.")
+    code_insee=str(resolved["code"]); commune_name=resolved.get("name") or commune
+    sec=re.sub(r"[^A-Za-z0-9]","",section.upper().strip())
+    if not sec: raise HTTPException(400,"Section cadastrale manquante.")
+    if sec.isdigit(): sec=sec.zfill(2)
     no=re.sub(r"\D","",numero).zfill(4)
-    # Parameters verified against IGN API Carto documentation: code_insee, section, numero.
+    if not no.strip("0"): raise HTTPException(400,"Numéro de parcelle invalide.")
     url="https://apicarto.ign.fr/api/cadastre/parcelle?"+urllib.parse.urlencode({"code_insee":code_insee,"section":sec,"numero":no})
     try:
-        d=get_json(url)
-        fs=d.get("features",[])
+        d=get_json(url); fs=d.get("features",[])
         if not fs:return {"found":False,"commune":commune_name,"code_insee":code_insee,"section":sec,"numero":no}
         return {"found":True,"commune":commune_name,"code_insee":code_insee,"section":sec,"numero":no,
-                "properties":fs[0].get("properties",{})}
+                "properties":fs[0].get("properties",{}),"geometry":fs[0].get("geometry")}
     except Exception:
         raise HTTPException(502,"Le service cadastral IGN ne répond pas pour le moment.")
 
