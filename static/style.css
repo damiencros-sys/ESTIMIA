@@ -86,5 +86,3 @@ textarea{resize:vertical}.cols{display:grid;grid-template-columns:1fr 1fr;gap:10
   header,.toolbar,.actions,#save,#printVisit,#downloadVisit,#mic,#analyse,#undo,#clear,#photos,.cadastreBox,#addressSuggestions,#addressStatus,form>label,.cols,.identityGrid{display:none!important}
   #facts{display:block!important}
 }
-
-.cadPlanBox{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:14px;background:white}.cadPlanBox svg{width:100%;max-height:360px}.cadActions{display:flex;gap:10px;flex-wrap:wrap;margin-top:9px}.cadActions a{padding:9px 11px;text-decoration:none}.cadPrint{break-before:page}.cadPrint svg{width:100%}
