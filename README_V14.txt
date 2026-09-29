@@ -1,0 +1,11 @@
+ESTIM'IA V14
+- Export Word .docx réel.
+- PDF via Imprimer / Enregistrer en PDF.
+- Commune reconnue depuis "34600 Bédarieux".
+- Surface habitable/Carrez dictée pré-remplit le champ.
+- Plan cadastral dessiné après recherche de parcelle, téléchargeable et intégré à l'impression/PDF et au Word.
+- Lien vers cadastre.gouv.fr.
+- Niveaux renforcés : étage / à l'étage / autre étage / étage supérieur / niveaux explicites.
+- Sanitaires sans double comptage des répétitions.
+- Réseaux séparés : Linky, eau individuelle, assainissement communal, fibre connectée/non connectée/à vérifier.
+- Micro inchangé.
