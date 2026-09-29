@@ -71,3 +71,8 @@ textarea{resize:vertical}.cols{display:grid;grid-template-columns:1fr 1fr;gap:10
 .otherSurface{margin-top:12px;padding-top:5px;border-top:1px solid var(--line)}
 @media(max-width:650px){.identityGrid,.dossierHead{grid-template-columns:1fr}.cadGrid{grid-template-columns:1fr 1fr}.cadGrid label:first-child{grid-column:1/-1}.addressLine{align-items:stretch}.addressLine .miniBtn{white-space:nowrap}}
 @media print{.cadastreBox,#addressSuggestions,#addressStatus{display:none!important}.surfaceHero{break-inside:avoid}.dossierHead{grid-template-columns:1fr 2fr}}
+
+/* V11 : ordre et lisibilité */
+.dossierHead{margin-bottom:12px}
+#facts>.proGrid:first-of-type{margin-bottom:14px}
+.surfaceHero{margin-top:0}
