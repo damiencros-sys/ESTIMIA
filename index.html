@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#15324a">
+<title>ESTIM’IA</title>
+<link rel="manifest" href="/static/manifest.json">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <div><b>ESTIM’IA</b><small>Assistant d’estimation immobilière</small></div>
+  <button id="new">+ Nouveau</button>
+</header>
+<main>
+<section class="card">
+  <div class="step">DOSSIER</div>
+  <label>Adresse du bien<input id="address" placeholder="Adresse complète"></label>
+  <div class="cols">
+    <label>Type<input id="type" placeholder="Appartement, maison…"></label>
+    <label>Surface Carrez / habitable (m²)<input id="surface" type="number" step=".01"></label>
+  </div>
+</section>
+<section class="card">
+  <div class="step">1 · PHOTOS</div>
+  <h2>Photos de la visite</h2>
+  <p>Ajoute toutes les photos. Elles seront jointes au dossier et pourront ensuite être analysées par l’IA.</p>
+  <label class="bigbtn secondary">📷 Ajouter les photos<input id="photos" type="file" accept="image/*" multiple hidden></label>
+  <div id="gallery" class="gallery"></div>
+  <div id="photoStatus" class="status"></div>
+</section>
+<section class="card">
+  <div class="step">2 · DICTÉE</div>
+  <h2>Raconte ta visite</h2>
+  <p>Appuie sur le micro et parle normalement. Tu n’as pas besoin de dicter des champs.</p>
+  <button id="record" class="bigbtn">🎙️ Démarrer la dictée</button>
+  <div id="recordStatus" class="status"></div>
+  <audio id="playback" controls hidden></audio>
+  <div class="voiceActions">
+    <button id="undoDictation" class="miniBtn" type="button">↩️ Annuler dernière dictée</button>
+    <button id="clearDictation" class="miniBtn danger" type="button">🗑️ Effacer la dictée</button>
+  </div>
+  <textarea id="notes" rows="9" placeholder="La dictée apparaîtra ici. Tu peux aussi écrire ou corriger le texte."></textarea>
+  <details class="historyBox"><summary>Historique des dictées</summary><div id="dictationHistory" class="history"></div></details>
+  <button id="analyse" class="bigbtn">✨ Transformer en fiche gratuitement</button>
+</section>
+<section class="card">
+  <div class="step">3 · FICHE IA</div>
+  <h2>Ce que j’ai compris</h2>
+  <div id="facts" class="facts"><div class="empty">Dicte ta visite puis touche « Transformer en fiche ».</div></div>
+  <label>Correction libre<textarea id="correction" rows="3" placeholder="Ex. la terrasse fait 25 m² et non 30 m²"></textarea></label>
+</section>
+<section class="card">
+  <div class="step">4 · DOSSIER</div>
+  <button id="save" class="bigbtn">💾 Enregistrer le dossier</button>
+  <div id="saveStatus" class="status"></div>
+  <p class="small">V6.1 : corrections orales naturelles renforcées, menuiseries et climatisation détaillées, vue nettoyée. Moteur micro inchangé.</p>
+</section>
+</main>
+<script src="/static/app.js"></script>
+<script src="/static/v6_1_patch.js"></script>
+</body>
+</html>
