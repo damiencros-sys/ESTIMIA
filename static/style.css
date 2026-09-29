@@ -22,3 +22,6 @@ textarea{resize:vertical}.cols{display:grid;grid-template-columns:1fr 1fr;gap:10
 .historyItem{padding:9px;border:1px solid var(--line);border-radius:10px;margin:6px 0;background:#fafcfd}
 .historyItem small{display:block;color:var(--muted);margin-bottom:3px}
 @media(max-width:520px){.voiceActions{grid-template-columns:1fr}}
+
+/* V7 pro: long technical values remain readable */
+.fact b{white-space:normal;line-height:1.35}
