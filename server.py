@@ -1,66 +1,15 @@
 
-from PIL import Image, ImageDraw
-from docx import Document
-from docx.shared import Pt, Inches
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from pydantic import BaseModel
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from pathlib import Path
-import os, json, uuid, urllib.request, urllib.error, urllib.parse, mimetypes, re, io
+import os, json, uuid, urllib.request, urllib.error, urllib.parse, mimetypes, re
 
 BASE=Path(__file__).resolve().parent
 DATA=BASE/"data"; DATA.mkdir(exist_ok=True)
 app=FastAPI(title="ESTIM'IA V2")
 app.mount("/static",StaticFiles(directory=BASE/"static"),name="static")
-
-
-class WordExport(BaseModel):
-    owner:str=""; phone:str=""; address:str=""; type:str=""; surface:str=""
-    commune:str=""; section:str=""; parcel:str=""; notes:str=""; facts_html:str=""; parcel_svg:str=""
-
-def _plain(x):
-    import html
-    x=re.sub(r"<br\s*/?>","\n",x,flags=re.I);x=re.sub(r"</(?:div|p|section|h\d)>","\n",x,flags=re.I)
-    return html.unescape(re.sub(r"<[^>]+>","",x)).replace("\xa0"," ").strip()
-
-def _parcel_png(svg):
-    if not svg:return None
-    m=re.search(r'<path[^>]+d="([^"]+)"',svg)
-    if not m:return None
-    nums=[float(x) for x in re.findall(r'-?\d+(?:\.\d+)?',m.group(1))]
-    pts=list(zip(nums[0::2],nums[1::2]))
-    if len(pts)<3:return None
-    im=Image.new("RGB",(900,525),"white");dr=ImageDraw.Draw(im)
-    dr.polygon([(int(x*1.25),int(y*1.25)) for x,y in pts],fill="#f2f4f5",outline="black",width=3)
-    b=io.BytesIO();im.save(b,"PNG");b.seek(0);return b
-
-@app.post("/api/export-word")
-def export_word(d:WordExport):
-    doc=Document(); sec=doc.sections[0];sec.top_margin=Inches(.55);sec.bottom_margin=Inches(.55);sec.left_margin=Inches(.6);sec.right_margin=Inches(.6)
-    p=doc.add_paragraph();p.alignment=WD_ALIGN_PARAGRAPH.CENTER;r=p.add_run("FICHE DE VISITE IMMOBILIÈRE");r.bold=True;r.font.size=Pt(18)
-    tb=doc.add_table(rows=0,cols=2);tb.style="Table Grid"
-    for k,val in [("Propriétaire",d.owner),("Téléphone",d.phone),("Adresse",d.address),("Type",d.type),("Surface habitable / Carrez annoncée",(d.surface+" m²") if d.surface else ""),("Commune",d.commune),("Section cadastrale",d.section),("Parcelle",d.parcel)]:
-        if val:c=tb.add_row().cells;c[0].text=k;c[1].text=val
-    for sm in re.finditer(r'<section[^>]*>(.*?)</section>',d.facts_html,re.S|re.I):
-        block=sm.group(1); hm=re.search(r'<h[234][^>]*>(.*?)</h[234]>',block,re.S|re.I)
-        if hm:p=doc.add_paragraph();rr=p.add_run(_plain(hm.group(1)));rr.bold=True;rr.font.size=Pt(13)
-        for row in re.findall(r'<div[^>]*class="(?:proRow|surfaceRow|surfaceTotal|grandTotal)"[^>]*>(.*?)</div>',block,re.S|re.I):
-            vals=[_plain(x) for x in re.findall(r'<(?:span|strong|b)[^>]*>(.*?)</(?:span|strong|b)>',row,re.S|re.I)]
-            vals=[x for x in vals if x]
-            if vals:doc.add_paragraph(" — ".join(vals))
-    png=_parcel_png(d.parcel_svg)
-    if png:
-        p=doc.add_paragraph();rr=p.add_run("PLAN CADASTRAL");rr.bold=True;rr.font.size=Pt(13)
-        doc.add_picture(png,width=Inches(6.5));p=doc.add_paragraph(f"{d.commune} — section {d.section} — parcelle {d.parcel}");p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    if d.notes:
-        p=doc.add_paragraph();rr=p.add_run("DICTÉE ORIGINALE");rr.bold=True;rr.font.size=Pt(13);doc.add_paragraph(d.notes)
-    out=io.BytesIO();doc.save(out);out.seek(0)
-    from fastapi.responses import StreamingResponse
-    return StreamingResponse(out,media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",headers={"Content-Disposition":'attachment; filename="Fiche_visite.docx"'})
-
 
 @app.get("/")
 def home(): return FileResponse(BASE/"static"/"index.html")
@@ -145,7 +94,7 @@ def cadastre(commune:str, section:str, numero:str):
         fs=d.get("features",[])
         if not fs:return {"found":False,"commune":commune_name,"code_insee":code_insee,"section":sec,"numero":no}
         return {"found":True,"commune":commune_name,"code_insee":code_insee,"section":sec,"numero":no,
-                "properties":fs[0].get("properties",{}),"geometry":fs[0].get("geometry")}
+                "properties":fs[0].get("properties",{})}
     except Exception:
         raise HTTPException(502,"Le service cadastral IGN ne répond pas pour le moment.")
 

@@ -1,0 +1,88 @@
+
+:root{--ink:#183246;--muted:#687985;--bg:#f3f6f8;--card:#fff;--line:#dce4e8;--accent:#0c6b58;--accent2:#eaf5f2}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink)}
+header{position:sticky;top:0;z-index:5;background:#15324a;color:white;padding:14px 16px;display:flex;justify-content:space-between;align-items:center}
+header b{font-size:22px}header small{display:block;opacity:.78;margin-top:2px}header button{border:1px solid #ffffff55;background:#ffffff12;color:white;border-radius:12px;padding:10px 12px;font-weight:700}
+main{max-width:760px;margin:auto;padding:14px}.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:17px;margin-bottom:14px}
+.step{font-size:12px;letter-spacing:.08em;font-weight:800;color:var(--accent)}h2{font-size:20px;margin:5px 0 4px}p{color:var(--muted);line-height:1.4;margin:7px 0 14px}
+label{display:block;font-size:13px;font-weight:700;margin:10px 0}input,textarea{width:100%;font:inherit;font-size:16px;border:1px solid #cbd6dc;border-radius:12px;padding:12px;margin-top:6px;color:var(--ink);background:white}
+textarea{resize:vertical}.cols{display:grid;grid-template-columns:1fr 1fr;gap:10px}.bigbtn{width:100%;min-height:52px;border:0;border-radius:14px;background:var(--accent);color:white;font-size:16px;font-weight:800;padding:13px;margin:7px 0;cursor:pointer}
+.bigbtn.secondary{display:flex;align-items:center;justify-content:center;background:var(--accent2);color:var(--accent);border:1px solid #b8d9d1}
+.bigbtn.recording{background:#9d2d2d}.status{font-size:13px;color:var(--muted);min-height:20px;margin:4px 0}.gallery{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:10px}
+.gallery img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px}.facts{border-top:1px solid var(--line);margin-top:10px}
+.fact{display:grid;grid-template-columns:42% 58%;gap:8px;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}.fact span{color:var(--muted)}.empty{padding:18px 0;color:var(--muted)}
+.small{font-size:12px;margin-bottom:0}audio{width:100%;margin:8px 0}
+@media(max-width:520px){.cols{grid-template-columns:1fr}.gallery{grid-template-columns:repeat(3,1fr)}main{padding:10px}.card{padding:14px}}
+
+.voiceActions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.miniBtn{border:1px solid #bfd0d7;background:#fff;color:var(--ink);border-radius:11px;padding:10px;font-weight:750;cursor:pointer}
+.miniBtn.danger{color:#8b2525;border-color:#e2bcbc}
+.historyBox{margin:8px 0 12px;font-size:13px}
+.historyBox summary{cursor:pointer;font-weight:750;color:var(--accent)}
+.historyItem{padding:9px;border:1px solid var(--line);border-radius:10px;margin:6px 0;background:#fafcfd}
+.historyItem small{display:block;color:var(--muted);margin-bottom:3px}
+@media(max-width:520px){.voiceActions{grid-template-columns:1fr}}
+
+/* V7 pro: long technical values remain readable */
+.fact b{white-space:normal;line-height:1.35}
+
+/* V8 — fiche technique professionnelle */
+.proGrid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:8px}
+.proGroup{border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:#fff}
+.proGroup h3{margin:0 0 8px;font-size:15px;color:var(--accent);border-bottom:1px solid var(--line);padding-bottom:7px}
+.proRow{display:grid;grid-template-columns:minmax(135px,38%) 1fr;gap:12px;padding:7px 0;border-bottom:1px solid #edf1f3}
+.proRow:last-child{border-bottom:0}
+.proRow span{color:var(--muted)}
+.proRow strong{font-weight:750;line-height:1.35}
+.rawNotes{margin-top:14px;border:1px solid var(--line);border-radius:14px;padding:12px;background:#fafcfd}
+.rawNotes summary{cursor:pointer;font-weight:800;color:var(--accent)}
+.rawNotes div{white-space:pre-wrap;margin-top:10px;line-height:1.5;color:var(--ink)}
+.missingGroup{background:#fffdf7}
+.missingGroup p{margin:0;line-height:1.5}
+@media(min-width:850px){.proGrid{grid-template-columns:1fr 1fr}.rawNotes{grid-column:1/-1}}
+@media(max-width:520px){.proRow{grid-template-columns:1fr}.proRow strong{margin-top:-5px}}
+
+/* V9 dossier mandat */
+.proGroup h3{font-size:16px}.proRow strong{word-break:normal}
+@media print{
+ header,#record,#analyse,#save,.voiceActions,#correction,.historyBox{display:none!important}
+ body{background:#fff}.card{box-shadow:none;border:0}.proGroup{break-inside:avoid}
+ .rawNotes{display:none}.proGrid{grid-template-columns:1fr 1fr}
+}
+
+/* V10 */
+.identityGrid,.cadGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.addressLine{display:flex;gap:8px}.addressLine input{flex:1}
+.cadastreBox{margin:12px 0;padding:12px;border:1px solid var(--line);border-radius:14px;background:#f8fbfc}
+.cadGrid{grid-template-columns:2fr 1fr 1fr auto;margin-top:8px;align-items:end}
+.suggestions{display:grid;gap:6px;margin:8px 0}
+.suggestion{text-align:left;border:1px solid var(--line);background:#fff;border-radius:12px;padding:10px;cursor:pointer}
+.suggestion b,.suggestion small{display:block}.suggestion small{margin-top:3px;color:var(--muted)}
+.dossierHead{display:grid;grid-template-columns:1fr 2fr;gap:10px;margin-bottom:14px}
+.dossierHead>div{border:1px solid var(--line);border-radius:14px;padding:12px;background:#fff}
+.dossierHead span,.dossierHead strong{display:block}.dossierHead span{font-size:12px;color:var(--muted);margin-bottom:5px}
+.surfaceHero{border:2px solid var(--accent);border-radius:16px;padding:14px;margin:0 0 16px;background:#fff}
+.surfaceHero>h3{margin:0 0 12px;color:var(--accent)}
+.surfaceDeclared,.surfaceRow,.surfaceTotal,.grandTotal{display:flex;justify-content:space-between;gap:15px;padding:7px 2px;border-bottom:1px solid #edf1f3}
+.levelBlock{margin:12px 0}.levelBlock h4,.otherSurface h4{margin:8px 0}
+.surfaceTotal{font-weight:800;border-top:1px solid var(--line)}
+.grandTotal{margin-top:12px;padding:12px;border-radius:10px;background:#eef5f8;border:0;font-size:17px}
+.surfaceDiff{padding:9px 2px}.surfaceDiff.warn{font-weight:700}
+.otherSurface{margin-top:12px;padding-top:5px;border-top:1px solid var(--line)}
+@media(max-width:650px){.identityGrid,.dossierHead{grid-template-columns:1fr}.cadGrid{grid-template-columns:1fr 1fr}.cadGrid label:first-child{grid-column:1/-1}.addressLine{align-items:stretch}.addressLine .miniBtn{white-space:nowrap}}
+@media print{.cadastreBox,#addressSuggestions,#addressStatus{display:none!important}.surfaceHero{break-inside:avoid}.dossierHead{grid-template-columns:1fr 2fr}}
+
+/* V11 : ordre et lisibilité */
+.dossierHead{margin-bottom:12px}
+#facts>.proGrid:first-of-type{margin-bottom:14px}
+.surfaceHero{margin-top:0}
+
+.calculatedTop{display:flex;justify-content:space-between;gap:12px;align-items:center;margin:-4px 0 16px;padding:13px 15px;border:1px solid var(--line);border-radius:14px;background:#fff}
+.calculatedTop strong{font-size:19px}
+
+/* V13 export */
+#save,#printVisit,#downloadVisit{margin-right:7px;margin-bottom:8px}
+@media print{
+  header,.toolbar,.actions,#save,#printVisit,#downloadVisit,#mic,#analyse,#undo,#clear,#photos,.cadastreBox,#addressSuggestions,#addressStatus,form>label,.cols,.identityGrid{display:none!important}
+  #facts{display:block!important}
+}
