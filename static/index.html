@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#15324a">
+<title>ESTIM’IA</title>
+<link rel="manifest" href="/static/manifest.json">
+<link rel="stylesheet" href="/static/style.css?v=13.6">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+</head>
+<body>
+<div style="position:fixed;right:8px;bottom:8px;z-index:99999;background:#111;color:#fff;padding:6px 9px;border-radius:8px;font:12px Arial;opacity:.82">ESTIM’IA V13.6 ADRESSE + PLAN</div>
+<header>
+  <div><b>ESTIM’IA</b><small>Assistant d’estimation immobilière</small></div>
+  <button id="new">+ Nouveau</button>
+</header>
+<main>
+<section class="card">
+  <div class="step">DOSSIER</div>
+  <div class="identityGrid">
+    <label>👤 Propriétaire<input id="owner" placeholder="Nom et prénom du propriétaire"></label>
+    <label>☎️ Téléphone<input id="ownerPhone" inputmode="tel" placeholder="Téléphone"></label>
+  </div>
+  <label>📍 Adresse du bien
+    <div class="addressLine"><input id="address" placeholder="Dicte l’adresse ou commence à la saisir"><button id="checkAddress" type="button" class="miniBtn">🔎 Vérifier</button></div>
+  </label>
+  <div id="addressSuggestions" class="suggestions"></div>
+  <div id="addressStatus" class="status"></div>
+  <div class="cadastreBox">
+    <b>🗺️ Cadastre</b>
+    <div class="cadGrid">
+      <label>Commune / code INSEE<input id="cadCommune" placeholder="Ex. Lamalou-les-Bains ou 34126"></label>
+      <label>Section<input id="cadSection" placeholder="Ex. AB" maxlength="3"></label>
+      <label>Parcelle<input id="cadParcel" placeholder="Ex. 152" inputmode="numeric"></label>
+      <button id="findParcel" type="button" class="miniBtn">🔎 Rechercher parcelle</button>
+    </div>
+    <div id="cadStatus" class="status"></div>
+  </div>
+  <div class="cols">
+    <label>Type<input id="type" placeholder="Appartement, maison…"></label>
+    <label>Surface Carrez / habitable annoncée (m²)<input id="surface" type="number" step=".01"></label>
+  </div>
+</section>
+
+<section class="card">
+  <div class="step">1 · PHOTOS</div>
+  <h2>Photos de la visite</h2>
+  <p>Ajoute toutes les photos. Elles seront jointes au dossier et pourront ensuite être analysées par l’IA.</p>
+  <label class="bigbtn secondary">📷 Ajouter les photos<input id="photos" type="file" accept="image/*" multiple hidden></label>
+  <div id="gallery" class="gallery"></div>
+  <div id="photoStatus" class="status"></div>
+</section>
+
+<section class="card">
+  <div class="step">2 · DICTÉE</div>
+  <h2>Raconte ta visite</h2>
+  <p>Appuie sur le micro et parle normalement. Tu n’as pas besoin de dicter des champs.</p>
+  <button id="record" class="bigbtn">🎙️ Démarrer la dictée</button>
+  <div id="recordStatus" class="status"></div>
+  <audio id="playback" controls hidden></audio>
+  <div class="voiceActions">
+    <button id="undoDictation" class="miniBtn" type="button">↩️ Annuler dernière dictée</button>
+    <button id="clearDictation" class="miniBtn danger" type="button">🗑️ Effacer la dictée</button>
+  </div>
+  <textarea id="notes" rows="9" placeholder="La dictée apparaîtra ici. Tu peux aussi écrire ou corriger le texte."></textarea>
+  <details class="historyBox"><summary>Historique des dictées</summary><div id="dictationHistory" class="history"></div></details>
+  <button id="analyse" class="bigbtn">✨ Transformer en fiche gratuitement</button>
+</section>
+
+<section class="card">
+  <div class="step">3 · FICHE IA</div>
+  <h2>Ce que j’ai compris</h2>
+  <div id="facts" class="facts"><div class="empty">Dicte ta visite puis touche « Transformer en fiche ».</div></div>
+  <label>Correction libre<textarea id="correction" rows="3" placeholder="Ex. la terrasse fait 25 m² et non 30 m²"></textarea></label>
+</section>
+
+<section class="card">
+  <div class="step">4 · DOSSIER</div>
+  <button id="save" class="bigbtn">💾 Enregistrer le dossier</button>
+    <button id="printVisit" type="button" class="secondary">🖨️ Imprimer / Enregistrer en PDF</button>
+    <button id="downloadVisit" type="button" class="secondary">💾 Sauvegarde locale de la fiche</button>
+  <div id="saveStatus" class="status"></div>
+  <p class="small">V13.6 : adresse dictée + recherche et affichage du plan cadastral. Niveaux V13.3 conservés.</p>
+</section>
+</main>
+<script src="/static/app.js?v=13.6"></script>
+<script src="/static/v7_pro.js"></script>
+<script src="/static/v8_fiche_pro.js"></script>
+<script src="/static/v13_visite.js?v=13.6"></script>
+</body>
+</html>
