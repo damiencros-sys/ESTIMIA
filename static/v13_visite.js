@@ -53,7 +53,7 @@ function cad(t){
  }
  return {section,parcel};
 }
-function address(t){
+function addressV1310(t){
  const text=clean(t);
  // Repère d'abord un CP + une commune, puis remonte jusqu'au début de l'adresse.
  // Cela évite qu'un téléphone ou le nom du propriétaire soit absorbé par l'adresse.
@@ -72,6 +72,26 @@ function address(t){
  }
  return null;
 }
+
+function address(t){
+  const got=addressV1310(t);
+  if(got && got.street) return got;
+
+  // V13.10.1.1 : correctif ADRESSE uniquement.
+  // Ex.: "le bien est situé à 2 lotissement les Castors 34600 Bédarieux..."
+  const s=clean(t);
+  const m=s.match(/(?:bien\s+(?:est\s+)?situ[eé]\s+(?:au|à|a)?\s*|adresse(?:\s+du\s+bien)?\s*[:\-]?\s*|nous\s+sommes\s+(?:au|à|a)\s+|maison\s+situ[eé]e?\s+(?:au|à|a)?\s*|appartement\s+(?:situ[eé]\s+)?(?:au|à|a)\s+)([^,.;]*?)\s+(\d{5})\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’\-\s]*?)(?=\s+(?:section|parcelle)\b|[,.;]|$)/i);
+  if(!m) return got;
+  let street=(m[1]||'').trim().replace(/\s+/g,' ');
+  if(!/^\d{1,4}(?:\s*(?:bis|ter))?\s+\S+/i.test(street)) return got;
+  return {
+    ...(got||{}),
+    street,
+    postcode:(got&&got.postcode)||m[2],
+    city:(got&&got.city)||m[3].trim().replace(/\s+/g,' ')
+  };
+}
+
 function typeOf(t){return (t.match(/\b(maison de village|maison|villa|appartement|studio|immeuble|terrain|local commercial)\b/i)||[])[1]||''}
 function buildInfo(t){
  const r=[['Type de bien',typeOf(t)]];
