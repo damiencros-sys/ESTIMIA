@@ -19,16 +19,27 @@ function owner(t){
  if(m)return [m[1],m[2],m[3]].filter(Boolean).join(' ');
  return '';
 }
+function phone(t){
+ // Numéro français même sans le mot « téléphone ». On exige 10 chiffres et un préfixe 0[1-9].
+ // Accepte 06 82 81 31 64, 0682813164, 06.82.81.31.64, 06-82-81-31-64.
+ const rx=/(?<!\d)(0[1-9])(?:[ .-]*)(\d{2})(?:[ .-]*)(\d{2})(?:[ .-]*)(\d{2})(?:[ .-]*)(\d{2})(?!\d)/g;
+ for(const m of t.matchAll(rx)){
+  const digits=m.slice(1).join('');
+  if(/^0[1-9]\d{8}$/.test(digits)) return digits.replace(/(\d{2})(?=\d)/g,'$1 ').trim();
+ }
+ return '';
+}
 function commune(t){
  const tidy=v=>clean(v).replace(/\s+(?:section|parcelle|cadastre|cadastrale|code postal)\b.*$/iu,'').replace(/[,:;.\s]+$/,'');
- let m=t.match(/\b(\d{5})\s+([^,.;!?]+)/iu);
+ // Priorité au couple CP + commune situé dans la partie « adresse du bien ».
+ const a=address(t); if(a&&a.city)return {name:a.city,postcode:a.postcode};
+ let m=t.match(/(?:code postal|cp)\s*(\d{5})[^.!?]{0,45}?(?:commune(?: de)?|ville(?: de)?|à|sur)\s+([^,.;!?]+)/iu);
  if(m)return {name:tidy(m[2]),postcode:m[1]};
- m=t.match(/(?:code postal|cp)\s*(\d{5})[^.!?]{0,35}?(?:commune(?: de)?|ville(?: de)?|à|sur)\s+([^,.;!?]+)/iu);
+ m=t.match(/\b(\d{5})\s+([\p{L}][\p{L}'’ -]{1,60}?)(?=\s+(?:section|parcelle|cadastre)\b|[,.;!?]|$)/iu);
  if(m)return {name:tidy(m[2]),postcode:m[1]};
  m=t.match(/(?:commune de|sur la commune de|ville de)\s+([^,.;!?]+)/iu);
  if(m)return {name:tidy(m[1]),postcode:''};
- m=t.match(/(?:à|sur)\s+([^,.;!?]+?)(?:\s+(?:section|parcelle|cadastre)\b|[,;.!?])/iu);
- return m?{name:tidy(m[1]),postcode:''}:null;
+ return null;
 }
 function cad(t){
  let section='',parcel='';
@@ -36,7 +47,6 @@ function cad(t){
  if(m)section=m[1].toUpperCase();
  m=t.match(/\bparcelle(?:\s+(?:num[ée]ro|n°))?\s*(?:n°\s*)?(\d{1,4})\b/i);
  if(m)parcel=m[1];
- // Variante « BH 60 » après une mention cadastrale explicite.
  if((!section||!parcel)){
   m=t.match(/(?:cadastre|cadastrale?|r[ée]f[ée]rence cadastrale)[^.!?]{0,100}?\bsection\s+([a-z]{1,3})\b[^0-9]{0,40}(\d{1,4})\b/i);
   if(m){section=section||m[1].toUpperCase();parcel=parcel||m[2]}
@@ -44,9 +54,23 @@ function cad(t){
  return {section,parcel};
 }
 function address(t){
- let m=t.match(/(?:bien\s+(?:est\s+)?situ[ée]\s+[aà]|adresse(?:\s+du\s+bien)?\s*(?:est|:)?|nous\s+sommes\s+(?:au|à)|maison\s+situ[ée]e?\s+[aà]|appartement\s+(?:situ[ée]\s+)?(?:au|à))\s+(.+?)\s+(\d{5})\s+([^,.;!?]+?)(?=\s+(?:section|parcelle|cadastre)\b|[,.;!?]|$)/iu);
- if(!m)return null;
- return {street:clean(m[1]).replace(/^(?:au|à)\s+/i,'').replace(/[,:;.\s]+$/,''),postcode:m[2],city:clean(m[3]).replace(/\s+(?:section|parcelle|cadastre).*$/iu,'').replace(/[,:;.\s]+$/,'')};
+ const text=clean(t);
+ // Repère d'abord un CP + une commune, puis remonte jusqu'au début de l'adresse.
+ // Cela évite qu'un téléphone ou le nom du propriétaire soit absorbé par l'adresse.
+ const cpRx=/\b(\d{5})\s+([\p{L}][\p{L}'’ -]{1,60}?)(?=\s+(?:section|parcelle|cadastre|cadastrale)\b|[,.;!?]|$)/giu;
+ const cps=[...text.matchAll(cpRx)];
+ for(const cp of cps){
+  const before=text.slice(0,cp.index);
+  const marker=/(?:\b(?:le\s+)?bien\s+(?:est\s+)?situ[ée]\s+(?:au|à)|\badresse(?:\s+du\s+bien)?\s*(?:est|:)?|\bnous\s+sommes\s+(?:au|à)|\bmaison\s+situ[ée]e?\s+(?:au|à)|\bappartement\s+(?:situ[ée]\s+)?(?:au|à))\s*/giu;
+  const marks=[...before.matchAll(marker)];
+  if(!marks.length)continue;
+  const last=marks[marks.length-1];
+  let street=clean(before.slice(last.index+last[0].length)).replace(/^(?:au|à)\s+/iu,'').replace(/[,:;.\s]+$/,'');
+  // Une adresse doit commencer par un numéro ou un lieu-dit/hameau clairement annoncé.
+  if(!street || (!/^\d{1,4}(?:\s*(?:bis|ter|quater))?\b/iu.test(street) && !/^(?:lieu[- ]dit|hameau)\b/iu.test(street)))continue;
+  return {street,postcode:cp[1],city:clean(cp[2]).replace(/[,:;.\s]+$/,'')};
+ }
+ return null;
 }
 function typeOf(t){return (t.match(/\b(maison de village|maison|villa|appartement|studio|immeuble|terrain|local commercial)\b/i)||[])[1]||''}
 function buildInfo(t){
@@ -260,7 +284,8 @@ async function parcelSearch(){
 async function render(){
  const raw=$('#notes').value||'',corr=$('#correction').value||'',t=clean(raw+' '+corr);
  const o=owner(t);if(o&&!$('#owner').value)$('#owner').value=o;
- const a=address(t);if(a){if(!$('#address').value)$('#address').value=a.street;if(!$('#cadCommune').value)$('#cadCommune').value=a.city;$('#cadCommune').dataset.postcode=a.postcode||'';}
+ const ph=phone(t);if(ph)$('#ownerPhone').value=ph;
+ const a=address(t);if(a){$('#address').value=a.street;$('#cadCommune').value=a.city;$('#cadCommune').dataset.postcode=a.postcode||'';}
  const c=cad(t);if(c.section&&!$('#cadSection').value)$('#cadSection').value=c.section;if(c.parcel&&!$('#cadParcel').value)$('#cadParcel').value=c.parcel;
  const cm=commune(t);
  if(cm&&!$('#cadCommune').value){
