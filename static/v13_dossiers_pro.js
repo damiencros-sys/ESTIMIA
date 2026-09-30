@@ -1,6 +1,6 @@
 
 (()=>{'use strict';
-const STORE='estimia_cases_v1317';
+const STORE='estimia_cases_v1318';
 const FORM_IDS=['owner','ownerPhone','address','cadCommune','cadSection','cadParcel','cadParcelsJSON','type','surfaceHab','surfaceCarrez','notes','correction'];
 const $=s=>document.querySelector(s);
 let currentId=null, restoring=false, timer=null;
