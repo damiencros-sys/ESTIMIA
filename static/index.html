@@ -12,7 +12,7 @@
 <meta http-equiv="Expires" content="0">
 <link rel="stylesheet" href="/static/v13_dossiers_pro.css?v=13.16">
 <style>
-.cadParcelsList{display:flex;flex-wrap:wrap;gap:7px;margin:9px 0}
+.cadParcelsList{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:9px 0}.cadParcelsLabel{flex-basis:100%;font-weight:700;margin:2px 0 1px}
 .cadParcelChip{display:inline-flex;align-items:center;gap:7px;border:1px solid #cbd8de;border-radius:999px;padding:6px 9px;background:#f7fafb;font-size:13px}
 .cadParcelChip.ok{border-color:#82b9a9;background:#eef8f4}.cadParcelChip button{border:0;background:transparent;color:#9a3030;cursor:pointer;font-weight:700}
 </style>
@@ -29,7 +29,7 @@
 </aside>
 <button id="caseOpen" type="button" class="caseOpen">☰ Mes dossiers</button>
 
-<div style="position:fixed;right:8px;bottom:8px;z-index:99999;background:#111;color:#fff;padding:6px 9px;border-radius:8px;font:12px Arial;opacity:.82">ESTIM’IA V13.17 MULTI-SECTIONS</div>
+<div style="position:fixed;right:8px;bottom:8px;z-index:99999;background:#111;color:#fff;padding:6px 9px;border-radius:8px;font:12px Arial;opacity:.82">ESTIM’IA V13.18 CADASTRE UNIFORME</div>
 <header>
   <div><b>ESTIM’IA</b><small>Assistant d’estimation immobilière</small></div>
   <button id="new" type="button" hidden aria-hidden="true">+ Nouveau</button>
@@ -50,8 +50,8 @@
     <b>🗺️ Cadastre</b>
     <div class="cadGrid">
       <label>Commune / code INSEE<input id="cadCommune" placeholder="Ex. Lamalou-les-Bains ou 34126"></label>
-      <label>Section<input id="cadSection" placeholder="Ex. AB" maxlength="3"></label>
-      <label>Parcelle<input id="cadParcel" placeholder="Ex. 152" inputmode="numeric"></label>
+      <label>Ajouter une section<input id="cadSection" placeholder="Ex. AB" maxlength="3"></label>
+      <label>Ajouter une parcelle<input id="cadParcel" placeholder="Ex. 152" inputmode="numeric"></label>
       <button id="findParcel" type="button" class="miniBtn">➕ Ajouter / rechercher</button>
     </div>
     <input id="cadParcelsJSON" type="hidden" value="[]">
@@ -103,7 +103,7 @@
     <button id="printVisit" type="button" class="secondary">🖨️ Imprimer / Enregistrer en PDF</button>
     <button id="downloadWord" type="button" class="secondary">📄 Télécharger la fiche Word</button>
   <div id="saveStatus" class="status"></div>
-  <p class="small">V13.17 : multi-parcelles cadastrales + plan groupé, Word/PDF et dossiers.</p>
+  <p class="small">V13.18 : multi-parcelles cadastrales + plan groupé, Word/PDF et dossiers.</p>
 </section>
 </main>
 <script src="/static/app.js?v=13.16"></script>
