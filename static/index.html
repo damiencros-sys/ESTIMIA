@@ -6,29 +6,28 @@
 <meta name="theme-color" content="#15324a">
 <title>ESTIM’IA</title>
 <link rel="manifest" href="/static/manifest.json">
-<link rel="stylesheet" href="/static/style.css?v=13.14">
+<link rel="stylesheet" href="/static/style.css?v=13.15">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="/static/v13_dossiers_safe.css?v=13.14">
+<link rel="stylesheet" href="/static/v13_dossiers_pro.css?v=13.15">
 </head>
 <body>
-
-<div id="dossiersDrawer" class="dossiersDrawer">
-  <div class="dossiersHead">
-    <strong>MES DOSSIERS</strong>
-    <button type="button" id="closeDossiers" class="dossiersClose">×</button>
+<aside id="caseSidebar" class="caseSidebar" aria-label="Mes dossiers">
+  <div class="caseSidebarHead">
+    <div><b>MES DOSSIERS</b><small>Fiches enregistrées sur cet appareil</small></div>
+    <button id="caseClose" type="button" class="caseClose" aria-label="Fermer">×</button>
   </div>
-  <button type="button" id="newLocalDossier" class="dossiersNew">＋ Nouveau dossier</button>
-  <input id="dossiersSearch" class="dossiersSearch" placeholder="Rechercher propriétaire, adresse, commune">
-  <div id="dossiersList" class="dossiersList"></div>
-</div>
-<button type="button" id="openDossiers" class="dossiersOpen">☰ Mes dossiers</button>
+  <button id="caseNew" type="button" class="caseNew">＋ Nouveau dossier</button>
+  <input id="caseSearch" class="caseSearch" type="search" placeholder="Rechercher nom, adresse, commune">
+  <div id="caseList" class="caseList"></div>
+</aside>
+<button id="caseOpen" type="button" class="caseOpen">☰ Mes dossiers</button>
 
-<div style="position:fixed;right:8px;bottom:8px;z-index:99999;background:#111;color:#fff;padding:6px 9px;border-radius:8px;font:12px Arial;opacity:.82">ESTIM’IA V13.14 MES DOSSIERS STABLE</div>
+<div style="position:fixed;right:8px;bottom:8px;z-index:99999;background:#111;color:#fff;padding:6px 9px;border-radius:8px;font:12px Arial;opacity:.82">ESTIM’IA V13.15 MES DOSSIERS PRO</div>
 <header>
   <div><b>ESTIM’IA</b><small>Assistant d’estimation immobilière</small></div>
-  <button id="new">+ Nouveau</button>
+  <button id="new" type="button" hidden aria-hidden="true">+ Nouveau</button>
 </header>
 <main>
 <section class="card">
@@ -97,13 +96,13 @@
     <button id="printVisit" type="button" class="secondary">🖨️ Imprimer / Enregistrer en PDF</button>
     <button id="downloadWord" type="button" class="secondary">📄 Télécharger la fiche Word</button>
   <div id="saveStatus" class="status"></div>
-  <p class="small">V13.8 : vérification BAL/BAN verrouillée sur la commune + plan cadastral officiel DGFiP + impression/PDF + Word. Niveaux V13.3 conservés.</p>
+  <p class="small">V13.15 : base V13.12 validée + gestion locale des dossiers. Adresse, cadastre, impression/PDF et Word conservés.</p>
 </section>
 </main>
-<script src="/static/app.js?v=13.14"></script>
+<script src="/static/app.js?v=13.15"></script>
 <script src="/static/v7_pro.js"></script>
 <script src="/static/v8_fiche_pro.js"></script>
-<script src="/static/v13_visite.js?v=13.14"></script>
-  <script src="/static/v13_dossiers_safe.js?v=13.14"></script>
+<script src="/static/v13_visite.js?v=13.15"></script>
+<script src="/static/v13_dossiers_pro.js?v=13.15"></script>
 </body>
 </html>
