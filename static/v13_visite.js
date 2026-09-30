@@ -96,6 +96,9 @@ function parseCadParcels(t){
    const tail=m[2].split(/\b(?:section|maison|appartement|terrain|garage|surface|séjour|salon|cuisine|chambre|salle|wc|toiture|chauffage|dpe|exposition|terrasse|parking)\b/i)[0];
    (tail.match(/\b\d{1,4}\b/g)||[]).forEach(n=>out.push({section:sec,numero:n}));
  }
+ // Natural shorthand: "parcelles C 732 et C 679"
+ const repeated=/\bparcelles?\s+([a-z]{1,3})\s+(\d{1,4})\s*(?:,|et)?\s*([a-z]{1,3})?\s*(\d{1,4})/gi;
+ while((m=repeated.exec(s)))out.push({section:m[1].toUpperCase(),numero:m[2]},{section:(m[3]||m[1]).toUpperCase(),numero:m[4]});
  const one=cad(t); if(one.section&&one.parcel)out.push({section:one.section,numero:one.parcel});
  const seen=new Set();
  return out.map(p=>normParcel(p.section,p.numero)).filter(Boolean).filter(p=>{
@@ -139,21 +142,12 @@ function addressV1310(t){
 }
 
 function address(t){
-  const got=addressV1310(t);
-  if(got && got.street) return got;
-  // V13.12 — adresse uniquement : accepte un numéro dicté en lettres.
-  let s=clean(t);
-  const nums={'un':'1','une':'1','deux':'2','trois':'3','quatre':'4','cinq':'5','six':'6','sept':'7','huit':'8','neuf':'9','dix':'10','onze':'11','douze':'12','treize':'13','quatorze':'14','quinze':'15','seize':'16','vingt':'20'};
-  const voie='(?:rue|avenue|boulevard|chemin|impasse|route|place|lotissement|lotissements|lieu[ -]dit|hameau|allée|allee|quai|cours|résidence|residence)';
-  for(const [w,n] of Object.entries(nums)){
-    const rr=new RegExp('\\b'+w+'\\s+('+voie+')\\b','i');
-    s=s.replace(rr,n+' $1');
-  }
-  const rx=new RegExp("\\b(\\d{1,4}(?:\\s*(?:bis|ter))?\\s+"+voie+"\\s+[^,.;]*?)\\s+(\\d{5})\\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’\\-\\s]*?)(?=\\s+(?:la\\s+référence\\s+cadastrale|référence\\s+cadastrale|section|parcelle|c[’']?est|maison|appartement)\\b|[,.;]|$)","i");
-  const m=s.match(rx);
-  if(!m) return got;
-  let street=m[1].trim().replace(/\s+/g,' ').replace(/^(\d{1,4}(?:\s*(?:bis|ter))?)\s+lotissements\b/i,'$1 lotissement');
-  return {...(got||{}),street,postcode:(got&&got.postcode)||m[2],city:(got&&got.city)||m[3].trim().replace(/\s+/g,' ')};
+ const s=clean(t);
+ let m=s.match(/\b(?:l['’]adresse(?:\s+du\s+bien)?|adresse(?:\s+du\s+bien)?)\s+(?:est|se situe|:)?\s*(?:au|aux|à la|à l['’])?\s*(\d{1,4})\s+((?:route|rue|chemin|avenue|boulevard|impasse|lotissement|place|all[ée]e|mont[ée]e|traverse|quai|cours)\b[^,.;!?]{1,100}?)(?:\s+(\d{5})\s+([\p{L}'’ -]{2,50}))?(?=\s*(?:,|;|\.|section|r[ée]f[ée]rence cadastrale|parcelles?|c['’]?est|maison|appartement|villa|terrain|salon|s[ée]jour|cuisine|chambre|$))/iu);
+ if(m)return {street:clean(m[1]+' '+m[2]),postcode:(m[3]||'').trim(),city:clean(m[4]||'')};
+ m=s.match(/\b(\d{1,4})\s+((?:route|rue|chemin|avenue|boulevard|impasse|lotissement|place|all[ée]e|mont[ée]e|traverse|quai|cours)\b[^,.;!?]{1,90}?)\s+(\d{5})\s+([\p{L}'’ -]{2,50}?)(?=\s*(?:,|;|\.|section|r[ée]f[ée]rence cadastrale|parcelles?|c['’]?est|maison|appartement|villa|terrain|salon|s[ée]jour|cuisine|chambre|$))/iu);
+ if(m)return {street:clean(m[1]+' '+m[2]),postcode:m[3],city:clean(m[4])};
+ return {street:'',postcode:'',city:''};
 }
 function typeOf(t){return (t.match(/\b(maison de village|maison|villa|appartement|studio|immeuble|terrain|local commercial)\b/i)||[])[1]||''}
 function buildInfo(t){
@@ -243,8 +237,8 @@ function explicitCarrez(text){
  const m=clean(text).match(/\b(?:surface\s+)?(?:loi\s+)?carrez\s*(?:de|est|:|fait|mesure)?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres? carr[ée]s?)/i);
  return m?n(m[1]):null;
 }
-function explicitHabitable(text){
- const m=clean(text).match(/\bsurface\s+habitable\s*(?:de|est|:|fait|mesure)?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres? carr[ée]s?)/i);
+function explicitHabitable(t){
+ const m=clean(t).match(/\bsurface\s+habitable(?:\s+(?:de|est|:))?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/i);
  return m?n(m[1]):null;
 }
 function surfHTML(rows){
@@ -395,7 +389,7 @@ function renderMultiCadPlan(){
  const com=$('#cadCommune')?.value?.trim();if(!com)return;
  const title=document.createElement('div');title.innerHTML='<b>Plan cadastral — '+E(com)+' — '+cadParcels.map(p=>E(p.section)+' '+parseInt(p.numero,10)).join(' • ')+'</b>';
  const img=document.createElement('img');img.alt='Plan cadastral des parcelles';img.style.cssText='display:block;width:100%;max-width:720px;max-height:500px;object-fit:contain;margin-top:8px;border:1px solid #ddd;border-radius:8px;background:#fff';
- img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.19';
+ img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.20';
  img.dataset.cadMap='1';
  const link=document.createElement('a');link.href=img.src;link.target='_blank';link.rel='noopener';link.textContent='Ouvrir le plan cadastral';link.style.cssText='display:inline-block;margin-top:8px';
  box.append(title,img,link);
@@ -443,7 +437,7 @@ async function render(){
  const ss=surfaces(t), habRows=habitableRows(ss,t), total=habRows.reduce((a,x)=>a+x.val,0);
  const habDeclared=explicitHabitable(t), announced=declaredPropertySurface(t), carrez=explicitCarrez(t);
  if(habDeclared!=null)$('#surfaceHab').value=habDeclared.toFixed(2);
- else if(total)$('#surfaceHab').value=total.toFixed(2);
+ else $('#surfaceHab').value='';
  if(carrez!=null)$('#surfaceCarrez').value=carrez.toFixed(2);
  let topRows=buildInfo(t);
  if(announced!=null)topRows.push(['Surface annoncée / dictée',fmt(announced)]);
@@ -490,7 +484,7 @@ async function verifyAddressV137(){
 }
 function cadMapURL(){
  const c=$('#cadCommune')?.value?.trim();
- if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.19';
+ if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.20';
  return '';
 }
 
