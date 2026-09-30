@@ -244,41 +244,98 @@ class WordPayload(BaseModel):
     parcel:str=""
     property_type:str=""
     surface:str=""
+    surface_carrez:str=""
+    sections:list=[]
     facts:str=""
 
 @app.post("/api/word")
 def word_export(p:WordPayload):
     from docx import Document
-    from docx.shared import Inches, Pt
+    from docx.shared import Inches, Pt, RGBColor
     from docx.enum.text import WD_ALIGN_PARAGRAPH
-    from docx.enum.table import WD_TABLE_ALIGNMENT
+    from docx.enum.table import WD_TABLE_ALIGNMENT, WD_CELL_VERTICAL_ALIGNMENT
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
     doc=Document()
-    sec=doc.sections[0]; sec.top_margin=Inches(.55);sec.bottom_margin=Inches(.55);sec.left_margin=Inches(.65);sec.right_margin=Inches(.65)
-    h=doc.add_heading("FICHE DE VISITE IMMOBILIÈRE",0); h.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    table=doc.add_table(rows=0,cols=2); table.alignment=WD_TABLE_ALIGNMENT.CENTER
-    meta=[("Propriétaire",p.owner),("Téléphone",p.phone),("Adresse",p.address),("Commune",p.commune),
-          ("Section",p.section),("Parcelle",p.parcel),("Type",p.property_type),("Surface annoncée",(p.surface+" m²") if p.surface else "")]
-    for k,v in meta:
-        if v:
-            cells=table.add_row().cells; cells[0].text=k; cells[1].text=v
+    sec=doc.sections[0]
+    sec.top_margin=Inches(.45); sec.bottom_margin=Inches(.45); sec.left_margin=Inches(.55); sec.right_margin=Inches(.55)
+    styles=doc.styles
+    styles['Normal'].font.name='Aptos'; styles['Normal'].font.size=Pt(9.5)
+    styles['Title'].font.name='Aptos Display'; styles['Title'].font.size=Pt(20); styles['Title'].font.bold=True
+
+    def shade(cell,fill):
+        tcPr=cell._tc.get_or_add_tcPr(); shd=OxmlElement('w:shd'); shd.set(qn('w:fill'),fill); tcPr.append(shd)
+    def margins(cell,top=70,start=90,bottom=70,end=90):
+        tc=cell._tc.get_or_add_tcPr(); mar=tc.first_child_found_in('w:tcMar')
+        if mar is None: mar=OxmlElement('w:tcMar'); tc.append(mar)
+        for tag,val in [('top',top),('start',start),('bottom',bottom),('end',end)]:
+            el=OxmlElement('w:'+tag); el.set(qn('w:w'),str(val)); el.set(qn('w:type'),'dxa'); mar.append(el)
+    def keep_table(table):
+        for row in table.rows:
+            trPr=row._tr.get_or_add_trPr(); el=OxmlElement('w:cantSplit'); trPr.append(el)
+    def label_value_table(rows,widths=(2.15,4.75)):
+        table=doc.add_table(rows=0,cols=2); table.alignment=WD_TABLE_ALIGNMENT.CENTER; table.style='Table Grid'
+        for k,v in rows:
+            if not v: continue
+            cells=table.add_row().cells; cells[0].text=str(k); cells[1].text=str(v)
+            cells[0].width=Inches(widths[0]); cells[1].width=Inches(widths[1])
+            cells[0].vertical_alignment=cells[1].vertical_alignment=WD_CELL_VERTICAL_ALIGNMENT.CENTER
+            shade(cells[0],'EAF3F1')
+            for c in cells: margins(c)
+            for r in cells[0].paragraphs[0].runs: r.bold=True; r.font.size=Pt(9)
+            for r in cells[1].paragraphs[0].runs: r.font.size=Pt(9)
+        keep_table(table); return table
+    def heading(text):
+        p=doc.add_paragraph(); p.paragraph_format.space_before=Pt(7); p.paragraph_format.space_after=Pt(3); p.paragraph_format.keep_with_next=True
+        r=p.add_run(text); r.bold=True; r.font.size=Pt(11); r.font.color.rgb=RGBColor(0x0B,0x6B,0x5A)
+        return p
+
+    title=doc.add_paragraph(); title.alignment=WD_ALIGN_PARAGRAPH.CENTER; title.paragraph_format.space_after=Pt(4)
+    r=title.add_run('FICHE DE VISITE IMMOBILIÈRE'); r.bold=True; r.font.size=Pt(18); r.font.color.rgb=RGBColor(0x16,0x38,0x4E)
+    sub=doc.add_paragraph(); sub.alignment=WD_ALIGN_PARAGRAPH.CENTER; sub.paragraph_format.space_after=Pt(7)
+    rr=sub.add_run('ESTIM’IA — fiche de relevé'); rr.italic=True; rr.font.size=Pt(9); rr.font.color.rgb=RGBColor(0x66,0x66,0x66)
+
+    heading('DOSSIER')
+    meta=[('Propriétaire',p.owner),('Téléphone',p.phone),('Adresse',p.address),('Commune',p.commune),
+          ('Cadastre',('Section '+p.section.upper()+' — Parcelle '+str(int(re.sub(r'\\D','',p.parcel) or '0'))) if p.section and p.parcel else ''),
+          ('Type',p.property_type),('Surface habitable',(p.surface+' m²') if p.surface else ''),('Surface Carrez',(p.surface_carrez+' m²') if p.surface_carrez else '')]
+    label_value_table(meta)
+
     if p.commune and p.section and p.parcel:
         try:
             img,_,_,_,_=_context_map_png(p.commune,p.section,p.parcel,760,500)
-            doc.add_heading("Plan cadastral",level=1)
-            doc.add_picture(img,width=Inches(6.7))
-            cap=doc.paragraphs[-1]; cap.alignment=WD_ALIGN_PARAGRAPH.CENTER
-            q=doc.add_paragraph(f"Section {p.section.upper()} — Parcelle {int(re.sub(r'\\D','',p.parcel) or '0')}")
-            q.alignment=WD_ALIGN_PARAGRAPH.CENTER
+            heading('PLAN CADASTRAL')
+            pic=doc.add_picture(img,width=Inches(5.35))
+            doc.paragraphs[-1].alignment=WD_ALIGN_PARAGRAPH.CENTER
+            cap=doc.add_paragraph(f'{p.commune} — Section {p.section.upper()} — Parcelle {int(re.sub(r"\\D","",p.parcel) or "0")}')
+            cap.alignment=WD_ALIGN_PARAGRAPH.CENTER; cap.paragraph_format.space_after=Pt(4)
+            for r in cap.runs: r.font.size=Pt(8); r.font.italic=True
         except Exception:
-            doc.add_paragraph("Plan cadastral indisponible au moment de l’export.")
-    if p.facts.strip():
-        doc.add_heading("Fiche de visite",level=1)
+            pass
+
+    if p.sections:
+        heading('RELEVÉ DE VISITE')
+        for secdata in p.sections:
+            title=str(secdata.get('title','')).strip()
+            rows=secdata.get('rows') or []
+            rows=[[str(x[0]),str(x[1])] for x in rows if isinstance(x,(list,tuple)) and len(x)>=2 and str(x[1]).strip()]
+            if not rows: continue
+            heading(title)
+            label_value_table(rows)
+    elif p.facts.strip():
+        heading('RELEVÉ DE VISITE')
         for line in [x.strip() for x in p.facts.splitlines() if x.strip()]:
             doc.add_paragraph(line)
+
+    # footer + page number field
+    footer=sec.footer.paragraphs[0]; footer.alignment=WD_ALIGN_PARAGRAPH.CENTER
+    fr=footer.add_run('ESTIM’IA  •  Fiche de visite  •  Page '); fr.font.size=Pt(8); fr.font.color.rgb=RGBColor(0x77,0x77,0x77)
+    fld=OxmlElement('w:fldSimple'); fld.set(qn('w:instr'),'PAGE'); footer._p.append(fld)
+
     out=io.BytesIO(); doc.save(out); out.seek(0)
-    safe=re.sub(r"[^A-Za-z0-9_-]+","_",p.owner or p.address or "bien").strip("_") or "bien"
-    return StreamingResponse(out,media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition":f'attachment; filename="Fiche_visite_{safe}.docx"'})
+    safe=re.sub(r'[^A-Za-z0-9_-]+','_',p.owner or p.address or 'bien').strip('_') or 'bien'
+    return StreamingResponse(out,media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',headers={'Content-Disposition':f'attachment; filename="Fiche_visite_{safe}.docx"'})
 
 @app.post("/api/transcribe")
 async def transcribe(audio: UploadFile=File(...)):
