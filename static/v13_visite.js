@@ -76,22 +76,20 @@ function addressV1310(t){
 function address(t){
   const got=addressV1310(t);
   if(got && got.street) return got;
-
-  // V13.10.1.1 : correctif ADRESSE uniquement.
-  // Ex.: "le bien est situé à 2 lotissement les Castors 34600 Bédarieux..."
-  const s=clean(t);
-  const m=s.match(/(?:bien\s+(?:est\s+)?situ[eé]\s+(?:au|à|a)?\s*|adresse(?:\s+du\s+bien)?\s*[:\-]?\s*|nous\s+sommes\s+(?:au|à|a)\s+|maison\s+situ[eé]e?\s+(?:au|à|a)?\s*|appartement\s+(?:situ[eé]\s+)?(?:au|à|a)\s+)([^,.;]*?)\s+(\d{5})\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’\-\s]*?)(?=\s+(?:section|parcelle)\b|[,.;]|$)/i);
+  // V13.10.2 — adresse uniquement : accepte un numéro dicté en lettres.
+  let s=clean(t);
+  const nums={'un':'1','une':'1','deux':'2','trois':'3','quatre':'4','cinq':'5','six':'6','sept':'7','huit':'8','neuf':'9','dix':'10','onze':'11','douze':'12','treize':'13','quatorze':'14','quinze':'15','seize':'16','vingt':'20'};
+  const voie='(?:rue|avenue|boulevard|chemin|impasse|route|place|lotissement|lotissements|lieu[ -]dit|hameau|allée|allee|quai|cours|résidence|residence)';
+  for(const [w,n] of Object.entries(nums)){
+    const rr=new RegExp('\\b'+w+'\\s+('+voie+')\\b','i');
+    s=s.replace(rr,n+' $1');
+  }
+  const rx=new RegExp("\\b(\\d{1,4}(?:\\s*(?:bis|ter))?\\s+"+voie+"\\s+[^,.;]*?)\\s+(\\d{5})\\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’\\-\\s]*?)(?=\\s+(?:la\\s+référence\\s+cadastrale|référence\\s+cadastrale|section|parcelle|c[’']?est|maison|appartement)\\b|[,.;]|$)","i");
+  const m=s.match(rx);
   if(!m) return got;
-  let street=(m[1]||'').trim().replace(/\s+/g,' ');
-  if(!/^\d{1,4}(?:\s*(?:bis|ter))?\s+\S+/i.test(street)) return got;
-  return {
-    ...(got||{}),
-    street,
-    postcode:(got&&got.postcode)||m[2],
-    city:(got&&got.city)||m[3].trim().replace(/\s+/g,' ')
-  };
+  let street=m[1].trim().replace(/\s+/g,' ').replace(/^(\d{1,4}(?:\s*(?:bis|ter))?)\s+lotissements\b/i,'$1 lotissement');
+  return {...(got||{}),street,postcode:(got&&got.postcode)||m[2],city:(got&&got.city)||m[3].trim().replace(/\s+/g,' ')};
 }
-
 function typeOf(t){return (t.match(/\b(maison de village|maison|villa|appartement|studio|immeuble|terrain|local commercial)\b/i)||[])[1]||''}
 function buildInfo(t){
  const r=[['Type de bien',typeOf(t)]];
