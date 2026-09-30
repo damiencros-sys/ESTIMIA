@@ -1,7 +1,7 @@
 
 (()=>{'use strict';
-const STORE='estimia_cases_v1315';
-const FORM_IDS=['owner','ownerPhone','address','cadCommune','cadSection','cadParcel','type','surfaceHab','surfaceCarrez','notes','correction'];
+const STORE='estimia_cases_v1316';
+const FORM_IDS=['owner','ownerPhone','address','cadCommune','cadSection','cadParcel','cadParcelsJSON','type','surfaceHab','surfaceCarrez','notes','correction'];
 const $=s=>document.querySelector(s);
 let currentId=null, restoring=false, timer=null;
 
@@ -47,7 +47,7 @@ function restore(d){
    const host=$('.cadastreBox');
    if(host) host.insertAdjacentHTML('beforeend',d.cadPlanHTML);
  }
- restoring=false; renderList(); closeDrawer();
+ restoring=false; document.dispatchEvent(new Event('estimia:parcels-restored')); renderList(); closeDrawer();
  window.scrollTo({top:0,behavior:'smooth'});
 }
 function clearForm(){
@@ -60,7 +60,7 @@ function clearForm(){
  removePlan();
  const gallery=$('#gallery'); if(gallery)gallery.innerHTML='';
  const photoStatus=$('#photoStatus');if(photoStatus)photoStatus.textContent='';
- restoring=false; renderList(); closeDrawer(); window.scrollTo({top:0,behavior:'smooth'});
+ restoring=false; document.dispatchEvent(new Event('estimia:parcels-restored')); renderList(); closeDrawer(); window.scrollTo({top:0,behavior:'smooth'});
 }
 function newCase(){
  if(hasMeaningfulData()) saveNow();
