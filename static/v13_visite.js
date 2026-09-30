@@ -41,6 +41,55 @@ function commune(t){
  if(m)return {name:tidy(m[1]),postcode:''};
  return null;
 }
+
+let cadParcels=[];
+function normParcel(section,numero){
+ section=String(section||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+ numero=String(numero||'').replace(/\D/g,'').replace(/^0+(?=\d)/,'');
+ return section&&numero?{section,numero}:null;
+}
+function parcelKey(p){return p.section+':'+String(parseInt(p.numero,10))}
+function syncCadParcels(){
+ const h=$('#cadParcelsJSON');if(h)h.value=JSON.stringify(cadParcels);
+ renderCadParcelsList();
+ document.dispatchEvent(new Event('change',{bubbles:true}));
+}
+function addCadParcel(section,numero,found=false){
+ const p=normParcel(section,numero);if(!p)return;
+ const k=parcelKey(p),i=cadParcels.findIndex(x=>parcelKey(x)===k);
+ if(i<0)cadParcels.push({...p,found:!!found}); else if(found)cadParcels[i].found=true;
+ if(!$('#cadSection').value)$('#cadSection').value=p.section;
+ if(!$('#cadParcel').value)$('#cadParcel').value=p.numero;
+ syncCadParcels();
+}
+function removeCadParcel(k){cadParcels=cadParcels.filter(x=>parcelKey(x)!==k);syncCadParcels();renderMultiCadPlan()}
+function renderCadParcelsList(){
+ const box=$('#cadParcelsList');if(!box)return;box.innerHTML='';
+ cadParcels.forEach(p=>{const d=document.createElement('span');d.className='cadParcelChip'+(p.found?' ok':'');
+   d.innerHTML=`<b>${E(p.section)} ${E(String(parseInt(p.numero,10)))}</b>${p.found?' ✓':''}<button type="button" title="Retirer">×</button>`;
+   d.querySelector('button').onclick=()=>removeCadParcel(parcelKey(p));box.appendChild(d);});
+}
+function parseCadParcels(t){
+ const s=clean(t),out=[];
+ // "section BH parcelles 60, 61 et 63"
+ const rx=/\bsection\s+([a-z]{1,3})\b[^.!?]{0,35}?\bparcelles?\b([^.!?]{0,70})/gi;
+ let m;
+ while((m=rx.exec(s))){
+   const sec=m[1].toUpperCase();
+   const nums=(m[2].match(/\b\d{1,4}\b/g)||[]);
+   nums.forEach(n=>out.push({section:sec,numero:n}));
+ }
+ // "parcelle BH 60"
+ const rx2=/\bparcelle\s+([a-z]{1,3})\s+(\d{1,4})\b/gi;
+ while((m=rx2.exec(s)))out.push({section:m[1].toUpperCase(),numero:m[2]});
+ // fallback existing single parser
+ const one=cad(t);if(one.section&&one.parcel)out.push({section:one.section,numero:one.parcel});
+ const seen=new Set();return out.filter(p=>{const k=parcelKey(p);if(seen.has(k))return false;seen.add(k);return true});
+}
+function loadCadParcelsFromHidden(){
+ try{const a=JSON.parse($('#cadParcelsJSON')?.value||'[]');cadParcels=Array.isArray(a)?a.map(x=>({...normParcel(x.section,x.numero),found:!!x.found})).filter(x=>x.section&&x.numero):[]}catch{cadParcels=[]}
+ renderCadParcelsList();renderMultiCadPlan();
+}
 function cad(t){
  let section='',parcel='';
  let m=t.match(/\bsection\s+([a-z]{1,3})\b/i);
@@ -290,11 +339,14 @@ function ensureCadPlanBox(){
  const status=$('#cadStatus');box=document.createElement('div');box.id='cadPlanBox';box.style.marginTop='10px';
  status.parentNode.insertBefore(box,status.nextSibling);return box;
 }
-function renderCadPlan(j){
- const box=ensureCadPlanBox();box.innerHTML='';if(!j||!j.found||!j.geometry)return;
- const title=document.createElement('div');title.innerHTML='<b>Plan cadastral — '+(j.commune||'')+' — section '+(j.section||'')+' — parcelle '+parseInt(j.numero,10)+'</b>';
- const img=document.createElement('img');img.alt='Plan de la parcelle cadastrale';img.style.cssText='display:block;width:100%;max-width:720px;max-height:460px;object-fit:contain;margin-top:8px;border:1px solid #ddd;border-radius:8px;background:#fff';
- img.src='/api/cadastre/map.png?commune='+encodeURIComponent(j.code_insee||j.commune||'')+'&section='+encodeURIComponent(j.section||'')+'&numero='+encodeURIComponent(parseInt(j.numero,10))+'&v=13.9';
+function multiRefsParam(){return cadParcels.map(p=>p.section+':'+parseInt(p.numero,10)).join(',')}
+function renderMultiCadPlan(){
+ const box=ensureCadPlanBox();box.innerHTML='';
+ if(!cadParcels.length)return;
+ const com=$('#cadCommune')?.value?.trim();if(!com)return;
+ const title=document.createElement('div');title.innerHTML='<b>Plan cadastral — '+E(com)+' — '+cadParcels.map(p=>E(p.section)+' '+parseInt(p.numero,10)).join(' • ')+'</b>';
+ const img=document.createElement('img');img.alt='Plan cadastral des parcelles';img.style.cssText='display:block;width:100%;max-width:720px;max-height:500px;object-fit:contain;margin-top:8px;border:1px solid #ddd;border-radius:8px;background:#fff';
+ img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.16';
  img.dataset.cadMap='1';
  const link=document.createElement('a');link.href=img.src;link.target='_blank';link.rel='noopener';link.textContent='Ouvrir le plan cadastral';link.style.cssText='display:inline-block;margin-top:8px';
  box.append(title,img,link);
@@ -302,32 +354,32 @@ function renderCadPlan(j){
 async function parcelSearch(){
  const field=$('#cadCommune'),sec=$('#cadSection').value.trim().toUpperCase(),par=$('#cadParcel').value.trim();
  let com=field.value.trim();
- if(!com||!sec||!par){$('#cadStatus').textContent='Commune, section et parcelle nécessaires.';return}
- $('#cadStatus').textContent='Recherche de la commune puis de la parcelle…';
- const oldPlan=document.getElementById('cadPlanBox');if(oldPlan)oldPlan.innerHTML='';
+ if(sec&&par)addCadParcel(sec,par,false);
+ if(!com||!cadParcels.length){$('#cadStatus').textContent='Commune et au moins une parcelle nécessaires.';return}
+ $('#cadStatus').textContent='Vérification des parcelles…';
  try{
   let insee=field.dataset.insee||'';
-  if(!insee){
-   const n=await normalizeCommune(com,field.dataset.postcode||'');
-   if(n){insee=n.code||'';com=n.name||com}
+  if(!insee){const n=await normalizeCommune(com,field.dataset.postcode||'');if(n){insee=n.code||'';com=n.name||com}}
+  const verified=[];
+  for(const p of cadParcels){
+   const r=await fetch(`/api/cadastre?commune=${encodeURIComponent(insee||com)}&section=${encodeURIComponent(p.section)}&numero=${encodeURIComponent(p.numero)}`),j=await r.json();
+   if(!r.ok)throw new Error(j.detail||'Erreur');
+   if(j.found){verified.push({...p,section:j.section||p.section,numero:String(parseInt(j.numero,10)),found:true});field.value=j.commune||com;field.dataset.insee=j.code_insee||insee}
+   else verified.push({...p,found:false});
   }
-  const r=await fetch(`/api/cadastre?commune=${encodeURIComponent(insee||com)}&section=${encodeURIComponent(sec)}&numero=${encodeURIComponent(par)}`),j=await r.json();
-  if(!r.ok)throw new Error(j.detail||'Erreur');
-  if(j.found){
-   field.value=j.commune||com; field.dataset.insee=j.code_insee||insee;
-   $('#cadSection').value=j.section||sec; $('#cadParcel').value=String(parseInt(j.numero,10));
-   $('#cadStatus').textContent=`✓ Parcelle trouvée : ${j.commune||com} — section ${j.section} — parcelle ${parseInt(j.numero,10)}`;
-   if(j.commune){$('#cadCommune').value=j.commune;$('#cadCommune').dataset.insee=j.code_insee||'';}
-   renderCadPlan(j);
-  }else $('#cadStatus').textContent=`Parcelle non trouvée pour ${j.commune||com} — section ${j.section||sec} — parcelle ${parseInt(j.numero||par,10)}.`;
+  cadParcels=verified;syncCadParcels();
+  const ok=cadParcels.filter(x=>x.found),bad=cadParcels.filter(x=>!x.found);
+  $('#cadStatus').textContent=`✓ ${ok.length} parcelle(s) trouvée(s)`+(bad.length?` — ${bad.length} non trouvée(s)`:'');
+  if(ok.length)renderMultiCadPlan();
  }catch(e){$('#cadStatus').textContent='Recherche impossible : '+e.message}
 }
+
 async function render(){
  const raw=$('#notes').value||'',corr=$('#correction').value||'',t=clean(raw+' '+corr);
  const o=owner(t);if(o&&!$('#owner').value)$('#owner').value=o;
  const ph=phone(t);if(ph)$('#ownerPhone').value=ph;
  const a=address(t);if(a){$('#address').value=a.street;$('#cadCommune').value=a.city;$('#cadCommune').dataset.postcode=a.postcode||'';}
- const c=cad(t);if(c.section&&!$('#cadSection').value)$('#cadSection').value=c.section;if(c.parcel&&!$('#cadParcel').value)$('#cadParcel').value=c.parcel;
+ const cps=parseCadParcels(t);if(cps.length){cps.forEach(p=>addCadParcel(p.section,p.numero,false));if(!$('#cadSection').value)$('#cadSection').value=cps[0].section;if(!$('#cadParcel').value)$('#cadParcel').value=cps[0].numero;}
  const cm=commune(t);
  if(cm&&!$('#cadCommune').value){
   $('#cadCommune').value=cm.name;
@@ -371,9 +423,11 @@ async function verifyAddressV137(){
  }catch(e){ $('#addressStatus').textContent='⚠ Vérification indisponible — adresse dictée conservée.'; }
 }
 function cadMapURL(){
- const c=$('#cadCommune')?.value?.trim(),s=$('#cadSection')?.value?.trim(),p=$('#cadParcel')?.value?.trim();
- return c&&s&&p?'/api/cadastre/map.png?commune='+encodeURIComponent(c)+'&section='+encodeURIComponent(s)+'&numero='+encodeURIComponent(p)+'&v=13.9':'';
+ const c=$('#cadCommune')?.value?.trim();
+ if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.16';
+ return '';
 }
+
 async function downloadWord(){
  const sections=[];
  document.querySelectorAll('#facts .levelBlock').forEach(b=>sections.push({title:b.querySelector('h4')?.innerText||'Niveau',rows:[...b.querySelectorAll('.surfaceRow')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('b')?.innerText||'']).concat([...b.querySelectorAll('.surfaceTotal')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('strong')?.innerText||'']))}));
@@ -382,7 +436,7 @@ async function downloadWord(){
  const payload={
   owner:$('#owner')?.value||'',phone:$('#ownerPhone')?.value||'',address:$('#address')?.value||'',
   commune:$('#cadCommune')?.value||'',section:$('#cadSection')?.value||'',parcel:$('#cadParcel')?.value||'',
-  property_type:$('#type')?.value||'',surface:$('#surfaceHab')?.value||'',surface_carrez:$('#surfaceCarrez')?.value||'',sections,
+  property_type:$('#type')?.value||'',surface:$('#surfaceHab')?.value||'',surface_carrez:$('#surfaceCarrez')?.value||'',sections,parcels:cadParcels.map(p=>({section:p.section,numero:p.numero})),
   facts:$('#facts')?.innerText||''
  };
  try{
@@ -395,7 +449,8 @@ async function downloadWord(){
 }
 function printableHTML(){
  const title=ficheTitle(), facts=$('#facts')?.innerHTML||'', mapUrl=cadMapURL();
- const mapBlock=mapUrl?`<section class="cadPrint"><h2>Plan cadastral</h2><img src="${mapUrl}" alt="Plan cadastral"><div>Section ${E($('#cadSection')?.value||'')} — Parcelle ${E($('#cadParcel')?.value||'')}</div></section>`:'';
+ const refsTxt=cadParcels.map(p=>`${E(p.section)} ${E(String(parseInt(p.numero,10)))}`).join(' • ');
+ const mapBlock=mapUrl?`<section class="cadPrint"><h2>Plan cadastral</h2><img src="${mapUrl}" alt="Plan cadastral"><div>Parcelles : ${refsTxt}</div></section>`:'';
  const meta=[
   ['Propriétaire',$('#owner')?.value||''],
   ['Téléphone',$('#ownerPhone')?.value||''],
@@ -404,8 +459,7 @@ function printableHTML(){
   ['Surface habitable',$('#surfaceHab')?.value?$('#surfaceHab').value+' m²':''],
   ['Surface Carrez',$('#surfaceCarrez')?.value?$('#surfaceCarrez').value+' m²':''],
   ['Commune / INSEE',$('#cadCommune')?.value||''],
-  ['Section',$('#cadSection')?.value||''],
-  ['Parcelle',$('#cadParcel')?.value||'']
+  ['Parcelles',cadParcels.map(p=>p.section+' '+parseInt(p.numero,10)).join(' • ')]
  ].filter(x=>x[1]);
  const head=meta.map(x=>`<div class="m"><span>${E(x[0])}</span><b>${E(x[1])}</b></div>`).join('');
  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${E(title)}</title>
@@ -431,5 +485,7 @@ document.addEventListener('DOMContentLoaded',()=>{
  $('#printVisit')?.addEventListener('click',printVisit);
  $('#downloadVisit')?.addEventListener('click',downloadVisit);
  $('#downloadWord')?.addEventListener('click',downloadWord);
+ document.addEventListener('estimia:parcels-restored',loadCadParcelsFromHidden);
+ loadCadParcelsFromHidden();
 });
 })();
