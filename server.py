@@ -230,6 +230,73 @@ def _context_map_png(commune,section,numero,width=760,height=520):
     bio=io.BytesIO(); out.save(bio,format="PNG",optimize=True); bio.seek(0)
     return bio,name,code,sec,no
 
+
+def _multi_context_map_png(commune, refs, width=760, height=520):
+    from PIL import Image, ImageDraw
+    refs=[x for x in refs if x.get("section") and x.get("numero")]
+    if not refs: raise HTTPException(400,"Aucune parcelle fournie.")
+    features=[]; commune_name=""; code_insee=""
+    for ref in refs:
+        f,name,code,sec,no=_parcel_feature(commune,ref["section"],ref["numero"])
+        if not f: raise HTTPException(404,f"Parcelle {sec} {int(no)} non trouvée.")
+        commune_name=commune_name or name; code_insee=code_insee or code
+        features.append((f,sec,no))
+    all_m=[]
+    for f,sec,no in features:
+        for ring in _geom_rings(f.get("geometry")):
+            all_m.extend(_mercator(p[0],p[1]) for p in ring if len(p)>=2)
+    if not all_m: raise HTTPException(404,"Géométrie cadastrale indisponible.")
+    xs=[p[0] for p in all_m]; ys=[p[1] for p in all_m]
+    cx=(min(xs)+max(xs))/2; cy=(min(ys)+max(ys))/2
+    span=max(max(xs)-min(xs),max(ys)-min(ys),55.0)*1.55
+    aspect=width/height; half_y=span/2; half_x=max(span*aspect/2,(max(xs)-min(xs))*0.65)
+    half_y=max(half_y,(max(ys)-min(ys))*0.65)
+    bbox=(cx-half_x,cy-half_y,cx+half_x,cy+half_y)
+    layers="AMORCES_CAD,LIEUDIT,CP.CadastralParcel,SUBFISCAL,CLOTURE,DETAIL_TOPO,HYDRO,VOIE_COMMUNICATION,BU.Building,BORNE_REPERE"
+    params={"service":"WMS","version":"1.3","request":"GetMap","layers":layers,"styles":"",
+            "format":"image/png","crs":"EPSG:3857","bbox":",".join(f"{v:.3f}" for v in bbox),
+            "width":str(width),"height":str(height),"language":"fre"}
+    url=f"https://inspire.cadastre.gouv.fr/scpc/{code_insee}.wms?"+urllib.parse.urlencode(params)
+    try:
+        req=urllib.request.Request(url,headers={"User-Agent":"ESTIMIA/13.16"})
+        with urllib.request.urlopen(req,timeout=20) as r:
+            raw=r.read(); ctype=r.headers.get("Content-Type","")
+        if "image" not in ctype.lower(): raise ValueError("Réponse WMS non image")
+        out=Image.open(io.BytesIO(raw)).convert("RGB")
+    except Exception:
+        raise HTTPException(502,"Le plan cadastral officiel DGFiP est momentanément indisponible.")
+    draw=ImageDraw.Draw(out,"RGBA"); xmin,ymin,xmax,ymax=bbox
+    def px(pt):
+        x,y=_mercator(pt[0],pt[1])
+        return ((x-xmin)/(xmax-xmin)*width, height-(y-ymin)/(ymax-ymin)*height)
+    for idx,(f,sec,no) in enumerate(features,1):
+        centers=[]
+        for ring in _geom_rings(f.get("geometry")):
+            poly=[px(p) for p in ring if len(p)>=2]
+            if len(poly)>=3:
+                draw.polygon(poly,fill=(255,35,35,62),outline=(220,0,0,255),width=4)
+                centers.extend(poly)
+        if centers:
+            mx=sum(p[0] for p in centers)/len(centers); my=sum(p[1] for p in centers)/len(centers)
+            label=f"{sec} {int(no)}"
+            draw.ellipse((mx-11,my-11,mx+11,my+11),fill=(35,170,70,255),outline=(255,255,255,255),width=2)
+            draw.text((mx+14,my-8),label,fill=(15,60,25,255),stroke_width=2,stroke_fill=(255,255,255,240))
+    refs_label=" • ".join(f"{sec} {int(no)}" for _,sec,no in features)
+    draw.rectangle((0,height-30,width,height),fill=(255,255,255,230))
+    draw.text((8,height-23),f"{commune_name} — {refs_label} | Plan cadastral officiel DGFiP",fill=(20,20,20,255))
+    bio=io.BytesIO(); out.save(bio,format="PNG",optimize=True); bio.seek(0)
+    return bio,commune_name,code_insee
+
+@app.get("/api/cadastre/multi-map.png")
+def cadastre_multi_map(commune:str, refs:str):
+    parsed=[]
+    for token in refs.split(","):
+        token=token.strip()
+        m=re.fullmatch(r"([A-Za-z0-9]{1,3})\s*:\s*(\d{1,4})",token)
+        if m: parsed.append({"section":m.group(1).upper(),"numero":m.group(2)})
+    bio,_,_=_multi_context_map_png(commune,parsed)
+    return StreamingResponse(bio,media_type="image/png",headers={"Cache-Control":"no-store"})
+
 @app.get("/api/cadastre/map.png")
 def cadastre_context_map(commune:str, section:str, numero:str):
     bio,_,_,_,_=_context_map_png(commune,section,numero)
@@ -246,6 +313,7 @@ class WordPayload(BaseModel):
     surface:str=""
     surface_carrez:str=""
     sections:list=[]
+    parcels:list=[]
     facts:str=""
 
 @app.post("/api/word")
@@ -298,17 +366,22 @@ def word_export(p:WordPayload):
 
     heading('DOSSIER')
     meta=[('Propriétaire',p.owner),('Téléphone',p.phone),('Adresse',p.address),('Commune',p.commune),
-          ('Cadastre',('Section '+p.section.upper()+' — Parcelle '+str(int(re.sub(r'\\D','',p.parcel) or '0'))) if p.section and p.parcel else ''),
+          ('Cadastre',(' • '.join([str(x.get('section','')).upper()+' '+str(int(re.sub(r'\\D','',str(x.get('numero',''))) or '0')) for x in p.parcels if x.get('section') and x.get('numero')]) if p.parcels else (('Section '+p.section.upper()+' — Parcelle '+str(int(re.sub(r'\\D','',p.parcel) or '0'))) if p.section and p.parcel else ''))),
           ('Type',p.property_type),('Surface habitable',(p.surface+' m²') if p.surface else ''),('Surface Carrez',(p.surface_carrez+' m²') if p.surface_carrez else '')]
     label_value_table(meta)
 
-    if p.commune and p.section and p.parcel:
+    refs=[x for x in p.parcels if isinstance(x,dict) and x.get('section') and x.get('numero')]
+    if not refs and p.section and p.parcel: refs=[{"section":p.section,"numero":p.parcel}]
+    if p.commune and refs:
         try:
-            img,_,_,_,_=_context_map_png(p.commune,p.section,p.parcel,760,500)
+            if len(refs)>1:
+                img,_,_=_multi_context_map_png(p.commune,refs,760,500)
+            else:
+                img,_,_,_,_=_context_map_png(p.commune,refs[0]["section"],refs[0]["numero"],760,500)
             heading('PLAN CADASTRAL')
-            pic=doc.add_picture(img,width=Inches(5.35))
-            doc.paragraphs[-1].alignment=WD_ALIGN_PARAGRAPH.CENTER
-            cap=doc.add_paragraph(f'{p.commune} — Section {p.section.upper()} — Parcelle {int(re.sub(r"\\D","",p.parcel) or "0")}')
+            doc.add_picture(img,width=Inches(5.35)); doc.paragraphs[-1].alignment=WD_ALIGN_PARAGRAPH.CENTER
+            refs_txt=' • '.join(str(x["section"]).upper()+' '+str(int(re.sub(r"\\D","",str(x["numero"])) or "0")) for x in refs)
+            cap=doc.add_paragraph(f'{p.commune} — Parcelles : {refs_txt}')
             cap.alignment=WD_ALIGN_PARAGRAPH.CENTER; cap.paragraph_format.space_after=Pt(4)
             for r in cap.runs: r.font.size=Pt(8); r.font.italic=True
         except Exception:
