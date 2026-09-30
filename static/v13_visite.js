@@ -76,7 +76,7 @@ function addressV1310(t){
 function address(t){
   const got=addressV1310(t);
   if(got && got.street) return got;
-  // V13.11 — adresse uniquement : accepte un numéro dicté en lettres.
+  // V13.12 — adresse uniquement : accepte un numéro dicté en lettres.
   let s=clean(t);
   const nums={'un':'1','une':'1','deux':'2','trois':'3','quatre':'4','cinq':'5','six':'6','sept':'7','huit':'8','neuf':'9','dix':'10','onze':'11','douze':'12','treize':'13','quatorze':'14','quinze':'15','seize':'16','vingt':'20'};
   const voie='(?:rue|avenue|boulevard|chemin|impasse|route|place|lotissement|lotissements|lieu[ -]dit|hameau|allée|allee|quai|cours|résidence|residence)';
@@ -144,7 +144,7 @@ function surfaces(text){
   out.push({lvl,name,val,cat});
  }return out;
 }
-// V13.11 — surfaces : distinction surface habitable / Carrez.
+// V13.12 — surfaces : distinction surface habitable / Carrez.
 // Surface habitable : calcul indicatif à partir des seules pièces dictées admissibles.
 // Sont exclus ici : annexes/extérieurs, sous-sol, garage/cave/remise/dépendances,
 // véranda et toute partie explicitement annoncée sous 1,80 m.
@@ -375,10 +375,15 @@ function cadMapURL(){
  return c&&s&&p?'/api/cadastre/map.png?commune='+encodeURIComponent(c)+'&section='+encodeURIComponent(s)+'&numero='+encodeURIComponent(p)+'&v=13.9':'';
 }
 async function downloadWord(){
+ const sections=[];
+ document.querySelectorAll('#facts .levelBlock').forEach(b=>sections.push({title:b.querySelector('h4')?.innerText||'Niveau',rows:[...b.querySelectorAll('.surfaceRow')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('b')?.innerText||'']).concat([...b.querySelectorAll('.surfaceTotal')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('strong')?.innerText||'']))}));
+ document.querySelectorAll('#facts .otherSurface').forEach(b=>sections.push({title:b.querySelector('h4')?.innerText||'Surfaces annexes',rows:[...b.querySelectorAll('.surfaceRow')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('b')?.innerText||''])}));
+ document.querySelectorAll('#facts .proGroup').forEach(b=>sections.push({title:b.querySelector('h3')?.innerText||'Informations',rows:[...b.querySelectorAll('.proRow')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('strong')?.innerText||''])}));
  const payload={
   owner:$('#owner')?.value||'',phone:$('#ownerPhone')?.value||'',address:$('#address')?.value||'',
   commune:$('#cadCommune')?.value||'',section:$('#cadSection')?.value||'',parcel:$('#cadParcel')?.value||'',
-  property_type:$('#type')?.value||'',surface:$('#surfaceHab')?.value||'',facts:'Surface habitable : '+($('#surfaceHab')?.value||'—')+' m²\nSurface Carrez : '+($('#surfaceCarrez')?.value||'—')+' m²\n\n'+($('#facts')?.innerText||'')
+  property_type:$('#type')?.value||'',surface:$('#surfaceHab')?.value||'',surface_carrez:$('#surfaceCarrez')?.value||'',sections,
+  facts:$('#facts')?.innerText||''
  };
  try{
   const r=await fetch('/api/word',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
