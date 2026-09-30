@@ -107,38 +107,52 @@ def _resolve_commune(q):
 def commune_lookup(q:str):
     return {"result":_resolve_commune(q)}
 
+
+def _section_candidates(section:str):
+    s=re.sub(r"[^A-Za-z0-9]","",(section or "").upper().strip())
+    if not s:return []
+    vals=[]
+    if len(s)==1 and s.isalpha(): vals.append("0"+s)
+    if s.isdigit(): vals.append(s.zfill(2))
+    vals.append(s)
+    return list(dict.fromkeys(vals))
+
+def _fetch_parcel(code_insee:str, section:str, numero:str):
+    no=re.sub(r"\D","",str(numero or "")).zfill(4)
+    if not no.strip("0"): raise HTTPException(400,"Numéro de parcelle invalide.")
+    had_response=False; last_error=None
+    for sec in _section_candidates(section):
+        for source in ("PCI",None):
+            params={"code_insee":code_insee,"section":sec,"numero":no}
+            if source:params["source_ign"]=source
+            try:
+                d=get_json("https://apicarto.ign.fr/api/cadastre/parcelle?"+urllib.parse.urlencode(params));had_response=True
+                fs=d.get("features",[])
+                if fs:return fs[0],sec,no
+            except Exception as e:last_error=e
+    if not had_response and last_error:raise last_error
+    return None,(_section_candidates(section) or [section])[0],no
+
 @app.get("/api/cadastre")
 def cadastre(commune:str, section:str, numero:str):
     commune=commune.strip()
     resolved={"name":commune,"code":commune,"postcode":""} if re.fullmatch(r"\d{5}",commune) else _resolve_commune(commune)
-    if not resolved or not resolved.get("code"): raise HTTPException(400,"Commune non reconnue.")
-    code_insee=str(resolved["code"]); commune_name=resolved.get("name") or commune
-    sec=re.sub(r"[^A-Za-z0-9]","",section.upper().strip())
-    if not sec: raise HTTPException(400,"Section cadastrale manquante.")
-    if sec.isdigit(): sec=sec.zfill(2)
-    no=re.sub(r"\D","",numero).zfill(4)
-    if not no.strip("0"): raise HTTPException(400,"Numéro de parcelle invalide.")
-    url="https://apicarto.ign.fr/api/cadastre/parcelle?"+urllib.parse.urlencode({"code_insee":code_insee,"section":sec,"numero":no})
+    if not resolved or not resolved.get("code"):raise HTTPException(400,"Commune non reconnue.")
+    code_insee=str(resolved["code"]);commune_name=resolved.get("name") or commune
     try:
-        d=get_json(url); fs=d.get("features",[])
-        if not fs:return {"found":False,"commune":commune_name,"code_insee":code_insee,"section":sec,"numero":no}
-        return {"found":True,"commune":commune_name,"code_insee":code_insee,"section":sec,"numero":no,
-                "properties":fs[0].get("properties",{}),"geometry":fs[0].get("geometry")}
-    except Exception:
-        raise HTTPException(502,"Le service cadastral IGN ne répond pas pour le moment.")
+        f,sec_api,no=_fetch_parcel(code_insee,section,numero);display_sec=re.sub(r"^0(?=[A-Z]$)","",sec_api)
+        if not f:return {"found":False,"commune":commune_name,"code_insee":code_insee,"section":display_sec,"numero":no}
+        return {"found":True,"commune":commune_name,"code_insee":code_insee,"section":display_sec,"numero":no,"properties":f.get("properties",{}),"geometry":f.get("geometry")}
+    except HTTPException:raise
+    except Exception:raise HTTPException(502,"Le service cadastral officiel est momentanément indisponible. Réessaie dans quelques secondes.")
 
 def _parcel_feature(commune:str, section:str, numero:str):
     commune=(commune or "").strip()
     resolved={"name":commune,"code":commune,"postcode":""} if re.fullmatch(r"\d{5}",commune) else _resolve_commune(commune)
-    if not resolved or not resolved.get("code"): raise HTTPException(400,"Commune non reconnue.")
-    code_insee=str(resolved["code"]); commune_name=resolved.get("name") or commune
-    sec=re.sub(r"[^A-Za-z0-9]","",section.upper().strip())
-    if sec.isdigit(): sec=sec.zfill(2)
-    no=re.sub(r"\D","",numero).zfill(4)
-    url="https://apicarto.ign.fr/api/cadastre/parcelle?"+urllib.parse.urlencode({"code_insee":code_insee,"section":sec,"numero":no})
-    d=get_json(url); fs=d.get("features",[])
-    if not fs:return None,commune_name,code_insee,sec,no
-    return fs[0],commune_name,code_insee,sec,no
+    if not resolved or not resolved.get("code"):raise HTTPException(400,"Commune non reconnue.")
+    code_insee=str(resolved["code"]);commune_name=resolved.get("name") or commune
+    f,sec_api,no=_fetch_parcel(code_insee,section,numero);display_sec=re.sub(r"^0(?=[A-Z]$)","",sec_api)
+    return f,commune_name,code_insee,display_sec,no
 
 def _geom_rings(g):
     if not g:return []
@@ -258,7 +272,7 @@ def _multi_context_map_png(commune, refs, width=760, height=520):
             "width":str(width),"height":str(height),"language":"fre"}
     url=f"https://inspire.cadastre.gouv.fr/scpc/{code_insee}.wms?"+urllib.parse.urlencode(params)
     try:
-        req=urllib.request.Request(url,headers={"User-Agent":"ESTIMIA/13.20"})
+        req=urllib.request.Request(url,headers={"User-Agent":"ESTIMIA/13.21"})
         with urllib.request.urlopen(req,timeout=20) as r:
             raw=r.read(); ctype=r.headers.get("Content-Type","")
         if "image" not in ctype.lower(): raise ValueError("Réponse WMS non image")
