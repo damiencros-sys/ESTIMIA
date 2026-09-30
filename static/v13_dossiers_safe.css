@@ -1,0 +1,17 @@
+
+.dossiersDrawer{position:fixed;z-index:10000;left:0;top:0;bottom:0;width:310px;background:#fff;border-right:1px solid #d7dee3;box-shadow:4px 0 18px rgba(0,0,0,.10);padding:16px;overflow:auto;transform:translateX(0)}
+.dossiersHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.dossiersClose{display:none;border:0;background:transparent;font-size:26px}
+.dossiersNew{width:100%;padding:11px;margin-bottom:10px;font-weight:700}
+.dossiersSearch{box-sizing:border-box;width:100%;padding:10px;margin-bottom:10px}
+.dossiersList{display:flex;flex-direction:column;gap:8px}
+.dossierItem{border:1px solid #dce3e7;border-radius:9px;padding:10px;background:#fff;cursor:pointer}
+.dossierItem:hover{background:#f5f8fa}
+.dossierTitle{font-weight:700}.dossierSub{font-size:12px;color:#65727a;margin-top:3px}
+.dossierActions{display:flex;gap:6px;margin-top:8px}.dossierActions button{font-size:12px;padding:5px 7px}
+.dossiersOpen{display:none;position:fixed;z-index:9999;left:10px;top:10px;padding:8px 10px}
+@media(min-width:1001px){body{padding-left:310px!important}}
+@media(max-width:1000px){
+ .dossiersDrawer{transform:translateX(-105%);transition:.2s}.dossiersDrawer.open{transform:translateX(0)}
+ .dossiersOpen{display:block}.dossiersClose{display:block}
+}
