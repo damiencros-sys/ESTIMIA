@@ -76,7 +76,7 @@ function addressV1310(t){
 function address(t){
   const got=addressV1310(t);
   if(got && got.street) return got;
-  // V13.10.2 — adresse uniquement : accepte un numéro dicté en lettres.
+  // V13.11 — adresse uniquement : accepte un numéro dicté en lettres.
   let s=clean(t);
   const nums={'un':'1','une':'1','deux':'2','trois':'3','quatre':'4','cinq':'5','six':'6','sept':'7','huit':'8','neuf':'9','dix':'10','onze':'11','douze':'12','treize':'13','quatorze':'14','quinze':'15','seize':'16','vingt':'20'};
   const voie='(?:rue|avenue|boulevard|chemin|impasse|route|place|lotissement|lotissements|lieu[ -]dit|hameau|allée|allee|quai|cours|résidence|residence)';
@@ -144,6 +144,29 @@ function surfaces(text){
   out.push({lvl,name,val,cat});
  }return out;
 }
+// V13.11 — surfaces : distinction surface habitable / Carrez.
+// Surface habitable : calcul indicatif à partir des seules pièces dictées admissibles.
+// Sont exclus ici : annexes/extérieurs, sous-sol, garage/cave/remise/dépendances,
+// véranda et toute partie explicitement annoncée sous 1,80 m.
+function habitableRows(rows,text){
+ const lowHeight=/\b(?:hauteur|sous plafond)[^.!?]{0,35}(?:inf[eé]rieure?\s+[àa]|moins de)\s*1[,.]80\s*m/i.test(text);
+ return rows.filter(x=>{
+  if(x.cat!=='Intérieur')return false;
+  if(/^Sous-sol$/i.test(x.lvl))return false;
+  if(/garage|cave|remise|grenier|atelier|d[ée]pendance|local|abri|carport|terrasse|balcon|loggia|v[ée]randa/i.test(x.name))return false;
+  // Si une hauteur <1,80 m est signalée sans ventilation de surface, on ne peut pas
+  // retrancher un chiffre fiable : le total est conservé mais signalé à vérifier.
+  return true;
+ });
+}
+function explicitCarrez(text){
+ const m=clean(text).match(/\b(?:surface\s+)?(?:loi\s+)?carrez\s*(?:de|est|:|fait|mesure)?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres? carr[ée]s?)/i);
+ return m?n(m[1]):null;
+}
+function explicitHabitable(text){
+ const m=clean(text).match(/\bsurface\s+habitable\s*(?:de|est|:|fait|mesure)?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres? carr[ée]s?)/i);
+ return m?n(m[1]):null;
+}
 function surfHTML(rows){
  if(!rows.length)return '';
  const ins=rows.filter(x=>x.cat==='Intérieur'), levels=uniq(ins.map(x=>x.lvl));
@@ -153,7 +176,7 @@ function surfHTML(rows){
   s+=`<div class="levelBlock"><h4>🪜 ${E(lv)}</h4>${rr.map(x=>`<div class="surfaceRow"><span>${E(x.name)}</span><b>${fmt(x.val)}</b></div>`).join('')}<div class="surfaceTotal"><span>Total ${E(lv)}</span><strong>${fmt(total)}</strong></div></div>`;
  }
  const total=ins.reduce((a,x)=>a+x.val,0);
- if(ins.length)s+=`<div class="grandTotal"><span>SURFACE INTÉRIEURE CALCULÉE</span><strong>${fmt(total)}</strong></div>`;
+ if(ins.length)s+=`<div class="grandTotal"><span>TOTAL DES PIÈCES INTÉRIEURES RENSEIGNÉES</span><strong>${fmt(total)}</strong></div>`;
  const ann=rows.filter(x=>x.cat==='Annexe'), ext=rows.filter(x=>x.cat==='Extérieur');
  if(ann.length)s+=`<div class="otherSurface"><h4>🏚️ Annexes — hors total intérieur</h4>${ann.map(x=>`<div class="surfaceRow"><span>${E(x.name)} — ${E(x.lvl)}</span><b>${fmt(x.val)}</b></div>`).join('')}</div>`;
  if(ext.length)s+=`<div class="otherSurface"><h4>🌳 Extérieurs — hors total intérieur</h4>${ext.map(x=>`<div class="surfaceRow"><span>${E(x.name)} — ${E(x.lvl)}</span><b>${fmt(x.val)}</b></div>`).join('')}</div>`;
@@ -312,10 +335,13 @@ async function render(){
   await normalizeCommune(cm.name,cm.postcode);
  }
  const typ=typeOf(t);if(typ&&!$('#type').value)$('#type').value=typ;
- const ss=surfaces(t), total=ss.filter(x=>x.cat==='Intérieur').reduce((a,x)=>a+x.val,0);
+ const ss=surfaces(t), habRows=habitableRows(ss,t), total=habRows.reduce((a,x)=>a+x.val,0);
+ const habDeclared=explicitHabitable(t), carrez=explicitCarrez(t);
+ if(total)$('#surfaceHab').value=total.toFixed(2); else if(habDeclared!=null)$('#surfaceHab').value=habDeclared.toFixed(2);
+ if(carrez!=null)$('#surfaceCarrez').value=carrez.toFixed(2);
  let out='<div class="proGrid">'+card('Bien & construction','🏠',buildInfo(t))+'</div>';
  out+=surfHTML(ss);
- if(total)out+=`<div class="calculatedTop">📏 <span>Surface intérieure calculée à partir des pièces dictées</span><strong>${fmt(total)}</strong></div>`;
+ if(total)out+=`<div class="calculatedTop">📏 <span>Surface habitable calculée à partir des pièces admissibles dictées</span><strong>${fmt(total)}</strong></div>`;
  out+='<div class="proGrid">';
  out+=card('Sanitaires','🚿',sanitary(t))+card('Chauffage & eau chaude','🔥',heating(t))+card('Réseaux & compteurs','⚡',networks(t))+card('Construction / structure','🏗️',structure(t))+card('Annexes','🏚️',annexes(t))+card('Extérieurs','🌳',exteriors(t))+card('Menuiseries & fermetures','🪟',menu(t))+card('État / désordres','⚠️',state(t))+card('Fiscalité','💶',finance(t));
  out+='</div><details class="rawNotes"><summary>📝 Voir la dictée originale complète</summary><div>'+E(raw)+'</div></details>';
@@ -352,7 +378,7 @@ async function downloadWord(){
  const payload={
   owner:$('#owner')?.value||'',phone:$('#ownerPhone')?.value||'',address:$('#address')?.value||'',
   commune:$('#cadCommune')?.value||'',section:$('#cadSection')?.value||'',parcel:$('#cadParcel')?.value||'',
-  property_type:$('#type')?.value||'',surface:$('#surface')?.value||'',facts:$('#facts')?.innerText||''
+  property_type:$('#type')?.value||'',surface:$('#surfaceHab')?.value||'',facts:'Surface habitable : '+($('#surfaceHab')?.value||'—')+' m²\nSurface Carrez : '+($('#surfaceCarrez')?.value||'—')+' m²\n\n'+($('#facts')?.innerText||'')
  };
  try{
   const r=await fetch('/api/word',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
@@ -370,7 +396,8 @@ function printableHTML(){
   ['Téléphone',$('#ownerPhone')?.value||''],
   ['Adresse',$('#address')?.value||''],
   ['Type',$('#type')?.value||''],
-  ['Surface annoncée',$('#surface')?.value?$('#surface').value+' m²':''],
+  ['Surface habitable',$('#surfaceHab')?.value?$('#surfaceHab').value+' m²':''],
+  ['Surface Carrez',$('#surfaceCarrez')?.value?$('#surfaceCarrez').value+' m²':''],
   ['Commune / INSEE',$('#cadCommune')?.value||''],
   ['Section',$('#cadSection')?.value||''],
   ['Parcelle',$('#cadParcel')?.value||'']
