@@ -17,6 +17,8 @@ function owner(t){
  m=t.match(/\bfamille\s+([\p{L}'’-]+)/iu); if(m)return 'Famille '+m[1].replace(/^./,c=>c.toUpperCase());
  m=t.match(/(?:propri[ée]taire(?:s)?|chez)\s+(monsieur et madame|monsieur|madame|m\. et mme|m\.|mme)\s+([\p{L}'’-]+)(?:\s+([\p{L}'’-]+))?/iu);
  if(m)return [m[1],m[2],m[3]].filter(Boolean).join(' ');
+ m=t.match(/\bpropri[ée]taire(?:s)?\s+(?:est|sont|:)?\s*([\p{L}'’-]+(?:\s+[\p{L}'’-]+){0,3}?)(?=\s*(?:,|\.|;|t[ée]l[ée]phone|son\s+t[ée]l[ée]phone|adresse|maison|appartement|villa|immeuble)\b)/iu);
+ if(m)return clean(m[1]);
  return '';
 }
 function phone(t){
@@ -198,15 +200,30 @@ function markers(text){
  return out;
 }
 function surfaces(text){
- const ms=markers(text), out=[];
- const rx=/\b(s[ée]jour|salon|salle à manger|cuisine|chambre(?:\s*(?:\d+|un|une|deux|trois|parentale))?|bureau|salle d[' ]eau|salle de bains?|wc|toilettes?|d[ée]gagement|couloir|entr[ée]e|hall|cellier|buanderie|dressing|mezzanine|garage|cave|grenier|atelier|d[ée]pendance|local|abri|carport|terrasse|balcon|loggia)\s*(?:fait|mesure|de|d[' ]une surface de|:)?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres? carr[ée]s?)/ig;
- for(const m of text.matchAll(rx)){
-  let lvl='Niveau non précisé';for(const z of ms){if(z.i<=m.index)lvl=z.name;else break}
-  const name=clean(m[1]), val=n(m[2]);
-  const cat=/garage|cave|grenier|atelier|dépendance|local|abri|carport/i.test(name)?'Annexe':/terrasse|balcon|loggia/i.test(name)?'Extérieur':'Intérieur';
-  out.push({lvl,name,val,cat});
- }return out;
+ const ms=markers(text), out=[], used=[];
+ const levelAt=i=>{let lvl='Niveau non précisé';for(const z of ms){if(z.i<=i)lvl=z.name;else break}return lvl};
+ const push=(name,val,index)=>{
+   if(!Number.isFinite(val))return;
+   const cat=/garage|cave|grenier|atelier|dépendance|local|abri|carport/i.test(name)?'Annexe':/terrasse|balcon|loggia/i.test(name)?'Extérieur':'Intérieur';
+   out.push({lvl:levelAt(index),name:clean(name),val,cat}); used.push(index);
+ };
+ // "deux chambres de 18 m² et 15 m²", "2 chambres 18 et 15 m²"
+ const grp=/\b(?:deux|2)\s+chambres?\s*(?:de|mesurant|:)?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)?\s*(?:et|,)\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/ig;
+ for(const m of text.matchAll(grp)){push('Chambre 1',n(m[1]),m.index);push('Chambre 2',n(m[2]),m.index);}
+ // One room, allowing descriptors between room and surface: "cuisine ouverte de 11 m²".
+ const room=/(s[ée]jour|salon|salle à manger|cuisine|chambre(?:\s*(?:\d+|un|une|deux|trois|parentale))?|bureau|salle d[' ]eau|salle de bains?|wc|toilettes?|d[ée]gagement|couloir|entr[ée]e|hall|cellier|buanderie|dressing|mezzanine|garage|cave|grenier|atelier|d[ée]pendance|local|abri|carport|terrasse|balcon|loggia)\b([^,.!?;]{0,45}?)(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/ig;
+ for(const m of text.matchAll(room)){
+   if(used.some(i=>Math.abs(i-m.index)<12)&&/chambre/i.test(m[1]))continue;
+   push(m[1],n(m[3]),m.index);
+ }
+ // Deduplicate same room/value produced by overlapping natural formulations.
+ const seen=new Set();return out.filter(x=>{const k=x.lvl+'|'+x.name.toLowerCase()+'|'+x.val;if(seen.has(k))return false;seen.add(k);return true});
 }
+function declaredPropertySurface(text){
+ const m=clean(text).match(/\b(?:maison|villa|appartement|studio|immeuble|local commercial)\s+(?:d['’]une\s+surface\s+de|de|fait|mesure)\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/i);
+ return m?n(m[1]):null;
+}
+
 // V13.12 — surfaces : distinction surface habitable / Carrez.
 // Surface habitable : calcul indicatif à partir des seules pièces dictées admissibles.
 // Sont exclus ici : annexes/extérieurs, sous-sol, garage/cave/remise/dépendances,
@@ -259,15 +276,27 @@ function countExplicit(t,nounRx){
  const m=t.match(new RegExp('\\b(\\d+)\\s+(?:'+nounRx+')','i'));return m?parseInt(m[1],10):null;
 }
 function sanitary(t){
- const cl=clauses(t), rows=[];
- const sde=countExplicit(t,"salles? d[' ]eau") ?? cl.filter(c=>/salle d[' ]eau/i.test(c)&&/\b(?:une|1)\b|salle d[' ]eau/i.test(c)).length;
- const sdb=countExplicit(t,'salles? de bains?') ?? cl.filter(c=>/salle de bains?/i.test(c)).length;
- const wc=countExplicit(t,'wc|toilettes?') ?? cl.filter(c=>/\b(?:wc|toilettes?)\b/i.test(c)).length;
- const shower=countExplicit(t,'douches?') ?? cl.filter(c=>/\bdouche\b/i.test(c)).length;
- if(sde)rows.push(['Salle(s) d’eau',String(sde)]);if(sdb)rows.push(['Salle(s) de bains',String(sdb)]);if(shower)rows.push(['Douche(s)',String(shower)]);if(wc)rows.push(['WC',String(wc)]);
- const eq=uniq([/douche à l[' ]italienne/i.test(t)?"Douche à l'italienne":'',/double vasque/i.test(t)?'Double vasque':'',/s[eè]che[- ]serviettes/i.test(t)?'Sèche-serviettes':'']);if(eq.length)rows.push(['Équipements',eq.join(' · ')]);
+ const rows=[],cl=clauses(t);
+ const bath=cl.find(c=>/salle de bains?/i.test(c));
+ const showerRoom=cl.find(c=>/salle d[' ]eau/i.test(c));
+ if(bath){
+   let v='1 salle de bains';
+   const sm=bath.match(/salle de bains?[^.!?]{0,25}?(\d+(?:[.,]\d+)?)\s*m[²2]/i); if(sm)v+=' — '+fmt(n(sm[1]));
+   const eq=[];if(/\bdouche\b/i.test(bath))eq.push('douche');if(/\bbaignoire\b/i.test(bath))eq.push('baignoire');
+   if(/(?:deux|2|double)\s+vasques?|double vasque/i.test(bath))eq.push('double vasque');else if(/\bvasque\b/i.test(bath))eq.push('vasque');
+   if(eq.length)v+=' — '+eq.join(' · ');
+   rows.push(['Salle de bains',v]);
+ }
+ if(showerRoom){
+   let v="1 salle d’eau";const sm=showerRoom.match(/salle d[' ]eau[^.!?]{0,25}?(\d+(?:[.,]\d+)?)\s*m[²2]/i);if(sm)v+=' — '+fmt(n(sm[1]));
+   if(/douche à l[' ]italienne/i.test(showerRoom))v+=" — douche à l’italienne";
+   rows.push(["Salle d’eau",v]);
+ }
+ const wc=countExplicit(t,'wc|toilettes?');if(wc)rows.push(['WC',String(wc)]);
+ else if(/\b(?:wc|toilettes?)\b/i.test(t))rows.push(['WC','Présent']);
  return rows;
 }
+
 function heating(t){
  const heat=[];
  if(/chaudi[eè]re[^.!?]{0,70}condensation[^.!?]{0,40}gaz|chaudi[eè]re[^.!?]{0,40}gaz[^.!?]{0,40}condensation/i.test(t))heat.push('Chaudière gaz à condensation');
@@ -319,10 +348,16 @@ function structure(t){
 }
 function exteriors(t){
  const r=[],cl=clauses(t);
- const garden=cl.find(c=>/\bjardin\b/i.test(c));if(garden){let v='Jardin';if(/arbres?|arbor[ée]/i.test(garden))v+=' avec arbres';r.push(['Jardin',v]);}
- const rear=cl.find(c=>/terrasse[^.!?]{0,80}(?:arri[eè]re|salon)|(?:arri[eè]re|salon)[^.!?]{0,80}terrasse/i.test(c));if(rear){let v='Terrasse arrière';if(/donne[^.!?]{0,25}(?:dans|sur) le salon|salon/i.test(rear))v+=' — accès / liaison avec le salon';r.push(['Terrasse',v]);}
+ const garden=cl.find(c=>/\bjardin\b/i.test(c));
+ if(garden){let v='Présent';if(/tr[eè]s bien entretenu|parfaitement entretenu/i.test(garden))v+=' — très bien entretenu';else if(/bien entretenu/i.test(garden))v+=' — bien entretenu';if(/arbres?|arbor[ée]/i.test(garden))v+=' — arboré';r.push(['Jardin',v]);}
+ const pool=cl.find(c=>/\bpiscine\b/i.test(c));
+ if(pool){let v='Présente';if(/haricot/i.test(pool))v+=' — forme haricot';if(/coque/i.test(pool))v+=' — coque';r.push(['Piscine',v]);}
+ if(/terrain de p[ée]tanque|boulodrome/i.test(t))r.push(['Terrain de pétanque','Présent']);
+ if(/cuisine d['’ ]?[ée]t[ée]/i.test(t))r.push(["Cuisine d’été",'Présente']);
+ const terrace=cl.find(c=>/\bterrasse\b/i.test(c));if(terrace){let v='Présente';if(/arri[eè]re/i.test(terrace))v+=' — arrière';if(/salon/i.test(terrace))v+=' — liaison avec le salon';r.push(['Terrasse',v]);}
  return r;
 }
+
 function finance(t){
  const r=[];
  const m=t.match(/taxe fonci[eè]re[^.!?]{0,90}?(\d[\d\s]*(?:[.,]\d+)?)\s*(?:€|euros?)/i);
@@ -360,7 +395,7 @@ function renderMultiCadPlan(){
  const com=$('#cadCommune')?.value?.trim();if(!com)return;
  const title=document.createElement('div');title.innerHTML='<b>Plan cadastral — '+E(com)+' — '+cadParcels.map(p=>E(p.section)+' '+parseInt(p.numero,10)).join(' • ')+'</b>';
  const img=document.createElement('img');img.alt='Plan cadastral des parcelles';img.style.cssText='display:block;width:100%;max-width:720px;max-height:500px;object-fit:contain;margin-top:8px;border:1px solid #ddd;border-radius:8px;background:#fff';
- img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.18';
+ img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.19';
  img.dataset.cadMap='1';
  const link=document.createElement('a');link.href=img.src;link.target='_blank';link.rel='noopener';link.textContent='Ouvrir le plan cadastral';link.style.cssText='display:inline-block;margin-top:8px';
  box.append(title,img,link);
@@ -406,15 +441,28 @@ async function render(){
  }
  const typ=typeOf(t);if(typ&&!$('#type').value)$('#type').value=typ;
  const ss=surfaces(t), habRows=habitableRows(ss,t), total=habRows.reduce((a,x)=>a+x.val,0);
- const habDeclared=explicitHabitable(t), carrez=explicitCarrez(t);
- if(total)$('#surfaceHab').value=total.toFixed(2); else if(habDeclared!=null)$('#surfaceHab').value=habDeclared.toFixed(2);
+ const habDeclared=explicitHabitable(t), announced=declaredPropertySurface(t), carrez=explicitCarrez(t);
+ if(habDeclared!=null)$('#surfaceHab').value=habDeclared.toFixed(2);
+ else if(total)$('#surfaceHab').value=total.toFixed(2);
  if(carrez!=null)$('#surfaceCarrez').value=carrez.toFixed(2);
- let out='<div class="proGrid">'+card('Bien & construction','🏠',buildInfo(t))+'</div>';
+ let topRows=buildInfo(t);
+ if(announced!=null)topRows.push(['Surface annoncée / dictée',fmt(announced)]);
+ let out='<div class="proGrid">'+card('Bien & construction','🏠',topRows)+'</div>';
  out+=surfHTML(ss);
- if(total)out+=`<div class="calculatedTop">📏 <span>Surface habitable calculée à partir des pièces admissibles dictées</span><strong>${fmt(total)}</strong></div>`;
+ if(total){
+   let msg=`<div class="calculatedTop">📏 <span>Total des pièces intérieures chiffrées dans la dictée</span><strong>${fmt(total)}</strong></div>`;
+   if(announced!=null && Math.abs(announced-total)>.01)msg+=`<div class="status">⚠ Surface annoncée : ${fmt(announced)} — total des pièces chiffrées : ${fmt(total)}. Écart conservé à contrôler ; aucune valeur n’est supprimée.</div>`;
+   out+=msg;
+ }
  out+='<div class="proGrid">';
  out+=card('Sanitaires','🚿',sanitary(t))+card('Chauffage & eau chaude','🔥',heating(t))+card('Réseaux & compteurs','⚡',networks(t))+card('Construction / structure','🏗️',structure(t))+card('Annexes','🏚️',annexes(t))+card('Extérieurs','🌳',exteriors(t))+card('Menuiseries & fermetures','🪟',menu(t))+card('État / désordres','⚠️',state(t))+card('Fiscalité','💶',finance(t));
- out+='</div><details class="rawNotes"><summary>📝 Voir la dictée originale complète</summary><div>'+E(raw)+'</div></details>';
+ out+='</div>';
+ const extras=[];
+ if(/couloir de distribution/i.test(t))extras.push(['Circulation','Couloir de distribution — surface non renseignée']);
+ if(/cuisine ouverte/i.test(t))extras.push(['Cuisine','Ouverte']);
+ if(/cuisine[^.!?]{0,50}[ée]quip[ée]e/i.test(t))extras.push(['Cuisine','Équipée']);
+ if(extras.length)out+=card('Informations complémentaires conservées','📌',extras);
+ out+='<details class="rawNotes"><summary>📝 Voir la dictée originale complète</summary><div>'+E(raw)+'</div></details>';
  $('#facts').innerHTML=out;
 }
 
@@ -442,7 +490,7 @@ async function verifyAddressV137(){
 }
 function cadMapURL(){
  const c=$('#cadCommune')?.value?.trim();
- if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.18';
+ if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.19';
  return '';
 }
 
