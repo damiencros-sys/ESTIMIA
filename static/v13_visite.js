@@ -58,13 +58,12 @@ function addCadParcel(section,numero,found=false){
  const p=normParcel(section,numero);if(!p)return;
  const k=parcelKey(p),i=cadParcels.findIndex(x=>parcelKey(x)===k);
  if(i<0)cadParcels.push({...p,found:!!found}); else if(found)cadParcels[i].found=true;
- if(!$('#cadSection').value)$('#cadSection').value=p.section;
- if(!$('#cadParcel').value)$('#cadParcel').value=p.numero;
  syncCadParcels();
 }
 function removeCadParcel(k){cadParcels=cadParcels.filter(x=>parcelKey(x)!==k);syncCadParcels();renderMultiCadPlan()}
 function renderCadParcelsList(){
  const box=$('#cadParcelsList');if(!box)return;box.innerHTML='';
+ if(cadParcels.length){const lab=document.createElement('div');lab.className='cadParcelsLabel';lab.textContent='Parcelles cadastrales';box.appendChild(lab);}
  cadParcels.forEach(p=>{const d=document.createElement('span');d.className='cadParcelChip'+(p.found?' ok':'');
    d.innerHTML=`<b>${E(p.section)} ${E(String(parseInt(p.numero,10)))}</b>${p.found?' ✓':''}<button type="button" title="Retirer">×</button>`;
    d.querySelector('button').onclick=()=>removeCadParcel(parcelKey(p));box.appendChild(d);});
@@ -361,7 +360,7 @@ function renderMultiCadPlan(){
  const com=$('#cadCommune')?.value?.trim();if(!com)return;
  const title=document.createElement('div');title.innerHTML='<b>Plan cadastral — '+E(com)+' — '+cadParcels.map(p=>E(p.section)+' '+parseInt(p.numero,10)).join(' • ')+'</b>';
  const img=document.createElement('img');img.alt='Plan cadastral des parcelles';img.style.cssText='display:block;width:100%;max-width:720px;max-height:500px;object-fit:contain;margin-top:8px;border:1px solid #ddd;border-radius:8px;background:#fff';
- img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.17';
+ img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.18';
  img.dataset.cadMap='1';
  const link=document.createElement('a');link.href=img.src;link.target='_blank';link.rel='noopener';link.textContent='Ouvrir le plan cadastral';link.style.cssText='display:inline-block;margin-top:8px';
  box.append(title,img,link);
@@ -369,7 +368,11 @@ function renderMultiCadPlan(){
 async function parcelSearch(){
  const field=$('#cadCommune'),sec=$('#cadSection').value.trim().toUpperCase(),par=$('#cadParcel').value.trim();
  let com=field.value.trim();
- if(sec&&par)addCadParcel(sec,par,false);
+ if(sec&&par){
+  addCadParcel(sec,par,false);
+  $('#cadSection').value='';
+  $('#cadParcel').value='';
+ }
  if(!com||!cadParcels.length){$('#cadStatus').textContent='Commune et au moins une parcelle nécessaires.';return}
  $('#cadStatus').textContent='Vérification des parcelles…';
  try{
@@ -394,7 +397,7 @@ async function render(){
  const o=owner(t);if(o&&!$('#owner').value)$('#owner').value=o;
  const ph=phone(t);if(ph)$('#ownerPhone').value=ph;
  const a=address(t);if(a){$('#address').value=a.street;$('#cadCommune').value=a.city;$('#cadCommune').dataset.postcode=a.postcode||'';}
- const cps=parseCadParcels(t);if(cps.length){cps.forEach(p=>addCadParcel(p.section,p.numero,false));if(!$('#cadSection').value)$('#cadSection').value=cps[0].section;if(!$('#cadParcel').value)$('#cadParcel').value=cps[0].numero;}
+ const cps=parseCadParcels(t);if(cps.length){cps.forEach(p=>addCadParcel(p.section,p.numero,false));$('#cadSection').value='';$('#cadParcel').value='';}
  const cm=commune(t);
  if(cm&&!$('#cadCommune').value){
   $('#cadCommune').value=cm.name;
@@ -439,7 +442,7 @@ async function verifyAddressV137(){
 }
 function cadMapURL(){
  const c=$('#cadCommune')?.value?.trim();
- if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.17';
+ if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.18';
  return '';
 }
 
