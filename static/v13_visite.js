@@ -70,21 +70,36 @@ function renderCadParcelsList(){
    d.querySelector('button').onclick=()=>removeCadParcel(parcelKey(p));box.appendChild(d);});
 }
 function parseCadParcels(t){
- const s=clean(t),out=[];
- // "section BH parcelles 60, 61 et 63"
- const rx=/\bsection\s+([a-z]{1,3})\b[^.!?]{0,35}?\bparcelles?\b([^.!?]{0,70})/gi;
- let m;
- while((m=rx.exec(s))){
-   const sec=m[1].toUpperCase();
-   const nums=(m[2].match(/\b\d{1,4}\b/g)||[]);
-   nums.forEach(n=>out.push({section:sec,numero:n}));
+ const s=clean(t)
+   .replace(/[;,]/g,' , ')
+   .replace(/\bnum[ée]ros?\b/gi,'numero')
+   .replace(/\bn[°º]\b/gi,'numero');
+ const out=[];
+ // Each "section XX ..." starts a group and runs until the next section or sentence end.
+ const secRx=/\bsection\s+([a-z]{1,3})\b/gi;
+ const groups=[]; let m;
+ while((m=secRx.exec(s)))groups.push({section:m[1].toUpperCase(),start:m.index,end:secRx.lastIndex});
+ for(let i=0;i<groups.length;i++){
+   const g=groups[i], stop=(i+1<groups.length?groups[i+1].start:s.length);
+   let tail=s.slice(g.end,stop);
+   // Stop before clearly unrelated property facts.
+   tail=tail.split(/\b(?:c['’]?est|maison|appartement|terrain|garage|surface|séjour|salon|cuisine|chambre|salle|wc|toiture|chauffage|dpe|exposition|terrasse|parking)\b/i)[0];
+   // Accept: "numero 60 et 61 et 63", "parcelles 60,61,63", or directly "60 et 61".
+   const nums=(tail.match(/\b\d{1,4}\b/g)||[]);
+   nums.forEach(n=>out.push({section:g.section,numero:n}));
  }
- // "parcelle BH 60"
- const rx2=/\bparcelle\s+([a-z]{1,3})\s+(\d{1,4})\b/gi;
- while((m=rx2.exec(s)))out.push({section:m[1].toUpperCase(),numero:m[2]});
- // fallback existing single parser
- const one=cad(t);if(one.section&&one.parcel)out.push({section:one.section,numero:one.parcel});
- const seen=new Set();return out.filter(p=>{const k=parcelKey(p);if(seen.has(k))return false;seen.add(k);return true});
+ // Also accept explicit forms without the word "section": "parcelle BH 60" / "parcelles BH 60 et 61".
+ const explicit=/\bparcelles?\s+([a-z]{1,3})\s+([^.!?]{0,60})/gi;
+ while((m=explicit.exec(s))){
+   const sec=m[1].toUpperCase();
+   const tail=m[2].split(/\b(?:section|maison|appartement|terrain|garage|surface|séjour|salon|cuisine|chambre|salle|wc|toiture|chauffage|dpe|exposition|terrasse|parking)\b/i)[0];
+   (tail.match(/\b\d{1,4}\b/g)||[]).forEach(n=>out.push({section:sec,numero:n}));
+ }
+ const one=cad(t); if(one.section&&one.parcel)out.push({section:one.section,numero:one.parcel});
+ const seen=new Set();
+ return out.map(p=>normParcel(p.section,p.numero)).filter(Boolean).filter(p=>{
+   const k=parcelKey(p); if(seen.has(k))return false; seen.add(k); return true;
+ });
 }
 function loadCadParcelsFromHidden(){
  try{const a=JSON.parse($('#cadParcelsJSON')?.value||'[]');cadParcels=Array.isArray(a)?a.map(x=>({...normParcel(x.section,x.numero),found:!!x.found})).filter(x=>x.section&&x.numero):[]}catch{cadParcels=[]}
@@ -346,7 +361,7 @@ function renderMultiCadPlan(){
  const com=$('#cadCommune')?.value?.trim();if(!com)return;
  const title=document.createElement('div');title.innerHTML='<b>Plan cadastral — '+E(com)+' — '+cadParcels.map(p=>E(p.section)+' '+parseInt(p.numero,10)).join(' • ')+'</b>';
  const img=document.createElement('img');img.alt='Plan cadastral des parcelles';img.style.cssText='display:block;width:100%;max-width:720px;max-height:500px;object-fit:contain;margin-top:8px;border:1px solid #ddd;border-radius:8px;background:#fff';
- img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.16';
+ img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.17';
  img.dataset.cadMap='1';
  const link=document.createElement('a');link.href=img.src;link.target='_blank';link.rel='noopener';link.textContent='Ouvrir le plan cadastral';link.style.cssText='display:inline-block;margin-top:8px';
  box.append(title,img,link);
@@ -424,7 +439,7 @@ async function verifyAddressV137(){
 }
 function cadMapURL(){
  const c=$('#cadCommune')?.value?.trim();
- if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.16';
+ if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.17';
  return '';
 }
 
