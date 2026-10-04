@@ -263,8 +263,6 @@ def _multi_context_map_png(commune, refs, width=760, height=520):
     xs=[p[0] for p in all_m]; ys=[p[1] for p in all_m]
     cx=(min(xs)+max(xs))/2; cy=(min(ys)+max(ys))/2
     dx=max(xs)-min(xs); dy=max(ys)-min(ys)
-    # Cadrage serré sur l'ensemble des parcelles : ~12 % de marge.
-    # On conserve le ratio de l'image sans multiplier inutilement l'emprise.
     pad=1.12; aspect=width/height
     target_w=max(dx*pad,35.0); target_h=max(dy*pad,35.0)
     if target_w/target_h < aspect: target_w=target_h*aspect
@@ -277,7 +275,7 @@ def _multi_context_map_png(commune, refs, width=760, height=520):
             "width":str(width),"height":str(height),"language":"fre"}
     url=f"https://inspire.cadastre.gouv.fr/scpc/{code_insee}.wms?"+urllib.parse.urlencode(params)
     try:
-        req=urllib.request.Request(url,headers={"User-Agent":"ESTIMIA/13.24"})
+        req=urllib.request.Request(url,headers={"User-Agent":"ESTIMIA/13.22.2"})
         with urllib.request.urlopen(req,timeout=20) as r:
             raw=r.read(); ctype=r.headers.get("Content-Type","")
         if "image" not in ctype.lower(): raise ValueError("Réponse WMS non image")
