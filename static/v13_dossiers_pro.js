@@ -1,5 +1,5 @@
 (()=>{'use strict';
-const STORE='estimia_cases_v1321';
+const STORE='estimia_cases_v1322';
 const OLD_STORES=['estimia_cases_v1318','estimia_cases_v1317','estimia_cases_v1316','estimia_cases_v1315'];
 const $=s=>document.querySelector(s);
 let currentId=null,restoring=false,timer=null;
