@@ -386,7 +386,7 @@ function renderMultiCadPlan(){
  const com=$('#cadCommune')?.value?.trim();if(!com)return;
  const title=document.createElement('div');title.innerHTML='<b>Plan cadastral — '+E(com)+' — '+cadParcels.map(p=>E(p.section)+' '+parseInt(p.numero,10)).join(' • ')+'</b>';
  const img=document.createElement('img');img.alt='Plan cadastral des parcelles';img.style.cssText='display:block;width:100%;max-width:720px;max-height:500px;object-fit:contain;margin-top:8px;border:1px solid #ddd;border-radius:8px;background:#fff';
- img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.22.1';
+ img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.23';
  img.dataset.cadMap='1';
  const link=document.createElement('a');link.href=img.src;link.target='_blank';link.rel='noopener';link.textContent='Ouvrir le plan cadastral';link.style.cssText='display:inline-block;margin-top:8px';
  box.append(title,img,link);
@@ -471,7 +471,7 @@ async function verifyAddressV137(){
  const cp=$('#cadCommune')?.dataset.postcode||((original.match(/\b\d{5}\b/)||[])[0]||'');
  $('#addressStatus').textContent='Vérification dans la Base Adresse Nationale (adresses issues des BAL)…';
  try{
-  const qs=new URLSearchParams({q:original}); if(cp)qs.set('postcode',cp); if(commune&&!/^\d{5}$/.test(commune))qs.set('city',commune); if(insee)qs.set('citycode',insee);
+  const addressQuery=$('#address')?.value?.trim()||original; const qs=new URLSearchParams({q:addressQuery}); if(cp)qs.set('postcode',cp); if(commune&&!/^\d{5}$/.test(commune))qs.set('city',commune); if(insee)qs.set('citycode',insee);
   const r=await fetch('/api/geocode?'+qs.toString()), j=await r.json(); if(!r.ok)throw new Error(j.detail||'Recherche impossible');
   const x=(j.results||[])[0];
   if(!x){ $('#addressStatus').textContent='⚠ Adresse non retrouvée dans la BAL/BAN pour cette commune — adresse dictée conservée.'; return; }
@@ -482,7 +482,7 @@ async function verifyAddressV137(){
 }
 function cadMapURL(){
  const c=$('#cadCommune')?.value?.trim();
- if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.22.1';
+ if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.23';
  return '';
 }
 
