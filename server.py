@@ -1,3 +1,4 @@
+from datetime import datetime
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse, Response, StreamingResponse
@@ -272,7 +273,7 @@ def _multi_context_map_png(commune, refs, width=760, height=520):
             "width":str(width),"height":str(height),"language":"fre"}
     url=f"https://inspire.cadastre.gouv.fr/scpc/{code_insee}.wms?"+urllib.parse.urlencode(params)
     try:
-        req=urllib.request.Request(url,headers={"User-Agent":"ESTIMIA/13.30"})
+        req=urllib.request.Request(url,headers={"User-Agent":"ESTIMIA/13.31"})
         with urllib.request.urlopen(req,timeout=20) as r:
             raw=r.read(); ctype=r.headers.get("Content-Type","")
         if "image" not in ctype.lower(): raise ValueError("Réponse WMS non image")
@@ -330,6 +331,7 @@ class WordPayload(BaseModel):
     parcels:list=[]
     facts:str=""
     photos:list=[]
+    generated_date:str=""
 
 @app.post("/api/word")
 def word_export(p:WordPayload):
@@ -378,6 +380,8 @@ def word_export(p:WordPayload):
     r=title.add_run('FICHE DE VISITE IMMOBILIÈRE'); r.bold=True; r.font.size=Pt(18); r.font.color.rgb=RGBColor(0x16,0x38,0x4E)
     sub=doc.add_paragraph(); sub.alignment=WD_ALIGN_PARAGRAPH.CENTER; sub.paragraph_format.space_after=Pt(7)
     rr=sub.add_run('ESTIM’IA — fiche de relevé'); rr.italic=True; rr.font.size=Pt(9); rr.font.color.rgb=RGBColor(0x66,0x66,0x66)
+    datep=doc.add_paragraph(); datep.alignment=WD_ALIGN_PARAGRAPH.CENTER; datep.paragraph_format.space_after=Pt(7)
+    dr=datep.add_run('Document généré le '+(p.generated_date or datetime.now().strftime('%d/%m/%Y'))); dr.font.size=Pt(8.5); dr.font.color.rgb=RGBColor(0x66,0x66,0x66)
 
     heading('DOSSIER')
     meta=[('Propriétaire',p.owner),('Téléphone',p.phone),('Adresse',p.address),('Commune',p.commune),

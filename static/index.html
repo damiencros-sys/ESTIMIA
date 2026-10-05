@@ -6,33 +6,33 @@
 <meta name="theme-color" content="#15324a">
 <title>ESTIM’IA</title>
 <link rel="manifest" href="/static/manifest.json">
-<link rel="stylesheet" href="/static/style.css?v=13.30">
+<link rel="stylesheet" href="/static/style.css?v=13.31">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<link rel="stylesheet" href="/static/v13_dossiers_pro.css?v=13.30">
+<link rel="stylesheet" href="/static/v13_dossiers_pro.css?v=13.31">
 <style>
 .cadParcelsList{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:9px 0}.cadParcelsLabel{flex-basis:100%;font-weight:700;margin:2px 0 1px}
 .cadParcelChip{display:inline-flex;align-items:center;gap:7px;border:1px solid #cbd8de;border-radius:999px;padding:6px 9px;background:#f7fafb;font-size:13px}
 .cadParcelChip.ok{border-color:#82b9a9;background:#eef8f4}.cadParcelChip button{border:0;background:transparent;color:#9a3030;cursor:pointer;font-weight:700}
 
 .editableCard [contenteditable="true"]{outline:none;border-radius:4px;padding:2px 4px}.editableCard [contenteditable="true"]:focus{background:#fff8cf;box-shadow:0 0 0 2px #e4c64b}
-.proRow{align-items:center}.rowDelete{border:0;background:transparent;color:#a33;font-size:18px;cursor:pointer;padding:2px 7px}.miniEditBtn{border:1px solid #b9c9d1;background:#f7fafb;border-radius:7px;padding:6px 9px;cursor:pointer;margin:5px 0}
+.proRow{display:grid!important;grid-template-columns:minmax(120px,.8fr) minmax(180px,1.5fr) 34px;align-items:center;gap:10px}.proRow>span,.proRow>strong{min-width:0}.rowDelete{border:1px solid #ead0d0;background:#fff;color:#a33;font-size:18px;cursor:pointer;padding:3px 7px;border-radius:6px;justify-self:end;align-self:center}.proRow .rowDelete{grid-column:3;grid-row:1}.miniEditBtn{border:1px solid #b9c9d1;background:#f7fafb;border-radius:7px;padding:6px 9px;cursor:pointer;margin:5px 0}
 .surfaceHead,.levelHead{display:flex;align-items:center;justify-content:space-between;gap:8px}.levelHead{margin:8px 0 5px}.levelName{font-weight:700;font-size:15px;border:1px solid #ccd5db;border-radius:7px;padding:7px;min-width:0;flex:1}.levelActions{display:flex;gap:4px}.levelActions button,.editableSurface button{border:1px solid #ccd5db;background:#fff;border-radius:6px;padding:6px 8px;cursor:pointer}
 .editableSurface{display:grid!important;grid-template-columns:minmax(110px,1.5fr) 82px 28px minmax(105px,1fr) auto auto auto;align-items:center;gap:5px}.editableSurface input,.editableSurface select{min-width:0;border:1px solid #ccd5db;border-radius:6px;padding:7px;background:#fff}.editableSurface .unit{font-size:12px;color:#667}
 @media(max-width:700px){.editableSurface{grid-template-columns:1fr 76px 25px}.editableSurface .pieceLevel{grid-column:1/3}.surfaceHead{align-items:flex-start;flex-direction:column}}
 .surfaceToolbar{display:flex;gap:6px;flex-wrap:wrap}
 @media(max-width:700px){.surfaceToolbar{width:100%}}
 
-.globalHistory{position:fixed;left:8px;top:45%;z-index:9999;display:flex;flex-direction:column;gap:7px}
-.globalHistory button{border:1px solid #b8c6ce;background:#fff;border-radius:9px;padding:8px 7px;box-shadow:0 2px 9px #0002;cursor:pointer;font-size:18px}
-.globalHistory button span{display:block;font-size:9px}
+.globalHistory{position:sticky;top:8px;z-index:900;display:flex;justify-content:flex-end;gap:7px;max-width:780px;margin:8px auto -2px;padding:0 4px;pointer-events:none}
+.globalHistory button{border:1px solid #b8c6ce;background:#fff;border-radius:9px;padding:7px 11px;box-shadow:0 2px 9px #0002;cursor:pointer;font-size:16px;pointer-events:auto;display:flex;align-items:center;gap:5px}
+.globalHistory button span{display:inline;font-size:11px}
 .photoManageGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:10px}
 .photoManageCard{border:1px solid #ccd5db;border-radius:9px;padding:7px;background:#fff}
 .photoManageCard img{width:100%;height:120px;object-fit:cover;border-radius:6px;display:block}
 .photoLabel{width:100%;box-sizing:border-box;margin-top:6px;padding:7px;border:1px solid #ccd5db;border-radius:6px}
 .photoActions{display:flex;justify-content:center;gap:5px;margin-top:5px}.photoActions button{border:1px solid #ccd5db;background:#f8fafb;border-radius:6px;padding:5px 9px}
-@media(max-width:700px){.globalHistory{left:3px;top:auto;bottom:85px}.globalHistory button{padding:6px 5px}.globalHistory button span{display:none}}
+#gallery{display:none!important}@media(max-width:700px){.proRow{grid-template-columns:minmax(85px,.75fr) minmax(120px,1.25fr) 32px;gap:6px}.globalHistory{top:4px;margin:5px 8px -2px}.globalHistory button{padding:6px 8px}.globalHistory button span{font-size:10px}}
 </style>
 </head>
 <body>
@@ -47,11 +47,15 @@
 </aside>
 <button id="caseOpen" type="button" class="caseOpen">☰ Mes dossiers</button>
 
-<div style="position:fixed;right:8px;bottom:8px;z-index:99999;background:#111;color:#fff;padding:6px 9px;border-radius:8px;font:12px Arial;opacity:.82">ESTIM’IA V13.30 CORRECTIF COMPLET</div>
+<div style="position:fixed;right:8px;bottom:8px;z-index:99999;background:#111;color:#fff;padding:6px 9px;border-radius:8px;font:12px Arial;opacity:.82">ESTIM’IA V13.31 CORRECTIF COMPLET</div>
 <header>
   <div><b>ESTIM’IA</b><small>Assistant d’estimation immobilière</small></div>
   <button id="new" type="button" hidden aria-hidden="true">+ Nouveau</button>
 </header>
+<div id="globalHistory" class="globalHistory">
+<button type="button" data-global-act="undo" title="Annuler la dernière modification">↶<span>Annuler</span></button>
+<button type="button" data-global-act="redo" title="Rétablir la modification">↷<span>Rétablir</span></button>
+</div>
 <main>
 <section class="card">
   <div class="step">DOSSIER</div>
@@ -122,17 +126,14 @@
     <button id="printVisit" type="button" class="secondary">🖨️ Imprimer / Enregistrer en PDF</button>
     <button id="downloadWord" type="button" class="secondary">📄 Télécharger la fiche Word</button>
   <div id="saveStatus" class="status"></div>
-  <p class="small">V13.30 : fiche entièrement modifiable + gestion des niveaux et des pièces.</p>
+  <p class="small">V13.31 : fiche entièrement modifiable + gestion des niveaux et des pièces.</p>
 </section>
 </main>
-<script src="/static/app.js?v=13.30"></script>
+<script src="/static/app.js?v=13.31"></script>
 <script src="/static/v7_pro.js"></script>
 <script src="/static/v8_fiche_pro.js"></script>
-<script src="/static/v13_visite.js?v=13.30"></script>
-<script src="/static/v13_dossiers_pro.js?v=13.30"></script>
-<div id="globalHistory" class="globalHistory">
-<button type="button" data-global-act="undo" title="Annuler la dernière modification">↶<span>Annuler</span></button>
-<button type="button" data-global-act="redo" title="Rétablir la modification">↷<span>Rétablir</span></button>
-</div>
+<script src="/static/v13_visite.js?v=13.31"></script>
+<script src="/static/v13_dossiers_pro.js?v=13.31"></script>
+
 </body>
 </html>
