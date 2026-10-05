@@ -6,15 +6,21 @@
 <meta name="theme-color" content="#15324a">
 <title>ESTIM’IA</title>
 <link rel="manifest" href="/static/manifest.json">
-<link rel="stylesheet" href="/static/style.css?v=13.26">
+<link rel="stylesheet" href="/static/style.css?v=13.27">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<link rel="stylesheet" href="/static/v13_dossiers_pro.css?v=13.26">
+<link rel="stylesheet" href="/static/v13_dossiers_pro.css?v=13.27">
 <style>
 .cadParcelsList{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:9px 0}.cadParcelsLabel{flex-basis:100%;font-weight:700;margin:2px 0 1px}
 .cadParcelChip{display:inline-flex;align-items:center;gap:7px;border:1px solid #cbd8de;border-radius:999px;padding:6px 9px;background:#f7fafb;font-size:13px}
 .cadParcelChip.ok{border-color:#82b9a9;background:#eef8f4}.cadParcelChip button{border:0;background:transparent;color:#9a3030;cursor:pointer;font-weight:700}
+
+.editableCard [contenteditable="true"]{outline:none;border-radius:4px;padding:2px 4px}.editableCard [contenteditable="true"]:focus{background:#fff8cf;box-shadow:0 0 0 2px #e4c64b}
+.proRow{align-items:center}.rowDelete{border:0;background:transparent;color:#a33;font-size:18px;cursor:pointer;padding:2px 7px}.miniEditBtn{border:1px solid #b9c9d1;background:#f7fafb;border-radius:7px;padding:6px 9px;cursor:pointer;margin:5px 0}
+.surfaceHead,.levelHead{display:flex;align-items:center;justify-content:space-between;gap:8px}.levelHead{margin:8px 0 5px}.levelName{font-weight:700;font-size:15px;border:1px solid #ccd5db;border-radius:7px;padding:7px;min-width:0;flex:1}.levelActions{display:flex;gap:4px}.levelActions button,.editableSurface button{border:1px solid #ccd5db;background:#fff;border-radius:6px;padding:6px 8px;cursor:pointer}
+.editableSurface{display:grid!important;grid-template-columns:minmax(110px,1.5fr) 82px 28px minmax(105px,1fr) auto auto auto;align-items:center;gap:5px}.editableSurface input,.editableSurface select{min-width:0;border:1px solid #ccd5db;border-radius:6px;padding:7px;background:#fff}.editableSurface .unit{font-size:12px;color:#667}
+@media(max-width:700px){.editableSurface{grid-template-columns:1fr 76px 25px}.editableSurface .pieceLevel{grid-column:1/3}.surfaceHead{align-items:flex-start;flex-direction:column}}
 </style>
 </head>
 <body>
@@ -29,7 +35,7 @@
 </aside>
 <button id="caseOpen" type="button" class="caseOpen">☰ Mes dossiers</button>
 
-<div style="position:fixed;right:8px;bottom:8px;z-index:99999;background:#111;color:#fff;padding:6px 9px;border-radius:8px;font:12px Arial;opacity:.82">ESTIM’IA V13.26 CORRECTIF COMPLET</div>
+<div style="position:fixed;right:8px;bottom:8px;z-index:99999;background:#111;color:#fff;padding:6px 9px;border-radius:8px;font:12px Arial;opacity:.82">ESTIM’IA V13.27 CORRECTIF COMPLET</div>
 <header>
   <div><b>ESTIM’IA</b><small>Assistant d’estimation immobilière</small></div>
   <button id="new" type="button" hidden aria-hidden="true">+ Nouveau</button>
@@ -103,13 +109,13 @@
     <button id="printVisit" type="button" class="secondary">🖨️ Imprimer / Enregistrer en PDF</button>
     <button id="downloadWord" type="button" class="secondary">📄 Télécharger la fiche Word</button>
   <div id="saveStatus" class="status"></div>
-  <p class="small">V13.26 : multi-parcelles cadastrales + plan groupé, Word/PDF et dossiers.</p>
+  <p class="small">V13.27 : fiche entièrement modifiable + gestion des niveaux et des pièces.</p>
 </section>
 </main>
-<script src="/static/app.js?v=13.26"></script>
+<script src="/static/app.js?v=13.27"></script>
 <script src="/static/v7_pro.js"></script>
 <script src="/static/v8_fiche_pro.js"></script>
-<script src="/static/v13_visite.js?v=13.26"></script>
-<script src="/static/v13_dossiers_pro.js?v=13.26"></script>
+<script src="/static/v13_visite.js?v=13.27"></script>
+<script src="/static/v13_dossiers_pro.js?v=13.27"></script>
 </body>
 </html>

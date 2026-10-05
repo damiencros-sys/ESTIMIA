@@ -9,7 +9,7 @@ const uniq=a=>[...new Set(a.filter(Boolean))];
 function card(title,icon,rows){
  rows=rows.filter(r=>r[1]!==''&&r[1]!=null);
  if(!rows.length)return '';
- return `<section class="proGroup"><h3>${icon} ${title}</h3>${rows.map(([k,v])=>`<div class="proRow"><span>${E(k)}</span><strong>${E(v)}</strong></div>`).join('')}</section>`;
+ return `<section class="proGroup editableCard"><h3 contenteditable="true" spellcheck="true">${icon} ${title}</h3>${rows.map(([k,v])=>`<div class="proRow"><span contenteditable="true" spellcheck="true">${E(k)}</span><strong contenteditable="true" spellcheck="true">${E(v)}</strong><button type="button" class="rowDelete" title="Supprimer">×</button></div>`).join('')}<button type="button" class="addTextRow miniEditBtn">＋ Ajouter une ligne</button></section>`;
 }
 function owner(t){
  let m=t.match(/\b(?:les\s+)?consorts?\s+([\p{L}'’-]+)/iu);
@@ -275,20 +275,53 @@ function explicitHabitable(t){
  const m=clean(t).match(/\bsurface\s+habitable(?:\s+(?:de|est|:))?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/i);
  return m?n(m[1]):null;
 }
-function surfHTML(rows){
- if(!rows.length)return '';
- const ins=rows.filter(x=>x.cat==='Intérieur'), levels=uniq(ins.map(x=>x.lvl));
- let s='<section class="surfaceHero"><h3>📐 SURFACES CALCULÉES PAR NIVEAU</h3>';
- for(const lv of levels){
-  const rr=ins.filter(x=>x.lvl===lv), total=rr.reduce((a,x)=>a+x.val,0);
-  s+=`<div class="levelBlock"><h4>🪜 ${E(lv)}</h4>${rr.map(x=>`<div class="surfaceRow"><span>${E(x.name)}</span><b>${fmt(x.val)}</b></div>`).join('')}<div class="surfaceTotal"><span>Total ${E(lv)}</span><strong>${fmt(total)}</strong></div></div>`;
- }
+let manualSurfaceRows=[],manualLevels=[];
+function normalizeManualLevels(rows){
+ const found=uniq(rows.filter(x=>x.cat==='Intérieur').map(x=>x.lvl));
+ if(!manualLevels.length)manualLevels=found.slice();
+ found.forEach(x=>{if(!manualLevels.includes(x))manualLevels.push(x)});
+ if(!manualLevels.length)manualLevels=['RDC'];
+}
+function surfaceEditorHTML(rows){
+ manualSurfaceRows=rows.map((x,i)=>({...x,_id:'s'+Date.now()+'_'+i}));
+ manualLevels=[];normalizeManualLevels(manualSurfaceRows);return renderSurfaceEditor();
+}
+function renderSurfaceEditor(){
+ normalizeManualLevels(manualSurfaceRows);
+ const ins=manualSurfaceRows.filter(x=>x.cat==='Intérieur');
+ let s='<section class="surfaceHero surfaceEditor"><div class="surfaceHead"><h3>📐 SURFACES CALCULÉES PAR NIVEAU</h3><button type="button" class="miniEditBtn" data-act="add-level">＋ Ajouter un niveau</button></div>';
+ manualLevels.forEach(lv=>{
+  const rr=ins.filter(x=>x.lvl===lv),total=rr.reduce((a,x)=>a+x.val,0);
+  s+=`<div class="levelBlock" data-level="${E(lv)}"><div class="levelHead"><input class="levelName" value="${E(lv)}"><div class="levelActions"><button type="button" data-act="level-up" title="Monter le niveau">↑</button><button type="button" data-act="level-down" title="Descendre le niveau">↓</button><button type="button" data-act="delete-level" title="Supprimer le niveau">🗑</button></div></div>`;
+  rr.forEach(x=>{const opts=manualLevels.map(z=>`<option ${z===lv?'selected':''}>${E(z)}</option>`).join('');
+   s+=`<div class="surfaceRow editableSurface" data-id="${E(x._id)}"><input class="pieceName" value="${E(x.name)}"><input class="pieceVal" type="number" step=".01" value="${Number(x.val)}"><span class="unit">m²</span><select class="pieceLevel">${opts}</select><button type="button" data-act="piece-up" title="Monter">↑</button><button type="button" data-act="piece-down" title="Descendre">↓</button><button type="button" data-act="delete-piece" title="Supprimer">×</button></div>`;
+  });
+  s+=`<button type="button" class="miniEditBtn" data-act="add-piece">＋ Ajouter une pièce</button><div class="surfaceTotal"><span>Total ${E(lv)}</span><strong>${fmt(total)}</strong></div></div>`;
+ });
  const total=ins.reduce((a,x)=>a+x.val,0);
- if(ins.length)s+=`<div class="grandTotal"><span>TOTAL DES PIÈCES INTÉRIEURES RENSEIGNÉES</span><strong>${fmt(total)}</strong></div>`;
- const ann=rows.filter(x=>x.cat==='Annexe'), ext=rows.filter(x=>x.cat==='Extérieur');
- if(ann.length)s+=`<div class="otherSurface"><h4>🏚️ Annexes — hors total intérieur</h4>${ann.map(x=>`<div class="surfaceRow"><span>${E(x.name)} — ${E(x.lvl)}</span><b>${fmt(x.val)}</b></div>`).join('')}</div>`;
- if(ext.length)s+=`<div class="otherSurface"><h4>🌳 Extérieurs — hors total intérieur</h4>${ext.map(x=>`<div class="surfaceRow"><span>${E(x.name)} — ${E(x.lvl)}</span><b>${fmt(x.val)}</b></div>`).join('')}</div>`;
+ s+=`<div class="grandTotal"><span>TOTAL DES PIÈCES INTÉRIEURES RENSEIGNÉES</span><strong>${fmt(total)}</strong></div>`;
+ const ann=manualSurfaceRows.filter(x=>x.cat==='Annexe'),ext=manualSurfaceRows.filter(x=>x.cat==='Extérieur');
+ if(ann.length)s+=`<div class="otherSurface"><h4 contenteditable="true">🏚️ Annexes — hors total intérieur</h4>${ann.map(x=>`<div class="surfaceRow"><span contenteditable="true">${E(x.name)} — ${E(x.lvl)}</span><b contenteditable="true">${fmt(x.val)}</b></div>`).join('')}</div>`;
+ if(ext.length)s+=`<div class="otherSurface"><h4 contenteditable="true">🌳 Extérieurs — hors total intérieur</h4>${ext.map(x=>`<div class="surfaceRow"><span contenteditable="true">${E(x.name)} — ${E(x.lvl)}</span><b contenteditable="true">${fmt(x.val)}</b></div>`).join('')}</div>`;
  return s+'</section>';
+}
+function refreshSurfaceEditor(){
+ const box=document.querySelector('#facts .surfaceEditor');if(!box)return;
+ const d=document.createElement('div');d.innerHTML=renderSurfaceEditor();box.replaceWith(d.firstElementChild);
+ const total=manualSurfaceRows.filter(x=>x.cat==='Intérieur').reduce((a,x)=>a+x.val,0);
+ if($('#surfaceHab'))$('#surfaceHab').value=total?total.toFixed(2):'';
+}
+function surfaceRowById(id){return manualSurfaceRows.find(x=>x._id===id)}
+function movePiece(id,dir){
+ const x=surfaceRowById(id);if(!x)return;const same=manualSurfaceRows.filter(y=>y.cat==='Intérieur'&&y.lvl===x.lvl);
+ const pos=same.findIndex(y=>y._id===id),other=same[pos+dir];if(!other)return;
+ const ia=manualSurfaceRows.indexOf(x),ib=manualSurfaceRows.indexOf(other);[manualSurfaceRows[ia],manualSurfaceRows[ib]]=[manualSurfaceRows[ib],manualSurfaceRows[ia]];refreshSurfaceEditor();
+}
+function deleteLevel(lv){
+ const pieces=manualSurfaceRows.filter(x=>x.cat==='Intérieur'&&x.lvl===lv),others=manualLevels.filter(x=>x!==lv);
+ if(pieces.length){if(!others.length){alert('Ajoute un autre niveau avant de supprimer celui-ci.');return}
+  const target=prompt('Ce niveau contient des pièces. Vers quel niveau les déplacer ?\\n'+others.join(' / '),others[0]);if(!target||!others.includes(target))return;pieces.forEach(x=>x.lvl=target);}
+ manualLevels=manualLevels.filter(x=>x!==lv);refreshSurfaceEditor();
 }
 // V13.9 — extraction factuelle : une information = un fait immobilier.
 function clauses(t){
@@ -411,7 +444,7 @@ function renderMultiCadPlan(){
  const com=$('#cadCommune')?.value?.trim();if(!com)return;
  const title=document.createElement('div');title.innerHTML='<b>Plan cadastral — '+E(com)+' — '+cadParcels.map(p=>E(p.section)+' '+parseInt(p.numero,10)).join(' • ')+'</b>';
  const img=document.createElement('img');img.alt='Plan cadastral des parcelles';img.style.cssText='display:block;width:100%;max-width:720px;max-height:500px;object-fit:contain;margin-top:8px;border:1px solid #ddd;border-radius:8px;background:#fff';
- img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.26';
+ img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.27';
  img.dataset.cadMap='1';
  const link=document.createElement('a');link.href=img.src;link.target='_blank';link.rel='noopener';link.textContent='Ouvrir le plan cadastral';link.style.cssText='display:inline-block;margin-top:8px';
  box.append(title,img,link);
@@ -465,7 +498,7 @@ async function render(){
  let topRows=buildInfo(t);
  if(announced!=null)topRows.push(['Surface annoncée / dictée',fmt(announced)]);
  let out='<div class="proGrid">'+card('Bien & construction','🏠',topRows)+'</div>';
- out+=surfHTML(ss);
+ out+=surfaceEditorHTML(ss);
  if(total){
    let msg=`<div class="calculatedTop">📏 <span>Surface habitable calculée sur les pièces admissibles chiffrées</span><strong>${fmt(total)}</strong></div>`;
    if(announced!=null && Math.abs(announced-total)>.01)msg+=`<div class="status">⚠ Surface annoncée : ${fmt(announced)} — total des pièces chiffrées : ${fmt(total)}. Écart conservé à contrôler ; aucune valeur n’est supprimée.</div>`;
@@ -507,7 +540,7 @@ async function verifyAddressV137(){
 }
 function cadMapURL(){
  const c=$('#cadCommune')?.value?.trim();
- if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.26';
+ if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.27';
  return '';
 }
 
@@ -570,5 +603,25 @@ document.addEventListener('DOMContentLoaded',()=>{
  $('#downloadWord')?.addEventListener('click',downloadWord);
  document.addEventListener('estimia:parcels-restored',loadCadParcelsFromHidden);
  loadCadParcelsFromHidden();
+});
+
+document.addEventListener('click',e=>{
+ const b=e.target.closest('button');if(!b)return;const row=b.closest('.proRow');
+ if(b.classList.contains('rowDelete')&&row){row.remove();return}
+ if(b.classList.contains('addTextRow')){const card=b.closest('.proGroup'),d=document.createElement('div');d.className='proRow';d.innerHTML='<span contenteditable="true" spellcheck="true">Nouvelle information</span><strong contenteditable="true" spellcheck="true">À compléter</strong><button type="button" class="rowDelete">×</button>';card.insertBefore(d,b);return}
+ const act=b.dataset.act;if(!act)return;const level=b.closest('.levelBlock')?.dataset.level||'',sr=b.closest('.editableSurface'),id=sr?.dataset.id;
+ if(act==='add-level'){let name=clean(prompt('Nom du nouveau niveau :','')||'');if(!name||manualLevels.includes(name))return;manualLevels.push(name);refreshSurfaceEditor();}
+ else if(act==='delete-level')deleteLevel(level);
+ else if(act==='level-up'||act==='level-down'){const i=manualLevels.indexOf(level),j=i+(act==='level-up'?-1:1);if(i<0||j<0||j>=manualLevels.length)return;[manualLevels[i],manualLevels[j]]=[manualLevels[j],manualLevels[i]];refreshSurfaceEditor();}
+ else if(act==='add-piece'){manualSurfaceRows.push({_id:'m'+Date.now(),lvl:level,name:'Nouvelle pièce',val:0,cat:'Intérieur'});refreshSurfaceEditor();}
+ else if(act==='piece-up')movePiece(id,-1);else if(act==='piece-down')movePiece(id,1);
+ else if(act==='delete-piece'){manualSurfaceRows=manualSurfaceRows.filter(x=>x._id!==id);refreshSurfaceEditor();}
+});
+document.addEventListener('change',e=>{
+ const sr=e.target.closest('.editableSurface'),id=sr?.dataset.id,x=id&&surfaceRowById(id);
+ if(x&&e.target.classList.contains('pieceLevel')){x.lvl=e.target.value;refreshSurfaceEditor();return}
+ if(x&&e.target.classList.contains('pieceVal')){x.val=Number(e.target.value)||0;refreshSurfaceEditor();return}
+ if(x&&e.target.classList.contains('pieceName')){x.name=clean(e.target.value)||'Pièce';refreshSurfaceEditor();return}
+ if(e.target.classList.contains('levelName')){const block=e.target.closest('.levelBlock'),old=block?.dataset.level,neu=clean(e.target.value);if(!old||!neu||neu===old)return;if(manualLevels.includes(neu)){alert('Ce niveau existe déjà.');e.target.value=old;return}manualLevels=manualLevels.map(x=>x===old?neu:x);manualSurfaceRows.forEach(x=>{if(x.lvl===old)x.lvl=neu});refreshSurfaceEditor();}
 });
 })();
