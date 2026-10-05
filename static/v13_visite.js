@@ -469,7 +469,7 @@ function renderMultiCadPlan(){
  const com=$('#cadCommune')?.value?.trim();if(!com)return;
  const title=document.createElement('div');title.innerHTML='<b>Plan cadastral — '+E(com)+' — '+cadParcels.map(p=>E(p.section)+' '+parseInt(p.numero,10)).join(' • ')+'</b>';
  const img=document.createElement('img');img.alt='Plan cadastral des parcelles';img.style.cssText='display:block;width:100%;max-width:720px;max-height:500px;object-fit:contain;margin-top:8px;border:1px solid #ddd;border-radius:8px;background:#fff';
- img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.36';
+ img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.37';
  img.dataset.cadMap='1';
  const link=document.createElement('a');link.href=img.src;link.target='_blank';link.rel='noopener';link.textContent='Ouvrir le plan cadastral';link.style.cssText='display:inline-block;margin-top:8px';
  box.append(title,img,link);
@@ -578,7 +578,7 @@ async function verifyAddressV137(){
 }
 function cadMapURL(){
  const c=$('#cadCommune')?.value?.trim();
- if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.36';
+ if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.37';
  return '';
 }
 
@@ -640,7 +640,7 @@ async function buildExportPayload(){
  document.querySelectorAll('#facts .otherSurface').forEach(b=>sections.push({title:b.querySelector('h4')?.innerText||'Surfaces annexes',rows:[...b.querySelectorAll('.surfaceRow')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('b')?.innerText||''])}));
  document.querySelectorAll('#facts .proGroup').forEach(b=>sections.push({title:b.querySelector('h3')?.innerText||'Informations',rows:[...b.querySelectorAll('.proRow')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('strong')?.innerText||''])}));
  const photos=[];for(const p of currentPhotos()){try{photos.push({name:p.label||photoDisplayName(p.file),data:await optimizedPhotoDataURL(p.file)})}catch{}}
- return {owner:$('#owner')?.value||'',phone:$('#ownerPhone')?.value||'',address:$('#address')?.value||'',commune:$('#cadCommune')?.value||'',section:$('#cadSection')?.value||'',parcel:$('#cadParcel')?.value||'',property_type:$('#type')?.value||'',surface:$('#surfaceHab')?.value||'',surface_carrez:$('#surfaceCarrez')?.value||'',sections,parcels:cadParcels.map(p=>({section:p.section,numero:p.numero})),facts:$('#facts')?.innerText||'',photos,generated_date:new Date().toLocaleDateString('fr-FR')};
+ return {owner:$('#owner')?.value||'',phone:$('#ownerPhone')?.value||'',emails:readEmails(),address:$('#address')?.value||'',commune:$('#cadCommune')?.value||'',section:$('#cadSection')?.value||'',parcel:$('#cadParcel')?.value||'',property_type:$('#type')?.value||'',surface:$('#surfaceHab')?.value||'',surface_carrez:$('#surfaceCarrez')?.value||'',sections,parcels:cadParcels.map(p=>({section:p.section,numero:p.numero})),facts:$('#facts')?.innerText||'',photos,generated_date:new Date().toLocaleDateString('fr-FR')};
 }
 async function downloadWord(){
  const payload=await buildExportPayload();
@@ -664,6 +664,7 @@ async function printableHTML(){
  const meta=[
   ['Propriétaire',$('#owner')?.value||''],
   ['Téléphone',$('#ownerPhone')?.value||''],
+  ['E-mail(s)',readEmails().join(' • ')],
   ['Adresse',$('#address')?.value||''],
   ['Type',$('#type')?.value||''],
   ['Surface habitable',$('#surfaceHab')?.value?$('#surfaceHab').value+' m²':''],
@@ -704,7 +705,7 @@ document.addEventListener('DOMContentLoaded',()=>{
  $('#downloadVisit')?.addEventListener('click',downloadVisit);
  $('#downloadWord')?.addEventListener('click',()=>withExportModal('word',downloadWord,'downloadWord'));
  document.addEventListener('estimia:parcels-restored',loadCadParcelsFromHidden);
- loadCadParcelsFromHidden();applyPropertyTheme();
+ loadCadParcelsFromHidden();applyPropertyTheme();renderEmails();
  $('#type')?.addEventListener('input',applyPropertyTheme);
 });
 
@@ -728,7 +729,7 @@ document.addEventListener('change',e=>{
  if(e.target.classList.contains('levelName')){const block=e.target.closest('.levelBlock'),old=block?.dataset.level,neu=clean(e.target.value);if(!old||!neu||neu===old)return;if(manualLevels.includes(neu)){alert('Ce niveau existe déjà.');e.target.value=old;return}manualLevels=manualLevels.map(x=>x===old?neu:x);manualSurfaceRows.forEach(x=>{if(x.lvl===old)x.lvl=neu});refreshSurfaceEditor();}
 });
 
-// V13.36 — historique global de la fiche.
+// V13.37 — historique global de la fiche.
 let globalUndo=[],globalRedo=[],globalRestoring=false,lastFocusSnapshot='';
 function globalSnapshot(){
  const vals={};document.querySelectorAll('input:not([type=file]),textarea,select').forEach((el,i)=>{if(el.id)vals['#'+el.id]=el.value});
@@ -789,7 +790,7 @@ document.addEventListener('change',e=>{
 });
 setTimeout(globalCheckpoint,0);
 
-// V13.36 — boutons Supprimer manquants dans les rubriques structurées.
+// V13.37 — boutons Supprimer manquants dans les rubriques structurées.
 // Ne touche pas aux contrôles Photos ni Surfaces, déjà validés.
 function ensureStructuredDeleteButtons(){
  document.querySelectorAll('#facts .proGroup .proRow').forEach(row=>{
@@ -816,7 +817,7 @@ if(_v133RenderFacts){
 }
 setTimeout(ensureStructuredDeleteButtons,0);
 
-// V13.36 — fenêtre centrale de progression Word/PDF.
+// V13.37 — fenêtre centrale de progression Word/PDF.
 function exportModal(state,kind){
  let ov=document.getElementById('exportOverlay');
  if(!ov)return;
@@ -842,4 +843,29 @@ async function withExportModal(kind,fn,buttonId){
  catch(e){exportModal('error',kind);throw e}
  finally{if(btn)btn.disabled=false}
 }
+// V13.37 — e-mails multiples, manuels et persistants via emailsJSON.
+function readEmails(){
+ try{return JSON.parse(document.querySelector('#emailsJSON')?.value||'[]').filter(Boolean)}catch{return []}
+}
+function writeEmails(a){
+ const h=document.querySelector('#emailsJSON');if(h)h.value=JSON.stringify(a);
+ renderEmails();
+ h?.dispatchEvent(new Event('input',{bubbles:true}));
+}
+function renderEmails(){
+ const box=document.querySelector('#emailList');if(!box)return;
+ const a=readEmails();
+ box.innerHTML=a.map((v,i)=>`<div class="emailRow" data-email="${i}"><input type="email" value="${E(v)}" placeholder="adresse@email.fr"><button type="button" class="emailDelete" title="Supprimer cet e-mail">×</button></div>`).join('');
+}
+document.addEventListener('click',e=>{
+ if(e.target.id==='addEmail'){const a=readEmails();a.push('');writeEmails(a);setTimeout(()=>document.querySelector('#emailList .emailRow:last-child input')?.focus(),0);return}
+ if(e.target.classList.contains('emailDelete')){const row=e.target.closest('.emailRow'),i=Number(row?.dataset.email),a=readEmails();if(Number.isInteger(i)){a.splice(i,1);writeEmails(a)}return}
+});
+document.addEventListener('input',e=>{
+ const row=e.target.closest?.('.emailRow');if(!row||e.target.tagName!=='INPUT')return;
+ const i=Number(row.dataset.email),a=readEmails();if(Number.isInteger(i)){a[i]=e.target.value;const h=document.querySelector('#emailsJSON');if(h){h.value=JSON.stringify(a);h.dispatchEvent(new Event('input',{bubbles:true}))}}
+});
+document.addEventListener('DOMContentLoaded',renderEmails);
+document.addEventListener('estimia:emails-restored',renderEmails);
+
 })();
