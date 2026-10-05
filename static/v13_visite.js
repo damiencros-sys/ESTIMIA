@@ -194,7 +194,7 @@ function markers(text){
 }
 function surfaces(text){
  const t=clean(text), ms=markers(t), out=[];
- const levelAt=i=>{let lvl='Niveau non précisé';for(const z of ms){if(z.i<=i)lvl=z.name;else break}return lvl};
+ const levelAt=i=>{let lvl='Rez-de-chaussée';for(const z of ms){if(z.i<=i)lvl=z.name;else break}return lvl};
  const canon=name=>{
   name=clean(name);
   if(/^pi[eè]ce$/i.test(name))return 'Bureau';
@@ -277,6 +277,7 @@ function explicitHabitable(t){
 }
 let manualSurfaceRows=[],manualLevels=[];
 function normalizeManualLevels(rows){
+ rows.forEach(x=>{if(x.cat==='Intérieur'&&(!x.lvl||x.lvl==='Niveau non précisé'))x.lvl='Rez-de-chaussée'});
  const found=uniq(rows.filter(x=>x.cat==='Intérieur').map(x=>x.lvl));
  if(!manualLevels.length)manualLevels=found.slice();
  found.forEach(x=>{if(!manualLevels.includes(x))manualLevels.push(x)});
@@ -284,12 +285,12 @@ function normalizeManualLevels(rows){
 }
 function surfaceEditorHTML(rows){
  manualSurfaceRows=rows.map((x,i)=>({...x,_id:'s'+Date.now()+'_'+i}));
- manualLevels=[];normalizeManualLevels(manualSurfaceRows);return renderSurfaceEditor();
+ manualLevels=[];normalizeManualLevels(manualSurfaceRows);surfaceUndo=[];surfaceRedo=[];rememberSurfaceState();return renderSurfaceEditor();
 }
 function renderSurfaceEditor(){
  normalizeManualLevels(manualSurfaceRows);
  const ins=manualSurfaceRows.filter(x=>x.cat==='Intérieur');
- let s='<section class="surfaceHero surfaceEditor"><div class="surfaceHead"><h3>📐 SURFACES CALCULÉES PAR NIVEAU</h3><button type="button" class="miniEditBtn" data-act="add-level">＋ Ajouter un niveau</button></div>';
+ let s='<section class="surfaceHero surfaceEditor"><div class="surfaceHead"><h3>📐 SURFACES CALCULÉES PAR NIVEAU</h3><div class="surfaceToolbar"><button type="button" class="miniEditBtn" data-act="undo" title="Annuler">↶ Annuler</button><button type="button" class="miniEditBtn" data-act="redo" title="Rétablir">↷ Rétablir</button><button type="button" class="miniEditBtn" data-act="add-level">＋ Ajouter un niveau</button></div></div>';
  manualLevels.forEach(lv=>{
   const rr=ins.filter(x=>x.lvl===lv),total=rr.reduce((a,x)=>a+x.val,0);
   s+=`<div class="levelBlock" data-level="${E(lv)}"><div class="levelHead"><input class="levelName" value="${E(lv)}"><div class="levelActions"><button type="button" data-act="level-up" title="Monter le niveau">↑</button><button type="button" data-act="level-down" title="Descendre le niveau">↓</button><button type="button" data-act="delete-level" title="Supprimer le niveau">🗑</button></div></div>`;
@@ -305,11 +306,34 @@ function renderSurfaceEditor(){
  if(ext.length)s+=`<div class="otherSurface"><h4 contenteditable="true">🌳 Extérieurs — hors total intérieur</h4>${ext.map(x=>`<div class="surfaceRow"><span contenteditable="true">${E(x.name)} — ${E(x.lvl)}</span><b contenteditable="true">${fmt(x.val)}</b></div>`).join('')}</div>`;
  return s+'</section>';
 }
+let surfaceUndo=[],surfaceRedo=[],surfaceRestoring=false;
+function surfaceSnapshot(){return JSON.stringify({rows:manualSurfaceRows,levels:manualLevels})}
+function rememberSurfaceState(){
+ if(surfaceRestoring)return;
+ const snap=surfaceSnapshot();
+ if(surfaceUndo[surfaceUndo.length-1]!==snap)surfaceUndo.push(snap);
+ if(surfaceUndo.length>40)surfaceUndo.shift();
+ surfaceRedo=[];
+}
+function restoreSurfaceState(snap){
+ if(!snap)return;surfaceRestoring=true;
+ const o=JSON.parse(snap);manualSurfaceRows=o.rows||[];manualLevels=o.levels||[];
+ surfaceRestoring=false;refreshSurfaceEditor();
+}
+function undoSurface(){
+ if(surfaceUndo.length<2)return;
+ surfaceRedo.push(surfaceUndo.pop());restoreSurfaceState(surfaceUndo[surfaceUndo.length-1]);
+}
+function redoSurface(){
+ if(!surfaceRedo.length)return;
+ const s=surfaceRedo.pop();surfaceUndo.push(s);restoreSurfaceState(s);
+}
 function refreshSurfaceEditor(){
  const box=document.querySelector('#facts .surfaceEditor');if(!box)return;
  const d=document.createElement('div');d.innerHTML=renderSurfaceEditor();box.replaceWith(d.firstElementChild);
  const total=manualSurfaceRows.filter(x=>x.cat==='Intérieur').reduce((a,x)=>a+x.val,0);
  if($('#surfaceHab'))$('#surfaceHab').value=total?total.toFixed(2):'';
+ if(!surfaceRestoring)rememberSurfaceState();
 }
 function surfaceRowById(id){return manualSurfaceRows.find(x=>x._id===id)}
 function movePiece(id,dir){
@@ -444,7 +468,7 @@ function renderMultiCadPlan(){
  const com=$('#cadCommune')?.value?.trim();if(!com)return;
  const title=document.createElement('div');title.innerHTML='<b>Plan cadastral — '+E(com)+' — '+cadParcels.map(p=>E(p.section)+' '+parseInt(p.numero,10)).join(' • ')+'</b>';
  const img=document.createElement('img');img.alt='Plan cadastral des parcelles';img.style.cssText='display:block;width:100%;max-width:720px;max-height:500px;object-fit:contain;margin-top:8px;border:1px solid #ddd;border-radius:8px;background:#fff';
- img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.27';
+ img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.28';
  img.dataset.cadMap='1';
  const link=document.createElement('a');link.href=img.src;link.target='_blank';link.rel='noopener';link.textContent='Ouvrir le plan cadastral';link.style.cssText='display:inline-block;margin-top:8px';
  box.append(title,img,link);
@@ -540,20 +564,35 @@ async function verifyAddressV137(){
 }
 function cadMapURL(){
  const c=$('#cadCommune')?.value?.trim();
- if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.27';
+ if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.28';
  return '';
 }
 
+async function fileToDataURL(file){
+ return await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file)});
+}
 async function downloadWord(){
  const sections=[];
- document.querySelectorAll('#facts .levelBlock').forEach(b=>sections.push({title:b.querySelector('h4')?.innerText||'Niveau',rows:[...b.querySelectorAll('.surfaceRow')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('b')?.innerText||'']).concat([...b.querySelectorAll('.surfaceTotal')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('strong')?.innerText||'']))}));
+ document.querySelectorAll('#facts .levelBlock').forEach(b=>{
+  const title=b.querySelector('.levelName')?.value||b.dataset.level||'Niveau';
+  const rows=[...b.querySelectorAll('.editableSurface')].map(r=>[
+   r.querySelector('.pieceName')?.value||'',
+   ((r.querySelector('.pieceVal')?.value||'')+(r.querySelector('.pieceVal')?.value?' m²':''))
+  ]);
+  const total=b.querySelector('.surfaceTotal');
+  if(total)rows.push([total.querySelector('span')?.innerText||'',total.querySelector('strong')?.innerText||'']);
+  sections.push({title,rows});
+ });
  document.querySelectorAll('#facts .otherSurface').forEach(b=>sections.push({title:b.querySelector('h4')?.innerText||'Surfaces annexes',rows:[...b.querySelectorAll('.surfaceRow')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('b')?.innerText||''])}));
  document.querySelectorAll('#facts .proGroup').forEach(b=>sections.push({title:b.querySelector('h3')?.innerText||'Informations',rows:[...b.querySelectorAll('.proRow')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('strong')?.innerText||''])}));
+ const photoFiles=[...($('#photos')?.files||[])].slice(0,30);
+ const photos=[];
+ for(const f of photoFiles){try{photos.push({name:f.name,data:await fileToDataURL(f)})}catch{}}
  const payload={
   owner:$('#owner')?.value||'',phone:$('#ownerPhone')?.value||'',address:$('#address')?.value||'',
   commune:$('#cadCommune')?.value||'',section:$('#cadSection')?.value||'',parcel:$('#cadParcel')?.value||'',
-  property_type:$('#type')?.value||'',surface:$('#surfaceHab')?.value||'',surface_carrez:$('#surfaceCarrez')?.value||'',sections,parcels:cadParcels.map(p=>({section:p.section,numero:p.numero})),
-  facts:$('#facts')?.innerText||''
+  property_type:$('#type')?.value||'',surface:$('#surfaceHab')?.value||'',surface_carrez:$('#surfaceCarrez')?.value||'',
+  sections,parcels:cadParcels.map(p=>({section:p.section,numero:p.numero})),facts:$('#facts')?.innerText||'',photos
  };
  try{
   const r=await fetch('/api/word',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
@@ -609,7 +648,7 @@ document.addEventListener('click',e=>{
  const b=e.target.closest('button');if(!b)return;const row=b.closest('.proRow');
  if(b.classList.contains('rowDelete')&&row){row.remove();return}
  if(b.classList.contains('addTextRow')){const card=b.closest('.proGroup'),d=document.createElement('div');d.className='proRow';d.innerHTML='<span contenteditable="true" spellcheck="true">Nouvelle information</span><strong contenteditable="true" spellcheck="true">À compléter</strong><button type="button" class="rowDelete">×</button>';card.insertBefore(d,b);return}
- const act=b.dataset.act;if(!act)return;const level=b.closest('.levelBlock')?.dataset.level||'',sr=b.closest('.editableSurface'),id=sr?.dataset.id;
+ const act=b.dataset.act;if(!act)return;if(act==='undo'){undoSurface();return}if(act==='redo'){redoSurface();return}const level=b.closest('.levelBlock')?.dataset.level||'',sr=b.closest('.editableSurface'),id=sr?.dataset.id;
  if(act==='add-level'){let name=clean(prompt('Nom du nouveau niveau :','')||'');if(!name||manualLevels.includes(name))return;manualLevels.push(name);refreshSurfaceEditor();}
  else if(act==='delete-level')deleteLevel(level);
  else if(act==='level-up'||act==='level-down'){const i=manualLevels.indexOf(level),j=i+(act==='level-up'?-1:1);if(i<0||j<0||j>=manualLevels.length)return;[manualLevels[i],manualLevels[j]]=[manualLevels[j],manualLevels[i]];refreshSurfaceEditor();}

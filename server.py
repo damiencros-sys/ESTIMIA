@@ -272,7 +272,7 @@ def _multi_context_map_png(commune, refs, width=760, height=520):
             "width":str(width),"height":str(height),"language":"fre"}
     url=f"https://inspire.cadastre.gouv.fr/scpc/{code_insee}.wms?"+urllib.parse.urlencode(params)
     try:
-        req=urllib.request.Request(url,headers={"User-Agent":"ESTIMIA/13.27"})
+        req=urllib.request.Request(url,headers={"User-Agent":"ESTIMIA/13.28"})
         with urllib.request.urlopen(req,timeout=20) as r:
             raw=r.read(); ctype=r.headers.get("Content-Type","")
         if "image" not in ctype.lower(): raise ValueError("Réponse WMS non image")
@@ -329,6 +329,7 @@ class WordPayload(BaseModel):
     sections:list=[]
     parcels:list=[]
     facts:str=""
+    photos:list=[]
 
 @app.post("/api/word")
 def word_export(p:WordPayload):
@@ -414,6 +415,36 @@ def word_export(p:WordPayload):
         heading('RELEVÉ DE VISITE')
         for line in [x.strip() for x in p.facts.splitlines() if x.strip()]:
             doc.add_paragraph(line)
+
+
+    # Photographies ajoutées au dossier. Les contrôles de l'interface ne sont jamais exportés.
+    if p.photos:
+        import base64
+        heading('PHOTOGRAPHIES DU BIEN')
+        valid=[]
+        for item in p.photos[:30]:
+            try:
+                data=str(item.get('data',''))
+                if ',' not in data: continue
+                raw=base64.b64decode(data.split(',',1)[1])
+                if len(raw)>12_000_000: continue
+                valid.append((item.get('name','Photo'),raw))
+            except Exception:
+                continue
+        for i in range(0,len(valid),2):
+            table=doc.add_table(rows=1,cols=2); table.alignment=WD_TABLE_ALIGNMENT.CENTER
+            for j in range(2):
+                cell=table.rows[0].cells[j]
+                if i+j>=len(valid): continue
+                name,raw=valid[i+j]
+                try:
+                    bio=io.BytesIO(raw)
+                    pcell=cell.paragraphs[0]; pcell.alignment=WD_ALIGN_PARAGRAPH.CENTER
+                    run=pcell.add_run(); run.add_picture(bio,width=Inches(3.0))
+                    cap=cell.add_paragraph(str(name)); cap.alignment=WD_ALIGN_PARAGRAPH.CENTER
+                    for rr in cap.runs: rr.font.size=Pt(7); rr.font.italic=True
+                except Exception:
+                    pass
 
     # footer + page number field
     footer=sec.footer.paragraphs[0]; footer.alignment=WD_ALIGN_PARAGRAPH.CENTER
