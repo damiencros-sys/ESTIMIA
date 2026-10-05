@@ -273,7 +273,7 @@ def _multi_context_map_png(commune, refs, width=760, height=520):
             "width":str(width),"height":str(height),"language":"fre"}
     url=f"https://inspire.cadastre.gouv.fr/scpc/{code_insee}.wms?"+urllib.parse.urlencode(params)
     try:
-        req=urllib.request.Request(url,headers={"User-Agent":"ESTIMIA/13.32"})
+        req=urllib.request.Request(url,headers={"User-Agent":"ESTIMIA/13.33"})
         with urllib.request.urlopen(req,timeout=20) as r:
             raw=r.read(); ctype=r.headers.get("Content-Type","")
         if "image" not in ctype.lower(): raise ValueError("Réponse WMS non image")
@@ -382,13 +382,14 @@ def word_export(p:WordPayload):
             for r in cells[0].paragraphs[0].runs: r.bold=True; r.font.size=Pt(9)
             for r in cells[1].paragraphs[0].runs: r.font.size=Pt(9)
         keep_table(table); return table
+    property_color=_property_color(p.property_type)
     def heading(text):
-        p=doc.add_paragraph(); p.paragraph_format.space_before=Pt(7); p.paragraph_format.space_after=Pt(3); p.paragraph_format.keep_with_next=True
-        r=p.add_run(text); r.bold=True; r.font.size=Pt(11); r.font.color.rgb=RGBColor.from_string(_property_color(p.property_type))
-        return p
+        para=doc.add_paragraph(); para.paragraph_format.space_before=Pt(7); para.paragraph_format.space_after=Pt(3); para.paragraph_format.keep_with_next=True
+        r=para.add_run(text); r.bold=True; r.font.size=Pt(11); r.font.color.rgb=RGBColor.from_string(property_color)
+        return para
 
     title=doc.add_paragraph(); title.alignment=WD_ALIGN_PARAGRAPH.CENTER; title.paragraph_format.space_after=Pt(4)
-    r=title.add_run('FICHE DE VISITE IMMOBILIÈRE'); r.bold=True; r.font.size=Pt(18); r.font.color.rgb=RGBColor.from_string(_property_color(p.property_type))
+    r=title.add_run('FICHE DE VISITE IMMOBILIÈRE'); r.bold=True; r.font.size=Pt(18); r.font.color.rgb=RGBColor.from_string(property_color)
     sub=doc.add_paragraph(); sub.alignment=WD_ALIGN_PARAGRAPH.CENTER; sub.paragraph_format.space_after=Pt(7)
     rr=sub.add_run('ESTIM’IA — fiche de relevé'); rr.italic=True; rr.font.size=Pt(9); rr.font.color.rgb=RGBColor(0x66,0x66,0x66)
     datep=doc.add_paragraph(); datep.alignment=WD_ALIGN_PARAGRAPH.CENTER; datep.paragraph_format.space_after=Pt(7)

@@ -469,7 +469,7 @@ function renderMultiCadPlan(){
  const com=$('#cadCommune')?.value?.trim();if(!com)return;
  const title=document.createElement('div');title.innerHTML='<b>Plan cadastral — '+E(com)+' — '+cadParcels.map(p=>E(p.section)+' '+parseInt(p.numero,10)).join(' • ')+'</b>';
  const img=document.createElement('img');img.alt='Plan cadastral des parcelles';img.style.cssText='display:block;width:100%;max-width:720px;max-height:500px;object-fit:contain;margin-top:8px;border:1px solid #ddd;border-radius:8px;background:#fff';
- img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.32';
+ img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.33';
  img.dataset.cadMap='1';
  const link=document.createElement('a');link.href=img.src;link.target='_blank';link.rel='noopener';link.textContent='Ouvrir le plan cadastral';link.style.cssText='display:inline-block;margin-top:8px';
  box.append(title,img,link);
@@ -578,7 +578,7 @@ async function verifyAddressV137(){
 }
 function cadMapURL(){
  const c=$('#cadCommune')?.value?.trim();
- if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.32';
+ if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.33';
  return '';
 }
 
@@ -622,6 +622,8 @@ async function downloadWord(){
  try{
   const r=await fetch('/api/word',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   if(!r.ok){let j={};try{j=await r.json()}catch{};throw new Error(j.detail||'Export impossible')}
+  const ct=(r.headers.get('content-type')||'').toLowerCase();
+  if(!ct.includes('officedocument.wordprocessingml.document'))throw new Error('Le serveur n’a pas renvoyé un document Word valide');
   const b=await r.blob(),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;
   a.download='Fiche_visite_'+((payload.owner||payload.address||'bien').replace(/[^\p{L}\p{N}-]+/gu,'_'))+'.docx';
   document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1500);
@@ -651,7 +653,17 @@ async function printableHTML(){
 }
 async function downloadVisit(){
  const payload=await buildExportPayload();
- try{const r=await fetch('/api/pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!r.ok){let j={};try{j=await r.json()}catch{};throw new Error(j.detail||'Export PDF impossible')}const b=await r.blob(),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;const safe=((payload.owner||payload.address||'bien').replace(/[^\p{L}\p{N}-]+/gu,'_'));a.download='Fiche_visite_'+safe+'.pdf';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1500)}catch(e){alert('Export PDF impossible : '+e.message)}
+ try{
+  const r=await fetch('/api/pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  if(!r.ok){let j={};try{j=await r.json()}catch{};throw new Error(j.detail||'Export PDF impossible')}
+  const ct=(r.headers.get('content-type')||'').toLowerCase();
+  if(!ct.includes('application/pdf'))throw new Error('Le serveur n’a pas renvoyé un vrai fichier PDF');
+  const b=await r.blob(),head=new Uint8Array(await b.slice(0,5).arrayBuffer());
+  if(String.fromCharCode(...head)!=='%PDF-')throw new Error('Le fichier reçu n’est pas un PDF valide');
+  const u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;
+  const safe=((payload.owner||payload.address||'bien').replace(/[^\p{L}\p{N}-]+/gu,'_'));
+  a.download='Fiche_visite_'+safe+'.pdf';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1500)
+ }catch(e){alert('Export PDF impossible : '+e.message)}
 }
 async function printVisit(){
  const w=window.open('','_blank');
@@ -663,7 +675,7 @@ document.addEventListener('DOMContentLoaded',()=>{
  $('#analyse')?.addEventListener('click',()=>setTimeout(render,80));
  $('#findParcel')?.addEventListener('click',parcelSearch);
  $('#checkAddress')?.addEventListener('click',verifyAddressV137);
- $('#printVisit')?.addEventListener('click',printVisit);
+ $('#printVisit')?.addEventListener('click',downloadVisit);
  $('#downloadVisit')?.addEventListener('click',downloadVisit);
  $('#downloadWord')?.addEventListener('click',downloadWord);
  document.addEventListener('estimia:parcels-restored',loadCadParcelsFromHidden);
@@ -691,7 +703,7 @@ document.addEventListener('change',e=>{
  if(e.target.classList.contains('levelName')){const block=e.target.closest('.levelBlock'),old=block?.dataset.level,neu=clean(e.target.value);if(!old||!neu||neu===old)return;if(manualLevels.includes(neu)){alert('Ce niveau existe déjà.');e.target.value=old;return}manualLevels=manualLevels.map(x=>x===old?neu:x);manualSurfaceRows.forEach(x=>{if(x.lvl===old)x.lvl=neu});refreshSurfaceEditor();}
 });
 
-// V13.32 — historique global de la fiche.
+// V13.33 — historique global de la fiche.
 let globalUndo=[],globalRedo=[],globalRestoring=false,lastFocusSnapshot='';
 function globalSnapshot(){
  const vals={};document.querySelectorAll('input:not([type=file]),textarea,select').forEach((el,i)=>{if(el.id)vals['#'+el.id]=el.value});
