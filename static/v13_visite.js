@@ -469,7 +469,7 @@ function renderMultiCadPlan(){
  const com=$('#cadCommune')?.value?.trim();if(!com)return;
  const title=document.createElement('div');title.innerHTML='<b>Plan cadastral — '+E(com)+' — '+cadParcels.map(p=>E(p.section)+' '+parseInt(p.numero,10)).join(' • ')+'</b>';
  const img=document.createElement('img');img.alt='Plan cadastral des parcelles';img.style.cssText='display:block;width:100%;max-width:720px;max-height:500px;object-fit:contain;margin-top:8px;border:1px solid #ddd;border-radius:8px;background:#fff';
- img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.34';
+ img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.35';
  img.dataset.cadMap='1';
  const link=document.createElement('a');link.href=img.src;link.target='_blank';link.rel='noopener';link.textContent='Ouvrir le plan cadastral';link.style.cssText='display:inline-block;margin-top:8px';
  box.append(title,img,link);
@@ -578,7 +578,7 @@ async function verifyAddressV137(){
 }
 function cadMapURL(){
  const c=$('#cadCommune')?.value?.trim();
- if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.34';
+ if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.35';
  return '';
 }
 
@@ -609,12 +609,28 @@ function initPhotos(files){
 async function fileToDataURL(file){
  return await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file)});
 }
+async function optimizedPhotoDataURL(file,maxSide=1600,quality=.78){
+ // Optimisation uniquement pour les documents : l'original sélectionné reste inchangé.
+ if(!file || !/^image\//i.test(file.type||''))return fileToDataURL(file);
+ const src=await fileToDataURL(file);
+ return await new Promise(resolve=>{
+  const im=new Image();
+  im.onload=()=>{
+   let w=im.naturalWidth||im.width,h=im.naturalHeight||im.height;
+   const scale=Math.min(1,maxSide/Math.max(w,h));w=Math.max(1,Math.round(w*scale));h=Math.max(1,Math.round(h*scale));
+   const c=document.createElement('canvas');c.width=w;c.height=h;
+   const ctx=c.getContext('2d',{alpha:false});ctx.drawImage(im,0,0,w,h);
+   try{resolve(c.toDataURL('image/jpeg',quality))}catch{resolve(src)}
+  };
+  im.onerror=()=>resolve(src);im.src=src;
+ });
+}
 async function buildExportPayload(){
  const sections=[];
  document.querySelectorAll('#facts .levelBlock').forEach(b=>{const title=b.querySelector('.levelName')?.value||b.dataset.level||'Niveau';const rows=[...b.querySelectorAll('.editableSurface')].map(r=>[r.querySelector('.pieceName')?.value||'',(r.querySelector('.pieceVal')?.value||'')+(r.querySelector('.pieceVal')?.value?' m²':'')]);const total=b.querySelector('.surfaceTotal');if(total)rows.push([total.querySelector('span')?.innerText||'',total.querySelector('strong')?.innerText||'']);sections.push({title,rows})});
  document.querySelectorAll('#facts .otherSurface').forEach(b=>sections.push({title:b.querySelector('h4')?.innerText||'Surfaces annexes',rows:[...b.querySelectorAll('.surfaceRow')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('b')?.innerText||''])}));
  document.querySelectorAll('#facts .proGroup').forEach(b=>sections.push({title:b.querySelector('h3')?.innerText||'Informations',rows:[...b.querySelectorAll('.proRow')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('strong')?.innerText||''])}));
- const photos=[];for(const p of currentPhotos().slice(0,30)){try{photos.push({name:p.label||photoDisplayName(p.file),data:await fileToDataURL(p.file)})}catch{}}
+ const photos=[];for(const p of currentPhotos()){try{photos.push({name:p.label||photoDisplayName(p.file),data:await optimizedPhotoDataURL(p.file)})}catch{}}
  return {owner:$('#owner')?.value||'',phone:$('#ownerPhone')?.value||'',address:$('#address')?.value||'',commune:$('#cadCommune')?.value||'',section:$('#cadSection')?.value||'',parcel:$('#cadParcel')?.value||'',property_type:$('#type')?.value||'',surface:$('#surfaceHab')?.value||'',surface_carrez:$('#surfaceCarrez')?.value||'',sections,parcels:cadParcels.map(p=>({section:p.section,numero:p.numero})),facts:$('#facts')?.innerText||'',photos,generated_date:new Date().toLocaleDateString('fr-FR')};
 }
 async function downloadWord(){
@@ -634,7 +650,7 @@ async function printableHTML(){
  const refsTxt=cadParcels.map(p=>`${E(p.section)} ${E(String(parseInt(p.numero,10)))}`).join(' • ');
  const mapBlock=mapUrl?`<section class="cadPrint"><h2>Plan cadastral</h2><img src="${mapUrl}" alt="Plan cadastral"><div>Parcelles : ${refsTxt}</div></section>`:'';
  const photoItems=[];
- for(const p of currentPhotos().slice(0,30)){try{const data=await fileToDataURL(p.file),label=p.label||photoDisplayName(p.file);photoItems.push(`<figure class="photoPrint"><img src="${data}" alt="${E(label)}"><figcaption>${E(label)}</figcaption></figure>`)}catch{}}
+ for(const p of currentPhotos()){try{const data=await optimizedPhotoDataURL(p.file),label=p.label||photoDisplayName(p.file);photoItems.push(`<figure class="photoPrint"><img src="${data}" alt="${E(label)}"><figcaption>${E(label)}</figcaption></figure>`)}catch{}}
  const photosBlock=photoItems.length?`<section class="photosPrint"><h2>Photographies du bien</h2><div class="photoGrid">${photoItems.join('')}</div></section>`:'';
  const meta=[
   ['Propriétaire',$('#owner')?.value||''],
@@ -675,9 +691,9 @@ document.addEventListener('DOMContentLoaded',()=>{
  $('#analyse')?.addEventListener('click',()=>setTimeout(render,80));
  $('#findParcel')?.addEventListener('click',parcelSearch);
  $('#checkAddress')?.addEventListener('click',verifyAddressV137);
- $('#printVisit')?.addEventListener('click',()=>withExportStatus('pdf',downloadVisit));
+ $('#printVisit')?.addEventListener('click',()=>withExportModal('pdf',downloadVisit,'printVisit'));
  $('#downloadVisit')?.addEventListener('click',downloadVisit);
- $('#downloadWord')?.addEventListener('click',downloadWord);
+ $('#downloadWord')?.addEventListener('click',()=>withExportModal('word',downloadWord,'downloadWord'));
  document.addEventListener('estimia:parcels-restored',loadCadParcelsFromHidden);
  loadCadParcelsFromHidden();applyPropertyTheme();
  $('#type')?.addEventListener('input',applyPropertyTheme);
@@ -703,7 +719,7 @@ document.addEventListener('change',e=>{
  if(e.target.classList.contains('levelName')){const block=e.target.closest('.levelBlock'),old=block?.dataset.level,neu=clean(e.target.value);if(!old||!neu||neu===old)return;if(manualLevels.includes(neu)){alert('Ce niveau existe déjà.');e.target.value=old;return}manualLevels=manualLevels.map(x=>x===old?neu:x);manualSurfaceRows.forEach(x=>{if(x.lvl===old)x.lvl=neu});refreshSurfaceEditor();}
 });
 
-// V13.34 — historique global de la fiche.
+// V13.35 — historique global de la fiche.
 let globalUndo=[],globalRedo=[],globalRestoring=false,lastFocusSnapshot='';
 function globalSnapshot(){
  const vals={};document.querySelectorAll('input:not([type=file]),textarea,select').forEach((el,i)=>{if(el.id)vals['#'+el.id]=el.value});
@@ -751,7 +767,7 @@ document.addEventListener('change',e=>{
 });
 setTimeout(globalCheckpoint,0);
 
-// V13.34 — boutons Supprimer manquants dans les rubriques structurées.
+// V13.35 — boutons Supprimer manquants dans les rubriques structurées.
 // Ne touche pas aux contrôles Photos ni Surfaces, déjà validés.
 function ensureStructuredDeleteButtons(){
  document.querySelectorAll('#facts .proGroup .proRow').forEach(row=>{
@@ -778,23 +794,30 @@ if(_v133RenderFacts){
 }
 setTimeout(ensureStructuredDeleteButtons,0);
 
-// V13.34 — état visuel des exports, sans modifier les endpoints/générateurs.
-function exportStatus(kind,state,msg){
- const box=document.getElementById('exportStatus'); if(!box)return;
- box.className='exportStatus '+state;
- box.innerHTML=msg;
- const btn=document.getElementById(kind==='pdf'?'printVisit':'wordVisit');
- if(btn)btn.disabled=(state==='busy');
-}
-async function withExportStatus(kind,fn){
- exportStatus(kind,'busy','⏳ <strong>Création du '+(kind==='pdf'?'PDF':'Word')+' en cours…</strong> Cela peut prendre un peu de temps. Merci de patienter et de ne pas cliquer plusieurs fois.');
- try{
-  await fn();
-  exportStatus(kind,'ready','✓ <strong>Document prêt — téléchargement lancé.</strong>');
-  setTimeout(()=>{const b=document.getElementById('exportStatus');if(b)b.className='exportStatus'},4500);
- }catch(e){
-  exportStatus(kind,'error','⚠️ <strong>Le téléchargement n’a pas pu être lancé.</strong> '+(e?.message||''));
-  throw e;
+// V13.35 — fenêtre centrale de progression Word/PDF.
+function exportModal(state,kind){
+ let ov=document.getElementById('exportOverlay');
+ if(!ov)return;
+ const title=document.getElementById('exportModalTitle'),msg=document.getElementById('exportModalMsg'),spin=document.getElementById('exportSpinner'),ok=document.getElementById('exportOk');
+ if(state==='busy'){
+  title.textContent='Création du '+(kind==='pdf'?'PDF':'Word')+' en cours';
+  msg.textContent='Cela peut prendre un peu de temps… Merci de patienter.';
+  spin.style.display='block';ok.style.display='none';ov.classList.add('show');
+ }else if(state==='ready'){
+  title.textContent='Document prêt';msg.textContent='Téléchargement lancé.';
+  spin.style.display='none';ok.style.display='block';ov.classList.add('show');
+  setTimeout(()=>ov.classList.remove('show'),1800);
+ }else{
+  title.textContent='Téléchargement impossible';msg.textContent='Une erreur est survenue.';
+  spin.style.display='none';ok.style.display='none';ov.classList.add('show');
+  setTimeout(()=>ov.classList.remove('show'),3000);
  }
+}
+async function withExportModal(kind,fn,buttonId){
+ const btn=document.getElementById(buttonId);if(btn?.disabled)return;
+ if(btn)btn.disabled=true;exportModal('busy',kind);
+ try{await fn();exportModal('ready',kind)}
+ catch(e){exportModal('error',kind);throw e}
+ finally{if(btn)btn.disabled=false}
 }
 })();

@@ -6,11 +6,11 @@
 <meta name="theme-color" content="#15324a">
 <title>ESTIM’IA</title>
 <link rel="manifest" href="/static/manifest.json">
-<link rel="stylesheet" href="/static/style.css?v=13.34">
+<link rel="stylesheet" href="/static/style.css?v=13.35">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<link rel="stylesheet" href="/static/v13_dossiers_pro.css?v=13.34">
+<link rel="stylesheet" href="/static/v13_dossiers_pro.css?v=13.35">
 <style>
 .cadParcelsList{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:9px 0}.cadParcelsLabel{flex-basis:100%;font-weight:700;margin:2px 0 1px}
 .cadParcelChip{display:inline-flex;align-items:center;gap:7px;border:1px solid #cbd8de;border-radius:999px;padding:6px 9px;background:#f7fafb;font-size:13px}
@@ -51,6 +51,22 @@
 .exportStatus.ready{display:block;background:#edf8ef;border:1px solid #a8d4ae;color:#275f31}
 .exportStatus.error{display:block;background:#fff0f0;border:1px solid #e4aaaa;color:#8a2828}
 #printVisit:disabled,#wordVisit:disabled{opacity:.65;cursor:wait}
+
+/* V13.35 : croix Supprimer visibles sur toutes les lignes structurées */
+#facts .proGroup .proRow{display:grid!important;grid-template-columns:minmax(110px,.8fr) minmax(160px,1.5fr) 38px!important;align-items:center!important;gap:10px!important;padding:8px 0!important;position:relative!important}
+#facts .proGroup .proRow>.rowDelete{display:inline-flex!important;visibility:visible!important;opacity:1!important;grid-column:3!important;grid-row:1!important;position:static!important;transform:none!important;justify-self:end!important;align-items:center!important;justify-content:center!important;width:34px!important;height:34px!important;margin:0!important;padding:0!important;border:1px solid #efcaca!important;border-radius:8px!important;background:#fff!important;color:#c33!important;font-size:20px!important;line-height:1!important;cursor:pointer!important}
+#facts .proGroup .proRow>.rowDelete:hover{background:#fff5f5!important}
+
+/* Fenêtre centrale Word/PDF */
+.exportOverlay{position:fixed;inset:0;z-index:20000;background:rgba(18,37,51,.34);display:flex;align-items:center;justify-content:center;opacity:0;visibility:hidden;transition:opacity .18s ease}
+.exportOverlay.show{opacity:1;visibility:visible}
+.exportModal{width:min(420px,calc(100vw - 36px));background:#fff;border-radius:16px;box-shadow:0 18px 55px rgba(0,0,0,.25);padding:28px 24px;text-align:center}
+.exportSpinner{width:48px;height:48px;margin:0 auto 16px;border:5px solid #dce5ea;border-top-color:#173a52;border-radius:50%;animation:estimSpin .8s linear infinite}
+.exportOk{display:none;width:48px;height:48px;margin:0 auto 16px;border-radius:50%;background:#e8f6eb;color:#24733a;font-size:34px;line-height:48px;font-weight:bold}
+.exportModalTitle{font-size:19px;font-weight:700;color:#173a52;margin-bottom:8px}
+.exportModalMsg{font-size:14px;color:#5f6e78;line-height:1.45}
+@keyframes estimSpin{to{transform:rotate(360deg)}}
+#printVisit:disabled,#downloadWord:disabled{opacity:.65;cursor:wait}
 </style>
 </head>
 <body>
@@ -65,7 +81,7 @@
 </aside>
 <button id="caseOpen" type="button" class="caseOpen">☰ Mes dossiers</button>
 
-<div style="position:fixed;right:8px;bottom:8px;z-index:99999;background:#111;color:#fff;padding:6px 9px;border-radius:8px;font:12px Arial;opacity:.82">ESTIM’IA V13.34 DOCUMENTS PRO</div>
+<div style="position:fixed;right:8px;bottom:8px;z-index:99999;background:#111;color:#fff;padding:6px 9px;border-radius:8px;font:12px Arial;opacity:.82">ESTIM’IA V13.35 DOCUMENTS PRO</div>
 <header>
   <div><b>ESTIM’IA</b><small>Assistant d’estimation immobilière</small></div>
   <button id="new" type="button" hidden aria-hidden="true">+ Nouveau</button>
@@ -142,18 +158,26 @@
   <div class="step">4 · DOSSIER</div>
   <button id="save" class="bigbtn">💾 Enregistrer le dossier</button>
     <button id="printVisit" type="button" class="secondary">📕 Télécharger le vrai PDF</button>
-<div id="exportStatus" class="exportStatus"></div>
-<div class="exportHint">ℹ️ La génération du Word ou du PDF peut prendre quelques instants, notamment lorsque le dossier contient des photos et un plan cadastral.</div>
+
     <button id="downloadWord" type="button" class="secondary">📄 Télécharger la fiche Word</button>
   <div id="saveStatus" class="status"></div>
-  <p class="small">V13.34 : fiche entièrement modifiable + gestion des niveaux et des pièces.</p>
+  <p class="small">V13.35 : fiche entièrement modifiable + gestion des niveaux et des pièces.</p>
 </section>
 </main>
-<script src="/static/app.js?v=13.34"></script>
+<script src="/static/app.js?v=13.35"></script>
 <script src="/static/v7_pro.js"></script>
 <script src="/static/v8_fiche_pro.js"></script>
-<script src="/static/v13_visite.js?v=13.34"></script>
-<script src="/static/v13_dossiers_pro.js?v=13.34"></script>
+<script src="/static/v13_visite.js?v=13.35"></script>
+<script src="/static/v13_dossiers_pro.js?v=13.35"></script>
 
+
+<div id="exportOverlay" class="exportOverlay" aria-live="polite">
+ <div class="exportModal">
+  <div id="exportSpinner" class="exportSpinner"></div>
+  <div id="exportOk" class="exportOk">✓</div>
+  <div id="exportModalTitle" class="exportModalTitle">Création du document en cours</div>
+  <div id="exportModalMsg" class="exportModalMsg">Cela peut prendre un peu de temps…</div>
+ </div>
+</div>
 </body>
 </html>

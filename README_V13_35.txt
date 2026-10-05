@@ -1,0 +1,11 @@
+ESTIM'IA V13.35
+- Photos : aucune limite artificielle à 30 dans l'export.
+- Photos : optimisation automatique dans le navigateur avant Word/PDF (1600 px max, JPEG ~78 %).
+- Les fichiers photo originaux sélectionnés ne sont pas modifiés.
+- Les noms personnalisés et l'ordre des photos sont conservés.
+- Word et PDF : même fenêtre centrale avec cercle animé pendant la préparation.
+- Message : « Création du Word/PDF en cours — Cela peut prendre un peu de temps… »
+- Puis « Document prêt — Téléchargement lancé », disparition automatique.
+- Croix × Supprimer forcées visibles sur toutes les lignes des rubriques structurées.
+- Boutons Photos et Surfaces laissés inchangés.
+- Logique serveur Word/PDF, dictée, niveaux et cadastre non modifiée.
