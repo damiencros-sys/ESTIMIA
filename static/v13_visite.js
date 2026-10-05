@@ -469,7 +469,7 @@ function renderMultiCadPlan(){
  const com=$('#cadCommune')?.value?.trim();if(!com)return;
  const title=document.createElement('div');title.innerHTML='<b>Plan cadastral — '+E(com)+' — '+cadParcels.map(p=>E(p.section)+' '+parseInt(p.numero,10)).join(' • ')+'</b>';
  const img=document.createElement('img');img.alt='Plan cadastral des parcelles';img.style.cssText='display:block;width:100%;max-width:720px;max-height:500px;object-fit:contain;margin-top:8px;border:1px solid #ddd;border-radius:8px;background:#fff';
- img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.33';
+ img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.34';
  img.dataset.cadMap='1';
  const link=document.createElement('a');link.href=img.src;link.target='_blank';link.rel='noopener';link.textContent='Ouvrir le plan cadastral';link.style.cssText='display:inline-block;margin-top:8px';
  box.append(title,img,link);
@@ -578,7 +578,7 @@ async function verifyAddressV137(){
 }
 function cadMapURL(){
  const c=$('#cadCommune')?.value?.trim();
- if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.33';
+ if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.34';
  return '';
 }
 
@@ -675,7 +675,7 @@ document.addEventListener('DOMContentLoaded',()=>{
  $('#analyse')?.addEventListener('click',()=>setTimeout(render,80));
  $('#findParcel')?.addEventListener('click',parcelSearch);
  $('#checkAddress')?.addEventListener('click',verifyAddressV137);
- $('#printVisit')?.addEventListener('click',downloadVisit);
+ $('#printVisit')?.addEventListener('click',()=>withExportStatus('pdf',downloadVisit));
  $('#downloadVisit')?.addEventListener('click',downloadVisit);
  $('#downloadWord')?.addEventListener('click',downloadWord);
  document.addEventListener('estimia:parcels-restored',loadCadParcelsFromHidden);
@@ -703,7 +703,7 @@ document.addEventListener('change',e=>{
  if(e.target.classList.contains('levelName')){const block=e.target.closest('.levelBlock'),old=block?.dataset.level,neu=clean(e.target.value);if(!old||!neu||neu===old)return;if(manualLevels.includes(neu)){alert('Ce niveau existe déjà.');e.target.value=old;return}manualLevels=manualLevels.map(x=>x===old?neu:x);manualSurfaceRows.forEach(x=>{if(x.lvl===old)x.lvl=neu});refreshSurfaceEditor();}
 });
 
-// V13.33 — historique global de la fiche.
+// V13.34 — historique global de la fiche.
 let globalUndo=[],globalRedo=[],globalRestoring=false,lastFocusSnapshot='';
 function globalSnapshot(){
  const vals={};document.querySelectorAll('input:not([type=file]),textarea,select').forEach((el,i)=>{if(el.id)vals['#'+el.id]=el.value});
@@ -750,4 +750,51 @@ document.addEventListener('change',e=>{
  }
 });
 setTimeout(globalCheckpoint,0);
+
+// V13.34 — boutons Supprimer manquants dans les rubriques structurées.
+// Ne touche pas aux contrôles Photos ni Surfaces, déjà validés.
+function ensureStructuredDeleteButtons(){
+ document.querySelectorAll('#facts .proGroup .proRow').forEach(row=>{
+  if(row.closest('.levelBlock,.surfaceEditor,.photoManageCard'))return;
+  if(row.querySelector('[data-pro-delete],.rowDelete,[data-act="delete"],[data-act="delete-row"]'))return;
+  const b=document.createElement('button');
+  b.type='button'; b.className='proDeleteBtn'; b.dataset.proDelete='1';
+  b.title='Supprimer cette ligne'; b.setAttribute('aria-label','Supprimer cette ligne'); b.textContent='×';
+  row.appendChild(b);
+ });
+}
+document.addEventListener('click',e=>{
+ const b=e.target.closest('[data-pro-delete]');
+ if(!b)return;
+ const row=b.closest('.proRow'); if(!row)return;
+ globalCheckpoint();
+ row.remove();
+ globalCheckpoint();
+});
+const _v133RenderFacts=typeof renderFacts==='function'?renderFacts:null;
+if(_v133RenderFacts){
+ const renderFactsV134=_v133RenderFacts;
+ renderFacts=function(...args){const r=renderFactsV134.apply(this,args);setTimeout(ensureStructuredDeleteButtons,0);return r}
+}
+setTimeout(ensureStructuredDeleteButtons,0);
+
+// V13.34 — état visuel des exports, sans modifier les endpoints/générateurs.
+function exportStatus(kind,state,msg){
+ const box=document.getElementById('exportStatus'); if(!box)return;
+ box.className='exportStatus '+state;
+ box.innerHTML=msg;
+ const btn=document.getElementById(kind==='pdf'?'printVisit':'wordVisit');
+ if(btn)btn.disabled=(state==='busy');
+}
+async function withExportStatus(kind,fn){
+ exportStatus(kind,'busy','⏳ <strong>Création du '+(kind==='pdf'?'PDF':'Word')+' en cours…</strong> Cela peut prendre un peu de temps. Merci de patienter et de ne pas cliquer plusieurs fois.');
+ try{
+  await fn();
+  exportStatus(kind,'ready','✓ <strong>Document prêt — téléchargement lancé.</strong>');
+  setTimeout(()=>{const b=document.getElementById('exportStatus');if(b)b.className='exportStatus'},4500);
+ }catch(e){
+  exportStatus(kind,'error','⚠️ <strong>Le téléchargement n’a pas pu être lancé.</strong> '+(e?.message||''));
+  throw e;
+ }
+}
 })();
