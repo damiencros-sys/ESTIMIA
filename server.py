@@ -273,7 +273,7 @@ def _multi_context_map_png(commune, refs, width=760, height=520):
             "width":str(width),"height":str(height),"language":"fre"}
     url=f"https://inspire.cadastre.gouv.fr/scpc/{code_insee}.wms?"+urllib.parse.urlencode(params)
     try:
-        req=urllib.request.Request(url,headers={"User-Agent":"ESTIMIA/13.31"})
+        req=urllib.request.Request(url,headers={"User-Agent":"ESTIMIA/13.32"})
         with urllib.request.urlopen(req,timeout=20) as r:
             raw=r.read(); ctype=r.headers.get("Content-Type","")
         if "image" not in ctype.lower(): raise ValueError("Réponse WMS non image")
@@ -332,6 +332,17 @@ class WordPayload(BaseModel):
     facts:str=""
     photos:list=[]
     generated_date:str=""
+    theme_color:str=""
+
+def _property_color(t):
+    s=(t or "").lower()
+    if any(x in s for x in ["appartement","studio"]): return "2563A6"
+    if "terrain" in s: return "B7791F"
+    if "immeuble" in s: return "8B2F45"
+    if any(x in s for x in ["local","commerce","commercial","professionnel","bureau"]): return "7651A8"
+    if any(x in s for x in ["garage","parking","box"]): return "64748B"
+    if any(x in s for x in ["maison","villa","pavillon"]): return "2F7D5A"
+    return "49697D"
 
 @app.post("/api/word")
 def word_export(p:WordPayload):
@@ -373,11 +384,11 @@ def word_export(p:WordPayload):
         keep_table(table); return table
     def heading(text):
         p=doc.add_paragraph(); p.paragraph_format.space_before=Pt(7); p.paragraph_format.space_after=Pt(3); p.paragraph_format.keep_with_next=True
-        r=p.add_run(text); r.bold=True; r.font.size=Pt(11); r.font.color.rgb=RGBColor(0x0B,0x6B,0x5A)
+        r=p.add_run(text); r.bold=True; r.font.size=Pt(11); r.font.color.rgb=RGBColor.from_string(_property_color(p.property_type))
         return p
 
     title=doc.add_paragraph(); title.alignment=WD_ALIGN_PARAGRAPH.CENTER; title.paragraph_format.space_after=Pt(4)
-    r=title.add_run('FICHE DE VISITE IMMOBILIÈRE'); r.bold=True; r.font.size=Pt(18); r.font.color.rgb=RGBColor(0x16,0x38,0x4E)
+    r=title.add_run('FICHE DE VISITE IMMOBILIÈRE'); r.bold=True; r.font.size=Pt(18); r.font.color.rgb=RGBColor.from_string(_property_color(p.property_type))
     sub=doc.add_paragraph(); sub.alignment=WD_ALIGN_PARAGRAPH.CENTER; sub.paragraph_format.space_after=Pt(7)
     rr=sub.add_run('ESTIM’IA — fiche de relevé'); rr.italic=True; rr.font.size=Pt(9); rr.font.color.rgb=RGBColor(0x66,0x66,0x66)
     datep=doc.add_paragraph(); datep.alignment=WD_ALIGN_PARAGRAPH.CENTER; datep.paragraph_format.space_after=Pt(7)
@@ -403,8 +414,10 @@ def word_export(p:WordPayload):
             cap=doc.add_paragraph(f'{p.commune} — Parcelles : {refs_txt}')
             cap.alignment=WD_ALIGN_PARAGRAPH.CENTER; cap.paragraph_format.space_after=Pt(4)
             for r in cap.runs: r.font.size=Pt(8); r.font.italic=True
-        except Exception:
-            pass
+        except Exception as e:
+            note=doc.add_paragraph('Plan cadastral temporairement indisponible lors de la génération du document.')
+            note.alignment=WD_ALIGN_PARAGRAPH.CENTER
+            for r in note.runs: r.font.size=Pt(8); r.font.italic=True
 
     if p.sections:
         heading('RELEVÉ DE VISITE')
@@ -458,6 +471,67 @@ def word_export(p:WordPayload):
     out=io.BytesIO(); doc.save(out); out.seek(0)
     safe=re.sub(r'[^A-Za-z0-9_-]+','_',p.owner or p.address or 'bien').strip('_') or 'bien'
     return StreamingResponse(out,media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',headers={'Content-Disposition':f'attachment; filename="Fiche_visite_{safe}.docx"'})
+
+
+@app.post("/api/pdf")
+def pdf_export(p:WordPayload):
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, KeepTogether, PageBreak
+    import base64
+    theme=colors.HexColor('#'+_property_color(p.property_type))
+    out=io.BytesIO(); doc=SimpleDocTemplate(out,pagesize=A4,rightMargin=14*mm,leftMargin=14*mm,topMargin=13*mm,bottomMargin=14*mm)
+    styles=getSampleStyleSheet()
+    title=ParagraphStyle('TitleX',parent=styles['Title'],fontName='Helvetica-Bold',fontSize=17,leading=20,textColor=theme,alignment=TA_CENTER,spaceAfter=3*mm)
+    date_style=ParagraphStyle('DateX',parent=styles['Normal'],fontSize=8,textColor=colors.HexColor('#666666'),alignment=TA_CENTER,spaceAfter=4*mm)
+    h=ParagraphStyle('HX',parent=styles['Heading2'],fontName='Helvetica-Bold',fontSize=10.5,leading=13,textColor=theme,spaceBefore=4*mm,spaceAfter=2*mm)
+    normal=ParagraphStyle('NX',parent=styles['Normal'],fontSize=8.5,leading=11)
+    cap=ParagraphStyle('CapX',parent=normal,fontSize=7.5,textColor=colors.HexColor('#555555'),alignment=TA_CENTER)
+    story=[Paragraph('FICHE DE VISITE IMMOBILIERE',title),Paragraph('ESTIM’IA - fiche de releve',date_style),Paragraph('Document genere le '+(p.generated_date or datetime.now().strftime('%d/%m/%Y')),date_style)]
+    def add_table(rows):
+        data=[]
+        for k,v in rows:
+            if str(v).strip(): data.append([Paragraph(str(k),normal),Paragraph(str(v),normal)])
+        if not data:return
+        t=Table(data,colWidths=[52*mm,112*mm],repeatRows=0,hAlign='CENTER')
+        t.setStyle(TableStyle([('GRID',(0,0),(-1,-1),.4,colors.HexColor('#CCD5DB')),('BACKGROUND',(0,0),(0,-1),colors.HexColor('#F2F6F5')),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('LEFTPADDING',(0,0),(-1,-1),5),('RIGHTPADDING',(0,0),(-1,-1),5),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),('TEXTCOLOR',(0,0),(0,-1),theme)]));story.append(t)
+    story.append(Paragraph('DOSSIER',h))
+    refs=[x for x in p.parcels if isinstance(x,dict) and x.get('section') and x.get('numero')]
+    cad=' • '.join(str(x.get('section','')).upper()+' '+re.sub(r'\D','',str(x.get('numero',''))) for x in refs)
+    add_table([('Proprietaire',p.owner),('Telephone',p.phone),('Adresse',p.address),('Commune',p.commune),('Cadastre',cad),('Type',p.property_type),('Surface habitable',(p.surface+' m²') if p.surface else ''),('Surface Carrez',(p.surface_carrez+' m²') if p.surface_carrez else '')])
+    if p.commune and refs:
+        story.append(Paragraph('PLAN CADASTRAL',h))
+        try:
+            img,_,_=_multi_context_map_png(p.commune,refs,760,500) if len(refs)>1 else (lambda x:(x[0],x[1],x[2]))(_context_map_png(p.commune,refs[0]['section'],refs[0]['numero'],760,500))
+            story.append(RLImage(img,width=164*mm,height=108*mm));story.append(Paragraph((p.commune+' - Parcelles : '+cad),cap))
+        except Exception: story.append(Paragraph('Plan cadastral temporairement indisponible lors de la generation du document.',cap))
+    if p.sections:
+        story.append(Paragraph('RELEVE DE VISITE',h))
+        for s in p.sections:
+            rows=s.get('rows') or []
+            rows=[(x[0],x[1]) for x in rows if isinstance(x,(list,tuple)) and len(x)>=2 and str(x[1]).strip()]
+            if rows: story.append(Paragraph(str(s.get('title') or 'Informations'),h));add_table(rows)
+    if p.photos:
+        story.append(Paragraph('PHOTOGRAPHIES DU BIEN',h)); cells=[]
+        for item in p.photos[:30]:
+            try:
+                data=str(item.get('data','')); raw=base64.b64decode(data.split(',',1)[1]); bio=io.BytesIO(raw)
+                im=RLImage(bio,width=76*mm,height=52*mm,kind='proportional'); label=Paragraph(str(item.get('name') or 'Photo'),cap)
+                cells.append([im,label])
+            except Exception: pass
+        for i in range(0,len(cells),2):
+            row=cells[i:i+2]
+            while len(row)<2: row.append(['',''])
+            t=Table([[row[0][0],row[1][0]],[row[0][1],row[1][1]]],colWidths=[82*mm,82*mm],hAlign='CENTER')
+            t.setStyle(TableStyle([('BOX',(0,0),(-1,-1),.35,colors.HexColor('#CCD5DB')),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('ALIGN',(0,0),(-1,-1),'CENTER'),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)]));story.append(KeepTogether(t));story.append(Spacer(1,2*mm))
+    def footer(canvas,docx):
+        canvas.saveState();canvas.setFont('Helvetica',7);canvas.setFillColor(colors.HexColor('#777777'));canvas.drawCentredString(A4[0]/2,7*mm,f'ESTIM’IA - Fiche de visite - Page {docx.page}');canvas.restoreState()
+    doc.build(story,onFirstPage=footer,onLaterPages=footer);out.seek(0)
+    safe=re.sub(r'[^A-Za-z0-9_-]+','_',p.owner or p.address or 'bien').strip('_') or 'bien'
+    return StreamingResponse(out,media_type='application/pdf',headers={'Content-Disposition':f'attachment; filename="Fiche_visite_{safe}.pdf"'})
 
 @app.post("/api/transcribe")
 async def transcribe(audio: UploadFile=File(...)):

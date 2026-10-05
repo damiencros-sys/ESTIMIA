@@ -9,7 +9,7 @@ const uniq=a=>[...new Set(a.filter(Boolean))];
 function card(title,icon,rows){
  rows=rows.filter(r=>r[1]!==''&&r[1]!=null);
  if(!rows.length)return '';
- return `<section class="proGroup editableCard"><h3 contenteditable="true" spellcheck="true">${icon} ${title}</h3>${rows.map(([k,v])=>`<div class="proRow"><span contenteditable="true" spellcheck="true">${E(k)}</span><strong contenteditable="true" spellcheck="true">${E(v)}</strong><button type="button" class="rowDelete" title="Supprimer">×</button></div>`).join('')}<button type="button" class="addTextRow miniEditBtn">＋ Ajouter une ligne</button></section>`;
+ return `<section class="proGroup editableCard"><h3 contenteditable="true" spellcheck="true">${icon} ${title}</h3>${rows.map(([k,v])=>{const announced=k==='Surface annoncée / dictée',num=announced?String(v).replace(/\s*m²\s*$/i,''):v;return `<div class="proRow"><span contenteditable="true" spellcheck="true">${E(k)}</span><strong${announced?' class="fixedM2"':''}>${announced?`<span contenteditable="true" spellcheck="true">${E(num)}</span><em> m²</em>`:`<span contenteditable="true" spellcheck="true">${E(v)}</span>`}</strong><button type="button" class="rowDelete" title="Supprimer">×</button></div>`}).join('')}<button type="button" class="addTextRow miniEditBtn">＋ Ajouter une ligne</button></section>`;
 }
 function owner(t){
  let m=t.match(/\b(?:les\s+)?consorts?\s+([\p{L}'’-]+)/iu);
@@ -469,7 +469,7 @@ function renderMultiCadPlan(){
  const com=$('#cadCommune')?.value?.trim();if(!com)return;
  const title=document.createElement('div');title.innerHTML='<b>Plan cadastral — '+E(com)+' — '+cadParcels.map(p=>E(p.section)+' '+parseInt(p.numero,10)).join(' • ')+'</b>';
  const img=document.createElement('img');img.alt='Plan cadastral des parcelles';img.style.cssText='display:block;width:100%;max-width:720px;max-height:500px;object-fit:contain;margin-top:8px;border:1px solid #ddd;border-radius:8px;background:#fff';
- img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.31';
+ img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.32';
  img.dataset.cadMap='1';
  const link=document.createElement('a');link.href=img.src;link.target='_blank';link.rel='noopener';link.textContent='Ouvrir le plan cadastral';link.style.cssText='display:inline-block;margin-top:8px';
  box.append(title,img,link);
@@ -513,7 +513,7 @@ async function render(){
   $('#cadCommune').dataset.postcode=cm.postcode||'';
   await normalizeCommune(cm.name,cm.postcode);
  }
- const typ=typeOf(t);if(typ&&!$('#type').value)$('#type').value=typ;
+ const typ=typeOf(t);if(typ&&!$('#type').value)$('#type').value=typ;applyPropertyTheme();
  const ss=surfaces(t), habRows=habitableRows(ss,t), total=habRows.reduce((a,x)=>a+x.val,0);
  const habDeclared=explicitHabitable(t), announced=declaredPropertySurface(t), carrez=explicitCarrez(t);
  if(habDeclared!=null)$('#surfaceHab').value=habDeclared.toFixed(2);
@@ -543,6 +543,17 @@ async function render(){
  $('#facts').innerHTML=out;
 }
 
+function propertyTheme(){
+ const t=low($('#type')?.value||'');
+ if(/appartement|studio|t[1-9]/.test(t))return {key:'appartement',color:'#2563A6'};
+ if(/terrain/.test(t))return {key:'terrain',color:'#B7791F'};
+ if(/immeuble/.test(t))return {key:'immeuble',color:'#8B2F45'};
+ if(/local|commerce|commercial|professionnel|bureau/.test(t))return {key:'local',color:'#7651A8'};
+ if(/garage|parking|box/.test(t))return {key:'garage',color:'#64748B'};
+ if(/maison|villa|pavillon/.test(t))return {key:'maison',color:'#2F7D5A'};
+ return {key:'autre',color:'#49697D'};
+}
+function applyPropertyTheme(){const th=propertyTheme();document.documentElement.style.setProperty('--property-color',th.color);document.body.dataset.propertyTheme=th.key}
 function ficheTitle(){
  const owner=$('#owner')?.value?.trim()||'Sans propriétaire';
  const addr=$('#address')?.value?.trim()||'Adresse non renseignée';
@@ -567,7 +578,7 @@ async function verifyAddressV137(){
 }
 function cadMapURL(){
  const c=$('#cadCommune')?.value?.trim();
- if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.31';
+ if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.32';
  return '';
 }
 
@@ -598,29 +609,16 @@ function initPhotos(files){
 async function fileToDataURL(file){
  return await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file)});
 }
-async function downloadWord(){
+async function buildExportPayload(){
  const sections=[];
- document.querySelectorAll('#facts .levelBlock').forEach(b=>{
-  const title=b.querySelector('.levelName')?.value||b.dataset.level||'Niveau';
-  const rows=[...b.querySelectorAll('.editableSurface')].map(r=>[
-   r.querySelector('.pieceName')?.value||'',
-   ((r.querySelector('.pieceVal')?.value||'')+(r.querySelector('.pieceVal')?.value?' m²':''))
-  ]);
-  const total=b.querySelector('.surfaceTotal');
-  if(total)rows.push([total.querySelector('span')?.innerText||'',total.querySelector('strong')?.innerText||'']);
-  sections.push({title,rows});
- });
+ document.querySelectorAll('#facts .levelBlock').forEach(b=>{const title=b.querySelector('.levelName')?.value||b.dataset.level||'Niveau';const rows=[...b.querySelectorAll('.editableSurface')].map(r=>[r.querySelector('.pieceName')?.value||'',(r.querySelector('.pieceVal')?.value||'')+(r.querySelector('.pieceVal')?.value?' m²':'')]);const total=b.querySelector('.surfaceTotal');if(total)rows.push([total.querySelector('span')?.innerText||'',total.querySelector('strong')?.innerText||'']);sections.push({title,rows})});
  document.querySelectorAll('#facts .otherSurface').forEach(b=>sections.push({title:b.querySelector('h4')?.innerText||'Surfaces annexes',rows:[...b.querySelectorAll('.surfaceRow')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('b')?.innerText||''])}));
  document.querySelectorAll('#facts .proGroup').forEach(b=>sections.push({title:b.querySelector('h3')?.innerText||'Informations',rows:[...b.querySelectorAll('.proRow')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('strong')?.innerText||''])}));
- const photos=[];
- for(const p of currentPhotos().slice(0,30)){try{photos.push({name:p.label||photoDisplayName(p.file),data:await fileToDataURL(p.file)})}catch{}}
- const payload={
-  owner:$('#owner')?.value||'',phone:$('#ownerPhone')?.value||'',address:$('#address')?.value||'',
-  commune:$('#cadCommune')?.value||'',section:$('#cadSection')?.value||'',parcel:$('#cadParcel')?.value||'',
-  property_type:$('#type')?.value||'',surface:$('#surfaceHab')?.value||'',surface_carrez:$('#surfaceCarrez')?.value||'',
-  sections,parcels:cadParcels.map(p=>({section:p.section,numero:p.numero})),facts:$('#facts')?.innerText||'',photos,
-  generated_date:new Date().toLocaleDateString('fr-FR')
- };
+ const photos=[];for(const p of currentPhotos().slice(0,30)){try{photos.push({name:p.label||photoDisplayName(p.file),data:await fileToDataURL(p.file)})}catch{}}
+ return {owner:$('#owner')?.value||'',phone:$('#ownerPhone')?.value||'',address:$('#address')?.value||'',commune:$('#cadCommune')?.value||'',section:$('#cadSection')?.value||'',parcel:$('#cadParcel')?.value||'',property_type:$('#type')?.value||'',surface:$('#surfaceHab')?.value||'',surface_carrez:$('#surfaceCarrez')?.value||'',sections,parcels:cadParcels.map(p=>({section:p.section,numero:p.numero})),facts:$('#facts')?.innerText||'',photos,generated_date:new Date().toLocaleDateString('fr-FR')};
+}
+async function downloadWord(){
+ const payload=await buildExportPayload();
  try{
   const r=await fetch('/api/word',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   if(!r.ok){let j={};try{j=await r.json()}catch{};throw new Error(j.detail||'Export impossible')}
@@ -652,10 +650,8 @@ async function printableHTML(){
  <h1>FICHE DE VISITE IMMOBILIÈRE</h1><div class="date">Document généré le ${new Date().toLocaleDateString('fr-FR')}</div><div class="meta">${head}</div>${mapBlock}${facts}${photosBlock}</body></html>`;
 }
 async function downloadVisit(){
- const blob=new Blob([await printableHTML()],{type:'text/html;charset=utf-8'});
- const a=document.createElement('a');a.href=URL.createObjectURL(blob);
- const safe=(($('#owner')?.value||$('#address')?.value||'bien').replace(/[^\p{L}\p{N}-]+/gu,'_').replace(/^_+|_+$/g,''));
- a.download=`Fiche_visite_${safe}.html`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+ const payload=await buildExportPayload();
+ try{const r=await fetch('/api/pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!r.ok){let j={};try{j=await r.json()}catch{};throw new Error(j.detail||'Export PDF impossible')}const b=await r.blob(),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;const safe=((payload.owner||payload.address||'bien').replace(/[^\p{L}\p{N}-]+/gu,'_'));a.download='Fiche_visite_'+safe+'.pdf';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1500)}catch(e){alert('Export PDF impossible : '+e.message)}
 }
 async function printVisit(){
  const w=window.open('','_blank');
@@ -671,7 +667,8 @@ document.addEventListener('DOMContentLoaded',()=>{
  $('#downloadVisit')?.addEventListener('click',downloadVisit);
  $('#downloadWord')?.addEventListener('click',downloadWord);
  document.addEventListener('estimia:parcels-restored',loadCadParcelsFromHidden);
- loadCadParcelsFromHidden();
+ loadCadParcelsFromHidden();applyPropertyTheme();
+ $('#type')?.addEventListener('input',applyPropertyTheme);
 });
 
 document.addEventListener('click',e=>{
@@ -694,7 +691,7 @@ document.addEventListener('change',e=>{
  if(e.target.classList.contains('levelName')){const block=e.target.closest('.levelBlock'),old=block?.dataset.level,neu=clean(e.target.value);if(!old||!neu||neu===old)return;if(manualLevels.includes(neu)){alert('Ce niveau existe déjà.');e.target.value=old;return}manualLevels=manualLevels.map(x=>x===old?neu:x);manualSurfaceRows.forEach(x=>{if(x.lvl===old)x.lvl=neu});refreshSurfaceEditor();}
 });
 
-// V13.31 — historique global de la fiche.
+// V13.32 — historique global de la fiche.
 let globalUndo=[],globalRedo=[],globalRestoring=false,lastFocusSnapshot='';
 function globalSnapshot(){
  const vals={};document.querySelectorAll('input:not([type=file]),textarea,select').forEach((el,i)=>{if(el.id)vals['#'+el.id]=el.value});
