@@ -1,0 +1,12 @@
+ESTIM'IA V13.37 — Code couleur écran
+- Numéro V13.37 affiché discrètement à côté d'ESTIM'IA dans l'en-tête.
+- Maison / Villa : vert sauge clair.
+- Appartement : bleu clair.
+- Terrain : ocre/beige clair.
+- Immeuble : bordeaux/rose très clair.
+- Local professionnel/commercial : mauve clair.
+- Garage / Parking : gris bleuté clair.
+- Autre/non reconnu : thème neutre.
+- Changement automatique lorsque le type de bien change ou est reconnu.
+- Écran uniquement pour cette étape : Word/PDF non modifiés.
+- V13.36 Photos + exports conservée sans modification fonctionnelle.

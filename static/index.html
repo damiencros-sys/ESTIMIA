@@ -6,11 +6,11 @@
 <meta name="theme-color" content="#15324a">
 <title>ESTIM’IA</title>
 <link rel="manifest" href="/static/manifest.json">
-<link rel="stylesheet" href="/static/style.css?v=13.36">
+<link rel="stylesheet" href="/static/style.css?v=13.37">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<link rel="stylesheet" href="/static/v13_dossiers_pro.css?v=13.36">
+<link rel="stylesheet" href="/static/v13_dossiers_pro.css?v=13.37">
 <style>
 .cadParcelsList{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:9px 0}.cadParcelsLabel{flex-basis:100%;font-weight:700;margin:2px 0 1px}
 .cadParcelChip{display:inline-flex;align-items:center;gap:7px;border:1px solid #cbd8de;border-radius:999px;padding:6px 9px;background:#f7fafb;font-size:13px}
@@ -52,7 +52,7 @@
 .exportStatus.error{display:block;background:#fff0f0;border:1px solid #e4aaaa;color:#8a2828}
 #printVisit:disabled,#wordVisit:disabled{opacity:.65;cursor:wait}
 
-/* V13.36 : croix Supprimer visibles sur toutes les lignes structurées */
+/* V13.37 : croix Supprimer visibles sur toutes les lignes structurées */
 #facts .proGroup .proRow{display:grid!important;grid-template-columns:minmax(110px,.8fr) minmax(160px,1.5fr) 38px!important;align-items:center!important;gap:10px!important;padding:8px 0!important;position:relative!important}
 #facts .proGroup .proRow>.rowDelete{display:inline-flex!important;visibility:visible!important;opacity:1!important;grid-column:3!important;grid-row:1!important;position:static!important;transform:none!important;justify-self:end!important;align-items:center!important;justify-content:center!important;width:34px!important;height:34px!important;margin:0!important;padding:0!important;border:1px solid #efcaca!important;border-radius:8px!important;background:#fff!important;color:#c33!important;font-size:20px!important;line-height:1!important;cursor:pointer!important}
 #facts .proGroup .proRow>.rowDelete:hover{background:#fff5f5!important}
@@ -68,7 +68,7 @@
 @keyframes estimSpin{to{transform:rotate(360deg)}}
 #printVisit:disabled,#downloadWord:disabled{opacity:.65;cursor:wait}
 
-/* V13.36 — gestion complète des photos */
+/* V13.37 — gestion complète des photos */
 .photoManagerHead{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:12px 0 10px}
 .photoManagerHead h3{margin:0}
 .photoCount{font-weight:500;color:#687781;font-size:.9em}
@@ -80,6 +80,27 @@
 .photoManageCard{position:relative}
 .photoManageCard.selected{outline:2px solid #173a52;outline-offset:2px}
 .photoCheck{position:absolute;z-index:3;top:8px;left:8px;background:rgba(255,255,255,.94);width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 5px rgba(0,0,0,.18);cursor:pointer}
+
+/* V13.37 — code couleur écran selon le type de bien.
+   Cartes conservées blanches pour la lisibilité. */
+.appVersion{font-size:.42em!important;font-weight:600!important;opacity:.72!important;vertical-align:middle!important;margin-left:.38em!important;letter-spacing:.02em!important}
+body{--estim-bg:#f4f6f7;--estim-accent:#173a52;--estim-soft:#e9eef1}
+body[data-property-theme="maison"]{--estim-bg:#eef5ef;--estim-accent:#52725b;--estim-soft:#dfeadf}
+body[data-property-theme="appartement"]{--estim-bg:#edf4f9;--estim-accent:#496d86;--estim-soft:#dceaf3}
+body[data-property-theme="terrain"]{--estim-bg:#f7f1e5;--estim-accent:#96733d;--estim-soft:#eee0c4}
+body[data-property-theme="immeuble"]{--estim-bg:#f6eeee;--estim-accent:#7e4b52;--estim-soft:#eadadd}
+body[data-property-theme="local"]{--estim-bg:#f3eff6;--estim-accent:#70577e;--estim-soft:#e6ddec}
+body[data-property-theme="garage"]{--estim-bg:#f0f2f3;--estim-accent:#5f6b72;--estim-soft:#e1e5e7}
+body[data-property-theme]{background-color:var(--estim-bg)!important;transition:background-color .25s ease}
+body[data-property-theme] header,
+body[data-property-theme] .topbar,
+body[data-property-theme] .appHeader{transition:background-color .25s ease}
+body[data-property-theme]:not([data-property-theme="neutre"]) header,
+body[data-property-theme]:not([data-property-theme="neutre"]) .topbar,
+body[data-property-theme]:not([data-property-theme="neutre"]) .appHeader{background-color:var(--estim-accent)!important}
+body[data-property-theme] .card,
+body[data-property-theme] .panel,
+body[data-property-theme] .proGroup{background:#fff}
 </style>
 </head>
 <body>
@@ -94,7 +115,7 @@
 </aside>
 <button id="caseOpen" type="button" class="caseOpen">☰ Mes dossiers</button>
 
-<div style="position:fixed;right:8px;bottom:8px;z-index:99999;background:#111;color:#fff;padding:6px 9px;border-radius:8px;font:12px Arial;opacity:.82">ESTIM’IA V13.36 DOCUMENTS PRO</div>
+<div style="position:fixed;right:8px;bottom:8px;z-index:99999;background:#111;color:#fff;padding:6px 9px;border-radius:8px;font:12px Arial;opacity:.82">ESTIM’IA <span class="appVersion">V13.37</span> V13.37 DOCUMENTS PRO</div>
 <header>
   <div><b>ESTIM’IA</b><small>Assistant d’estimation immobilière</small></div>
   <button id="new" type="button" hidden aria-hidden="true">+ Nouveau</button>
@@ -174,14 +195,14 @@
 
     <button id="downloadWord" type="button" class="secondary">📄 Télécharger la fiche Word</button>
   <div id="saveStatus" class="status"></div>
-  <p class="small">V13.36 : fiche entièrement modifiable + gestion des niveaux et des pièces.</p>
+  <p class="small">V13.37 : fiche entièrement modifiable + gestion des niveaux et des pièces.</p>
 </section>
 </main>
-<script src="/static/app.js?v=13.36"></script>
+<script src="/static/app.js?v=13.37"></script>
 <script src="/static/v7_pro.js"></script>
 <script src="/static/v8_fiche_pro.js"></script>
-<script src="/static/v13_visite.js?v=13.36"></script>
-<script src="/static/v13_dossiers_pro.js?v=13.36"></script>
+<script src="/static/v13_visite.js?v=13.37"></script>
+<script src="/static/v13_dossiers_pro.js?v=13.37"></script>
 
 
 <div id="exportOverlay" class="exportOverlay" aria-live="polite">

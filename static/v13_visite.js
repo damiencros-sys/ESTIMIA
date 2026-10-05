@@ -469,7 +469,7 @@ function renderMultiCadPlan(){
  const com=$('#cadCommune')?.value?.trim();if(!com)return;
  const title=document.createElement('div');title.innerHTML='<b>Plan cadastral — '+E(com)+' — '+cadParcels.map(p=>E(p.section)+' '+parseInt(p.numero,10)).join(' • ')+'</b>';
  const img=document.createElement('img');img.alt='Plan cadastral des parcelles';img.style.cssText='display:block;width:100%;max-width:720px;max-height:500px;object-fit:contain;margin-top:8px;border:1px solid #ddd;border-radius:8px;background:#fff';
- img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.36';
+ img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.37';
  img.dataset.cadMap='1';
  const link=document.createElement('a');link.href=img.src;link.target='_blank';link.rel='noopener';link.textContent='Ouvrir le plan cadastral';link.style.cssText='display:inline-block;margin-top:8px';
  box.append(title,img,link);
@@ -578,7 +578,7 @@ async function verifyAddressV137(){
 }
 function cadMapURL(){
  const c=$('#cadCommune')?.value?.trim();
- if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.36';
+ if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.37';
  return '';
 }
 
@@ -728,7 +728,7 @@ document.addEventListener('change',e=>{
  if(e.target.classList.contains('levelName')){const block=e.target.closest('.levelBlock'),old=block?.dataset.level,neu=clean(e.target.value);if(!old||!neu||neu===old)return;if(manualLevels.includes(neu)){alert('Ce niveau existe déjà.');e.target.value=old;return}manualLevels=manualLevels.map(x=>x===old?neu:x);manualSurfaceRows.forEach(x=>{if(x.lvl===old)x.lvl=neu});refreshSurfaceEditor();}
 });
 
-// V13.36 — historique global de la fiche.
+// V13.37 — historique global de la fiche.
 let globalUndo=[],globalRedo=[],globalRestoring=false,lastFocusSnapshot='';
 function globalSnapshot(){
  const vals={};document.querySelectorAll('input:not([type=file]),textarea,select').forEach((el,i)=>{if(el.id)vals['#'+el.id]=el.value});
@@ -789,7 +789,7 @@ document.addEventListener('change',e=>{
 });
 setTimeout(globalCheckpoint,0);
 
-// V13.36 — boutons Supprimer manquants dans les rubriques structurées.
+// V13.37 — boutons Supprimer manquants dans les rubriques structurées.
 // Ne touche pas aux contrôles Photos ni Surfaces, déjà validés.
 function ensureStructuredDeleteButtons(){
  document.querySelectorAll('#facts .proGroup .proRow').forEach(row=>{
@@ -816,7 +816,7 @@ if(_v133RenderFacts){
 }
 setTimeout(ensureStructuredDeleteButtons,0);
 
-// V13.36 — fenêtre centrale de progression Word/PDF.
+// V13.37 — fenêtre centrale de progression Word/PDF.
 function exportModal(state,kind){
  let ov=document.getElementById('exportOverlay');
  if(!ov)return;
@@ -842,4 +842,39 @@ async function withExportModal(kind,fn,buttonId){
  catch(e){exportModal('error',kind);throw e}
  finally{if(btn)btn.disabled=false}
 }
+// V13.37 — thème visuel selon le type de bien (écran uniquement).
+function estimiaThemeKey(value){
+ const s=norm(value||'');
+ if(/\b(maison|villa|pavillon)\b/.test(s)) return 'maison';
+ if(/\b(appartement|studio|duplex|triplex)\b/.test(s)) return 'appartement';
+ if(/\bterrain\b/.test(s)) return 'terrain';
+ if(/\bimmeuble\b/.test(s)) return 'immeuble';
+ if(/\b(local|commerce|commercial|professionnel|bureau)\b/.test(s)) return 'local';
+ if(/\b(garage|parking|stationnement|box)\b/.test(s)) return 'garage';
+ return 'neutre';
+}
+function currentPropertyTypeForTheme(){
+ const direct=['#propertyType','#typeBien','#bienType','#type_bien','#type'];
+ for(const sel of direct){const el=$(sel);if(el && (el.value||el.textContent||'').trim()) return el.value||el.textContent}
+ const labels=[...document.querySelectorAll('label,.fieldLabel,.proLabel,.label')];
+ const lab=labels.find(x=>/type\s+(de\s+)?bien/i.test(x.textContent||''));
+ if(lab){
+  const wrap=lab.closest('.field,.row,.proRow,.formGroup,.card')||lab.parentElement;
+  const input=wrap?.querySelector('input,select,textarea'); if(input?.value)return input.value;
+  const val=wrap?.querySelector('.value,.proValue'); if(val?.textContent)return val.textContent;
+ }
+ const facts=document.querySelector('#facts')?.innerText||'';
+ const m=facts.match(/Type\s+(?:de\s+)?bien\s*[:\-]?\s*([^\n]+)/i); return m?m[1]:'';
+}
+function applyPropertyTheme(){
+ const key=estimiaThemeKey(currentPropertyTypeForTheme());
+ document.body.dataset.propertyTheme=key;
+}
+document.addEventListener('input',e=>{
+ if(/type/i.test(e.target?.id||'')||/bien/i.test(e.target?.id||'')||/type/i.test(e.target?.name||'')) applyPropertyTheme();
+});
+document.addEventListener('change',applyPropertyTheme);
+new MutationObserver(()=>applyPropertyTheme()).observe(document.body,{subtree:true,childList:true,characterData:true});
+setTimeout(applyPropertyTheme,100);
+
 })();
