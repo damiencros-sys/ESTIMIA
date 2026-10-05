@@ -195,19 +195,57 @@ function markers(text){
 function surfaces(text){
  const t=clean(text), ms=markers(t), out=[];
  const levelAt=i=>{let lvl='Niveau non précisé';for(const z of ms){if(z.i<=i)lvl=z.name;else break}return lvl};
- const push=(name,val,index)=>{if(!Number.isFinite(val))return;const cat=/garage|cave|grenier|atelier|dépendance|local|abri|carport/i.test(name)?'Annexe':/terrasse|balcon|loggia/i.test(name)?'Extérieur':'Intérieur';out.push({lvl:levelAt(index),name:clean(name),val,cat});};
+ const canon=name=>{
+  name=clean(name);
+  if(/^pi[eè]ce$/i.test(name))return 'Bureau';
+  return name;
+ };
+ const push=(name,val,index)=>{
+  if(!Number.isFinite(val))return;
+  name=canon(name);
+  const cat=/garage|cave|grenier|atelier|dépendance|local|abri|cabanon|carport/i.test(name)?'Annexe':/terrasse|balcon|loggia/i.test(name)?'Extérieur':'Intérieur';
+  out.push({lvl:levelAt(index),name,val,cat});
+ };
  const grouped=[];
  const grp=/\b(?:deux|2)\s+chambres?\s*(?:de|mesurant|:)?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)?\s*(?:et|,)\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/ig;
  for(const m of t.matchAll(grp)){push('Chambre 1',n(m[1]),m.index);push('Chambre 2',n(m[2]),m.index);grouped.push([m.index,m.index+m[0].length]);}
- const token=/\b(s[ée]jour|salon|salle à manger|cuisine|chambre(?:\s*(?:\d+|un|une|deux|trois|parentale))?|bureau|salle d[' ]eau|salle de bains?|wc|toilettes?|d[ée]gagement|couloir|entr[ée]e|hall|cellier|buanderie|dressing|mezzanine|garage|cave|grenier|atelier|d[ée]pendance|local|abri|carport|terrasse|balcon|loggia)\b/ig;
+
+ const token=/\b(s[ée]jour|salon|salle à manger|cuisine|chambre(?:\s*(?:\d+|un|une|deux|trois|parentale))?|bureau|pi[eè]ce|salle d[' ]eau|salle de bains?|wc|toilettes?|d[ée]gagement|couloir|entr[ée]e|hall|cellier|buanderie|dressing|mezzanine|garage|cave|grenier|atelier|d[ée]pendance|local|abri|cabanon|carport|terrasse|balcon|loggia)\b/ig;
  const marks=[...t.matchAll(token)].map(m=>({name:m[1],i:m.index,end:m.index+m[0].length}));
  for(let k=0;k<marks.length;k++){
-  const m=marks[k];if(grouped.some(([a,b])=>m.i>=a&&m.i<b))continue;
-  const stop=k+1<marks.length?marks[k+1].i:Math.min(t.length,m.end+100),chunk=t.slice(m.end,stop);
-  const sm=chunk.match(/(?:\bde\b|\bmesurant\b|\bfait\b|\b:)?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/i);
+  const m=marks[k]; if(grouped.some(([a,b])=>m.i>=a&&m.i<b))continue;
+  // Ignore negated WC ("sans WC", "pas de WC")
+  const pre=t.slice(Math.max(0,m.i-14),m.i);
+  if(/(?:sans|pas\s+de)\s*$/i.test(pre)&&/^(wc|toilettes?)$/i.test(m.name))continue;
+  const stop=k+1<marks.length?marks[k+1].i:Math.min(t.length,m.end+140);
+  let chunk=t.slice(m.end,stop);
+
+  // "pièce de 8,20 m² faisant office de bureau"
+  if(/^pi[eè]ce$/i.test(m.name)&&!/faisant\s+office\s+de\s+bureau/i.test(chunk))continue;
+
+  // Explicit correction semantics for a room: "tu prends le couloir qui fait 4,90 m²"
+  // wins over earlier values for the same level/name.
+  const correctionWindow=t.slice(m.i,Math.min(t.length,m.i+260));
+  const corr=correctionWindow.match(/\b(?:tu\s+prends|je\s+corrige|rectification|finalement)\b[^.!?]{0,100}?\b(?:fait|de|à|a)\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/i);
+  let sm=corr || chunk.match(/(?:\bde\b|\bmesurant\b|\bfait\b|\b:)?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/i);
   if(sm)push(m.name,n(sm[1]),m.i);
  }
- const seen=new Set();return out.filter(x=>{const k=x.lvl+'|'+x.name.toLowerCase()+'|'+x.val;if(seen.has(k))return false;seen.add(k);return true});
+ // Last explicit correction for named room replaces previous candidates.
+ const corrections=/\b(?:tu\s+prends|je\s+corrige|rectification|finalement)\b[^.!?]{0,90}?\b(s[ée]jour|salon|cuisine|chambre|bureau|salle d[' ]eau|salle de bains?|wc|d[ée]gagement|couloir|entr[ée]e|cellier|buanderie|garage)\b[^.!?]{0,60}?\b(?:fait|de|à|a)\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/ig;
+ for(const c of t.matchAll(corrections)){
+   const lvl=levelAt(c.index), nm=clean(c[1]).toLowerCase();
+   for(let i=out.length-1;i>=0;i--)if(out[i].lvl===lvl&&out[i].name.toLowerCase()===nm)out.splice(i,1);
+   push(c[1],n(c[2]),c.index);
+ }
+ const final=[];
+ for(const x of out){
+  const nm=x.name.toLowerCase();
+  if(/^chambre/.test(nm)){final.push(x);continue;}
+  const pos=final.findIndex(y=>y.lvl===x.lvl&&y.name.toLowerCase()===nm);
+  if(pos>=0)final[pos]=x;else final.push(x);
+ }
+ const seen=new Set();
+ return final.filter(x=>{const k=x.lvl+'|'+x.name.toLowerCase()+'|'+x.val;if(seen.has(k))return false;seen.add(k);return true});
 }
 function declaredPropertySurface(text){
  const m=clean(text).match(/\b(?:maison|villa|appartement|studio|immeuble|local commercial)\s+(?:d['’]une\s+surface\s+de|de|fait|mesure)\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/i);
@@ -269,9 +307,11 @@ function sanitary(t){
  const rows=[],s=clean(t);
  const m=s.match(/\bsalle de bains?\b([\s\S]{0,120}?)(?=\b(?:couloir|d[ée]gagement|garage|chambre|cuisine|salon|s[ée]jour|piscine|jardin|terrasse|parcelles?|$)\b)/i);
  if(m){const c=m[0];let v='1 salle de bains';const sm=c.match(/(\d+(?:[.,]\d+)?)\s*(?:m2|m²)/i);if(sm)v+=' — '+fmt(n(sm[1]));const eq=[];if(/\bdouche\b/i.test(c))eq.push('douche');if(/\bbaignoire\b/i.test(c))eq.push('baignoire');if(/(?:deux|2|double)\s+vasques?|double vasque/i.test(c))eq.push('double vasque');else if(/\bvasque\b/i.test(c))eq.push('vasque');if(eq.length)v+=' — '+eq.join(' · ');rows.push(['Salle de bains',v]);}
- const e=s.match(/\bsalle d[' ]eau\b([\s\S]{0,100}?)(?=\b(?:couloir|d[ée]gagement|garage|chambre|cuisine|salon|s[ée]jour|piscine|jardin|terrasse|parcelles?|$)\b)/i);
- if(e){let v="1 salle d’eau";const sm=e[0].match(/(\d+(?:[.,]\d+)?)\s*(?:m2|m²)/i);if(sm)v+=' — '+fmt(n(sm[1]));if(/douche à l[' ]italienne/i.test(e[0]))v+=" — douche à l’italienne";rows.push(["Salle d’eau",v]);}
- const wc=countExplicit(s,'wc|toilettes?');if(wc)rows.push(['WC',String(wc)]);else if(/\b(?:wc|toilettes?)\b/i.test(s))rows.push(['WC','Présent']);return rows;
+ const e=s.match(/\bsalle d[' ]eau\b([\s\S]{0,120}?)(?=\b(?:couloir|d[ée]gagement|garage|chambre|cuisine|salon|s[ée]jour|piscine|jardin|terrasse|parcelles?|$)\b)/i);
+ if(e){let v="1 salle d’eau";const sm=e[0].match(/(\d+(?:[.,]\d+)?)\s*(?:m2|m²)/i);if(sm)v+=' — '+fmt(n(sm[1]));if(/douche\s+pmr/i.test(e[0]))v+=" — douche PMR";else if(/douche à l[' ]italienne/i.test(e[0]))v+=" — douche à l’italienne";if(/\bsans\s+wc\b/i.test(e[0]))v+=" — sans WC";rows.push(["Salle d’eau",v]);}
+ const positive=s.replace(/\b(?:sans|pas\s+de)\s+(?:wc|toilettes?)\b/gi,'');
+ const wc=countExplicit(positive,'wc|toilettes?');if(wc)rows.push(['WC',String(wc)]);else if(/\b(?:wc|toilettes?)\b/i.test(positive))rows.push(['WC','Présent']);
+ return rows;
 }
 function heating(t){
  const heat=[];
@@ -348,7 +388,7 @@ async function normalizeCommune(q,postcode=''){
  if(!q)return null;
  const query=[postcode,q].filter(Boolean).join(' ').trim();
  try{
-  const r=await fetch('/api/commune?q='+encodeURIComponent(query)),j=await r.json();
+  const r=await fetch('/api/commune?q='+encodeURIComponent([q,postcode].filter(Boolean).join(' '))),j=await r.json();
   if(r.ok&&j.result){
    $('#cadCommune').value=j.result.name||q;
    $('#cadCommune').dataset.insee=j.result.code||'';
@@ -371,7 +411,7 @@ function renderMultiCadPlan(){
  const com=$('#cadCommune')?.value?.trim();if(!com)return;
  const title=document.createElement('div');title.innerHTML='<b>Plan cadastral — '+E(com)+' — '+cadParcels.map(p=>E(p.section)+' '+parseInt(p.numero,10)).join(' • ')+'</b>';
  const img=document.createElement('img');img.alt='Plan cadastral des parcelles';img.style.cssText='display:block;width:100%;max-width:720px;max-height:500px;object-fit:contain;margin-top:8px;border:1px solid #ddd;border-radius:8px;background:#fff';
- img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.25';
+ img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.26';
  img.dataset.cadMap='1';
  const link=document.createElement('a');link.href=img.src;link.target='_blank';link.rel='noopener';link.textContent='Ouvrir le plan cadastral';link.style.cssText='display:inline-block;margin-top:8px';
  box.append(title,img,link);
@@ -407,7 +447,7 @@ async function render(){
  const raw=$('#notes').value||'',corr=$('#correction').value||'',t=clean(raw+' '+corr);
  const o=owner(t);if(o&&!$('#owner').value)$('#owner').value=o;
  const ph=phone(t);if(ph)$('#ownerPhone').value=ph;
- const a=address(t);if(a){$('#address').value=a.street;$('#cadCommune').value=a.city;$('#cadCommune').dataset.postcode=a.postcode||'';}
+ const a=address(t);if(a&&a.street){$('#address').value=a.street;$('#cadCommune').value=a.city;$('#cadCommune').dataset.postcode=a.postcode||'';$('#cadCommune').dataset.insee='';await normalizeCommune(a.city,a.postcode||'');}
  const cps=parseCadParcels(t);if(cps.length){cps.forEach(p=>addCadParcel(p.section,p.numero,false));$('#cadSection').value='';$('#cadParcel').value='';}
  const cm=commune(t);
  if(cm&&!$('#cadCommune').value){
@@ -467,7 +507,7 @@ async function verifyAddressV137(){
 }
 function cadMapURL(){
  const c=$('#cadCommune')?.value?.trim();
- if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.25';
+ if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.26';
  return '';
 }
 

@@ -1,0 +1,20 @@
+ESTIM'IA V13.26 — NON-RÉGRESSION OBLIGATOIRE
+
+JEAN TEST
+- adresse 28 route de lamalou le vieux, 34240 Combes
+- C732 + C679
+- salon 35; cuisine 11; chambres 18 + 15; salle de bains 7
+- couloir sans surface; garage 25 en annexe
+- total intérieur connu = 86 m²
+- surface annoncée/dictée = 110 m²
+
+FUMAT
+- adresse 2 lotissement les Castors, 34600 Bédarieux
+- résolution commune obligatoire: Bédarieux + 34600 -> code INSEE obtenu automatiquement
+- BH60 puis plan cadastral
+- couloir final = 4,90 m² uniquement
+- buanderie = 7 m² uniquement
+- cabanon métallique = env. 2 à 2,5 m², annexe distincte
+- pièce/bureau = 8,20 m² à l'étage
+- salle d'eau étage = 4 m² SANS WC
+- ne jamais créer un WC 4 m² à partir de « sans WC »
