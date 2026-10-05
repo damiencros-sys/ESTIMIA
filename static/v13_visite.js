@@ -469,7 +469,7 @@ function renderMultiCadPlan(){
  const com=$('#cadCommune')?.value?.trim();if(!com)return;
  const title=document.createElement('div');title.innerHTML='<b>Plan cadastral — '+E(com)+' — '+cadParcels.map(p=>E(p.section)+' '+parseInt(p.numero,10)).join(' • ')+'</b>';
  const img=document.createElement('img');img.alt='Plan cadastral des parcelles';img.style.cssText='display:block;width:100%;max-width:720px;max-height:500px;object-fit:contain;margin-top:8px;border:1px solid #ddd;border-radius:8px;background:#fff';
- img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.35';
+ img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.36';
  img.dataset.cadMap='1';
  const link=document.createElement('a');link.href=img.src;link.target='_blank';link.rel='noopener';link.textContent='Ouvrir le plan cadastral';link.style.cssText='display:inline-block;margin-top:8px';
  box.append(title,img,link);
@@ -578,7 +578,7 @@ async function verifyAddressV137(){
 }
 function cadMapURL(){
  const c=$('#cadCommune')?.value?.trim();
- if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.35';
+ if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.36';
  return '';
 }
 
@@ -587,8 +587,16 @@ function photoDisplayName(file){return (file?.name||'Photo').replace(/\.[^.]+$/,
 function renderPhotoManager(){
  const box=$('#photoManager');if(!box)return;
  if(!photoItemsState.length){box.innerHTML='';return}
- box.innerHTML='<h3>📷 Photos du dossier</h3><div class="photoManageGrid">'+photoItemsState.map((p,i)=>`
-  <div class="photoManageCard" data-photo="${i}">
+ const selected=photoItemsState.filter(p=>p.selected).length;
+ box.innerHTML=`<div class="photoManagerHead">
+   <h3>📷 Photos du dossier <span class="photoCount">(${photoItemsState.length})</span></h3>
+   <div class="photoBulkActions">
+    <label class="photoSelectAll"><input id="photoSelectAll" type="checkbox" ${selected===photoItemsState.length?'checked':''}> Tout sélectionner</label>
+    <button type="button" id="deleteSelectedPhotos" class="deleteSelectedPhotos" ${selected?'':'disabled'}>🗑 Supprimer les photos sélectionnées${selected?' ('+selected+')':''}</button>
+   </div>
+  </div><div class="photoManageGrid">`+photoItemsState.map((p,i)=>`
+  <div class="photoManageCard ${p.selected?'selected':''}" data-photo="${i}">
+   <label class="photoCheck" title="Sélectionner cette photo"><input type="checkbox" class="photoSelect" ${p.selected?'checked':''}></label>
    <img src="${p.url}" alt="${E(p.label)}">
    <input class="photoLabel" value="${E(p.label)}" title="Nom de la photo">
    <div class="photoActions">
@@ -600,16 +608,17 @@ function renderPhotoManager(){
 }
 function currentPhotos(){return photoItemsState}
 function initPhotos(files){
- photoItemsState.forEach(p=>{try{URL.revokeObjectURL(p.url)}catch{}});
- photoItemsState=[...files].map(f=>({file:f,label:photoDisplayName(f),url:URL.createObjectURL(f)}));
- if($('#gallery'))$('#gallery').innerHTML=''; // ancien aperçu neutralisé : un seul affichage des photos
+ const added=[...files].filter(f=>/^image\//i.test(f.type||'')).map(f=>({file:f,label:photoDisplayName(f),url:URL.createObjectURL(f),selected:false}));
+ photoItemsState.push(...added); // ajout cumulatif : ne remplace jamais les photos déjà présentes
+ if($('#gallery'))$('#gallery').innerHTML='';
+ const input=$('#photos');if(input)input.value=''; // permet de reprendre ensuite la même photo si nécessaire
  renderPhotoManager();globalCheckpoint();
 }
 
 async function fileToDataURL(file){
  return await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file)});
 }
-async function optimizedPhotoDataURL(file,maxSide=1600,quality=.78){
+async function optimizedPhotoDataURL(file,maxSide=800,quality=.58){
  // Optimisation uniquement pour les documents : l'original sélectionné reste inchangé.
  if(!file || !/^image\//i.test(file.type||''))return fileToDataURL(file);
  const src=await fileToDataURL(file);
@@ -719,7 +728,7 @@ document.addEventListener('change',e=>{
  if(e.target.classList.contains('levelName')){const block=e.target.closest('.levelBlock'),old=block?.dataset.level,neu=clean(e.target.value);if(!old||!neu||neu===old)return;if(manualLevels.includes(neu)){alert('Ce niveau existe déjà.');e.target.value=old;return}manualLevels=manualLevels.map(x=>x===old?neu:x);manualSurfaceRows.forEach(x=>{if(x.lvl===old)x.lvl=neu});refreshSurfaceEditor();}
 });
 
-// V13.35 — historique global de la fiche.
+// V13.36 — historique global de la fiche.
 let globalUndo=[],globalRedo=[],globalRestoring=false,lastFocusSnapshot='';
 function globalSnapshot(){
  const vals={};document.querySelectorAll('input:not([type=file]),textarea,select').forEach((el,i)=>{if(el.id)vals['#'+el.id]=el.value});
@@ -736,7 +745,7 @@ function restoreGlobal(s){
  Object.entries(s.vals||{}).forEach(([sel,v])=>{const el=document.querySelector(sel);if(el)el.value=v});
  if($('#facts'))$('#facts').innerHTML=s.facts||'';
  manualSurfaceRows=JSON.parse(JSON.stringify(s.rows||[]));manualLevels=[...(s.levels||[])];
- photoItemsState=(s.photos||[]).map(p=>({...p}));renderPhotoManager();
+ photoItemsState=(s.photos||[]).map(p=>({...p,selected:!!p.selected}));renderPhotoManager();
  globalRestoring=false;
 }
 function globalUndoAction(){if(globalUndo.length<2)return;globalRedo.push(globalUndo.pop());restoreGlobal(globalUndo[globalUndo.length-1])}
@@ -746,6 +755,19 @@ document.addEventListener('focusout',e=>{if(e.target.matches('input:not([type=fi
 document.addEventListener('click',e=>{
  const g=e.target.closest('[data-global-act]');
  if(g){if(g.dataset.globalAct==='undo')globalUndoAction();else globalRedoAction();return}
+ if(e.target.id==='photoSelectAll'){
+  const checked=e.target.checked;photoItemsState.forEach(p=>p.selected=checked);renderPhotoManager();return
+ }
+ if(e.target.classList.contains('photoSelect')){
+  const i=Number(e.target.closest('.photoManageCard')?.dataset.photo);
+  if(photoItemsState[i]){photoItemsState[i].selected=e.target.checked;renderPhotoManager()}return
+ }
+ if(e.target.id==='deleteSelectedPhotos'){
+  const n=photoItemsState.filter(p=>p.selected).length;if(!n)return;
+  if(!confirm(`Supprimer ${n} photo${n>1?'s':''} sélectionnée${n>1?'s':''} ?`))return;
+  const removed=photoItemsState.filter(p=>p.selected);removed.forEach(p=>{try{URL.revokeObjectURL(p.url)}catch{}});
+  photoItemsState=photoItemsState.filter(p=>!p.selected);renderPhotoManager();globalCheckpoint();return
+ }
  const pb=e.target.closest('[data-photo-act]');
  if(pb){
   const card=pb.closest('.photoManageCard'),i=Number(card?.dataset.photo),act=pb.dataset.photoAct;
@@ -767,7 +789,7 @@ document.addEventListener('change',e=>{
 });
 setTimeout(globalCheckpoint,0);
 
-// V13.35 — boutons Supprimer manquants dans les rubriques structurées.
+// V13.36 — boutons Supprimer manquants dans les rubriques structurées.
 // Ne touche pas aux contrôles Photos ni Surfaces, déjà validés.
 function ensureStructuredDeleteButtons(){
  document.querySelectorAll('#facts .proGroup .proRow').forEach(row=>{
@@ -794,7 +816,7 @@ if(_v133RenderFacts){
 }
 setTimeout(ensureStructuredDeleteButtons,0);
 
-// V13.35 — fenêtre centrale de progression Word/PDF.
+// V13.36 — fenêtre centrale de progression Word/PDF.
 function exportModal(state,kind){
  let ov=document.getElementById('exportOverlay');
  if(!ov)return;

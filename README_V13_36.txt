@@ -1,0 +1,12 @@
+ESTIM'IA V13.36 — Photos nombreuses
+- Ajout cumulatif : ajouter de nouvelles photos ne remplace plus celles déjà présentes.
+- Ajouts possibles en plusieurs fois pendant la visite.
+- Case individuelle sur chaque photo.
+- « Tout sélectionner / désélectionner ».
+- Suppression groupée des photos sélectionnées avec confirmation.
+- Le × individuel, le renommage et l'ordre sont conservés.
+- Export Word/PDF : images préparées à 800 px maximum, JPEG ~58 %, adaptées à l'affichage 2 photos par ligne.
+- Aucune limite artificielle au nombre de photos.
+- Objectif : réduire fortement la taille JSON et la mémoire utilisée avec plusieurs dizaines de photos.
+- La fenêtre centrale d'attente Word/PDF V13.35 est conservée.
+- Dictée, niveaux, cadastre et générateurs serveur Word/PDF non modifiés.
