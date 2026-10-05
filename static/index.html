@@ -6,11 +6,11 @@
 <meta name="theme-color" content="#15324a">
 <title>ESTIM’IA</title>
 <link rel="manifest" href="/static/manifest.json">
-<link rel="stylesheet" href="/static/style.css?v=13.28">
+<link rel="stylesheet" href="/static/style.css?v=13.30">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<link rel="stylesheet" href="/static/v13_dossiers_pro.css?v=13.28">
+<link rel="stylesheet" href="/static/v13_dossiers_pro.css?v=13.30">
 <style>
 .cadParcelsList{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:9px 0}.cadParcelsLabel{flex-basis:100%;font-weight:700;margin:2px 0 1px}
 .cadParcelChip{display:inline-flex;align-items:center;gap:7px;border:1px solid #cbd8de;border-radius:999px;padding:6px 9px;background:#f7fafb;font-size:13px}
@@ -23,6 +23,16 @@
 @media(max-width:700px){.editableSurface{grid-template-columns:1fr 76px 25px}.editableSurface .pieceLevel{grid-column:1/3}.surfaceHead{align-items:flex-start;flex-direction:column}}
 .surfaceToolbar{display:flex;gap:6px;flex-wrap:wrap}
 @media(max-width:700px){.surfaceToolbar{width:100%}}
+
+.globalHistory{position:fixed;left:8px;top:45%;z-index:9999;display:flex;flex-direction:column;gap:7px}
+.globalHistory button{border:1px solid #b8c6ce;background:#fff;border-radius:9px;padding:8px 7px;box-shadow:0 2px 9px #0002;cursor:pointer;font-size:18px}
+.globalHistory button span{display:block;font-size:9px}
+.photoManageGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:10px}
+.photoManageCard{border:1px solid #ccd5db;border-radius:9px;padding:7px;background:#fff}
+.photoManageCard img{width:100%;height:120px;object-fit:cover;border-radius:6px;display:block}
+.photoLabel{width:100%;box-sizing:border-box;margin-top:6px;padding:7px;border:1px solid #ccd5db;border-radius:6px}
+.photoActions{display:flex;justify-content:center;gap:5px;margin-top:5px}.photoActions button{border:1px solid #ccd5db;background:#f8fafb;border-radius:6px;padding:5px 9px}
+@media(max-width:700px){.globalHistory{left:3px;top:auto;bottom:85px}.globalHistory button{padding:6px 5px}.globalHistory button span{display:none}}
 </style>
 </head>
 <body>
@@ -37,7 +47,7 @@
 </aside>
 <button id="caseOpen" type="button" class="caseOpen">☰ Mes dossiers</button>
 
-<div style="position:fixed;right:8px;bottom:8px;z-index:99999;background:#111;color:#fff;padding:6px 9px;border-radius:8px;font:12px Arial;opacity:.82">ESTIM’IA V13.28 CORRECTIF COMPLET</div>
+<div style="position:fixed;right:8px;bottom:8px;z-index:99999;background:#111;color:#fff;padding:6px 9px;border-radius:8px;font:12px Arial;opacity:.82">ESTIM’IA V13.30 CORRECTIF COMPLET</div>
 <header>
   <div><b>ESTIM’IA</b><small>Assistant d’estimation immobilière</small></div>
   <button id="new" type="button" hidden aria-hidden="true">+ Nouveau</button>
@@ -78,6 +88,7 @@
   <h2>Photos de la visite</h2>
   <p>Ajoute toutes les photos. Elles seront jointes au dossier et pourront ensuite être analysées par l’IA.</p>
   <label class="bigbtn secondary">📷 Ajouter les photos<input id="photos" type="file" accept="image/*" multiple hidden></label>
+<div id="photoManager"></div>
   <div id="gallery" class="gallery"></div>
   <div id="photoStatus" class="status"></div>
 </section>
@@ -111,13 +122,17 @@
     <button id="printVisit" type="button" class="secondary">🖨️ Imprimer / Enregistrer en PDF</button>
     <button id="downloadWord" type="button" class="secondary">📄 Télécharger la fiche Word</button>
   <div id="saveStatus" class="status"></div>
-  <p class="small">V13.28 : fiche entièrement modifiable + gestion des niveaux et des pièces.</p>
+  <p class="small">V13.30 : fiche entièrement modifiable + gestion des niveaux et des pièces.</p>
 </section>
 </main>
-<script src="/static/app.js?v=13.28"></script>
+<script src="/static/app.js?v=13.30"></script>
 <script src="/static/v7_pro.js"></script>
 <script src="/static/v8_fiche_pro.js"></script>
-<script src="/static/v13_visite.js?v=13.28"></script>
-<script src="/static/v13_dossiers_pro.js?v=13.28"></script>
+<script src="/static/v13_visite.js?v=13.30"></script>
+<script src="/static/v13_dossiers_pro.js?v=13.30"></script>
+<div id="globalHistory" class="globalHistory">
+<button type="button" data-global-act="undo" title="Annuler la dernière modification">↶<span>Annuler</span></button>
+<button type="button" data-global-act="redo" title="Rétablir la modification">↷<span>Rétablir</span></button>
+</div>
 </body>
 </html>

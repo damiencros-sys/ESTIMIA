@@ -204,13 +204,14 @@ function surfaces(text){
   if(!Number.isFinite(val))return;
   name=canon(name);
   const cat=/garage|cave|grenier|atelier|dépendance|local|abri|cabanon|carport/i.test(name)?'Annexe':/terrasse|balcon|loggia/i.test(name)?'Extérieur':'Intérieur';
-  out.push({lvl:levelAt(index),name,val,cat});
+  const lvl=/cabanon|abri/i.test(name)?'Extérieur':levelAt(index);
+  out.push({lvl,name,val,cat});
  };
  const grouped=[];
  const grp=/\b(?:deux|2)\s+chambres?\s*(?:de|mesurant|:)?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)?\s*(?:et|,)\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/ig;
  for(const m of t.matchAll(grp)){push('Chambre 1',n(m[1]),m.index);push('Chambre 2',n(m[2]),m.index);grouped.push([m.index,m.index+m[0].length]);}
 
- const token=/\b(s[ée]jour|salon|salle à manger|cuisine|chambre(?:\s*(?:\d+|un|une|deux|trois|parentale))?|bureau|pi[eè]ce|salle d[' ]eau|salle de bains?|wc|toilettes?|d[ée]gagement|couloir|entr[ée]e|hall|cellier|buanderie|dressing|mezzanine|garage|cave|grenier|atelier|d[ée]pendance|local|abri|cabanon|carport|terrasse|balcon|loggia)\b/ig;
+ const token=/\b(s[ée]jour|salon|salle à manger|cuisine|chambre(?:\s*(?:\d+|un|une|deux|trois|parentale))?|bureau|pi[eè]ce|salle d[' ]eau|salle de bains?|wc|toilettes?|d[ée]gagement|couloir|entr[ée]e|hall|cellier|buanderie|dressing|palier|mezzanine|garage|cave|grenier|atelier|d[ée]pendance|local|abri|cabanon|carport|terrasse|balcon|loggia)\b/ig;
  const marks=[...t.matchAll(token)].map(m=>({name:m[1],i:m.index,end:m.index+m[0].length}));
  for(let k=0;k<marks.length;k++){
   const m=marks[k]; if(grouped.some(([a,b])=>m.i>=a&&m.i<b))continue;
@@ -225,9 +226,9 @@ function surfaces(text){
 
   // Explicit correction semantics for a room: "tu prends le couloir qui fait 4,90 m²"
   // wins over earlier values for the same level/name.
-  const correctionWindow=t.slice(m.i,Math.min(t.length,m.i+260));
-  const corr=correctionWindow.match(/\b(?:tu\s+prends|je\s+corrige|rectification|finalement)\b[^.!?]{0,100}?\b(?:fait|de|à|a)\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/i);
-  let sm=corr || chunk.match(/(?:\bde\b|\bmesurant\b|\bfait\b|\b:)?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/i);
+  // A correction is applied only by the named-room correction pass below.
+  // This prevents a later correction (e.g. corridor) being stolen by mezzanine/garage/entry.
+  let sm=chunk.match(/(?:\bde\b|\bmesurant\b|\bfait\b|\b:)?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/i);
   if(sm)push(m.name,n(sm[1]),m.i);
  }
  // Last explicit correction for named room replaces previous candidates.
@@ -290,7 +291,7 @@ function surfaceEditorHTML(rows){
 function renderSurfaceEditor(){
  normalizeManualLevels(manualSurfaceRows);
  const ins=manualSurfaceRows.filter(x=>x.cat==='Intérieur');
- let s='<section class="surfaceHero surfaceEditor"><div class="surfaceHead"><h3>📐 SURFACES CALCULÉES PAR NIVEAU</h3><div class="surfaceToolbar"><button type="button" class="miniEditBtn" data-act="undo" title="Annuler">↶ Annuler</button><button type="button" class="miniEditBtn" data-act="redo" title="Rétablir">↷ Rétablir</button><button type="button" class="miniEditBtn" data-act="add-level">＋ Ajouter un niveau</button></div></div>';
+ let s='<section class="surfaceHero surfaceEditor"><div class="surfaceHead"><h3>📐 SURFACES CALCULÉES PAR NIVEAU</h3><div class="surfaceToolbar"><button type="button" class="miniEditBtn" data-act="add-level">＋ Ajouter un niveau</button></div></div>';
  manualLevels.forEach(lv=>{
   const rr=ins.filter(x=>x.lvl===lv),total=rr.reduce((a,x)=>a+x.val,0);
   s+=`<div class="levelBlock" data-level="${E(lv)}"><div class="levelHead"><input class="levelName" value="${E(lv)}"><div class="levelActions"><button type="button" data-act="level-up" title="Monter le niveau">↑</button><button type="button" data-act="level-down" title="Descendre le niveau">↓</button><button type="button" data-act="delete-level" title="Supprimer le niveau">🗑</button></div></div>`;
@@ -468,7 +469,7 @@ function renderMultiCadPlan(){
  const com=$('#cadCommune')?.value?.trim();if(!com)return;
  const title=document.createElement('div');title.innerHTML='<b>Plan cadastral — '+E(com)+' — '+cadParcels.map(p=>E(p.section)+' '+parseInt(p.numero,10)).join(' • ')+'</b>';
  const img=document.createElement('img');img.alt='Plan cadastral des parcelles';img.style.cssText='display:block;width:100%;max-width:720px;max-height:500px;object-fit:contain;margin-top:8px;border:1px solid #ddd;border-radius:8px;background:#fff';
- img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.28';
+ img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.30';
  img.dataset.cadMap='1';
  const link=document.createElement('a');link.href=img.src;link.target='_blank';link.rel='noopener';link.textContent='Ouvrir le plan cadastral';link.style.cssText='display:inline-block;margin-top:8px';
  box.append(title,img,link);
@@ -533,8 +534,10 @@ async function render(){
  out+='</div>';
  const extras=[];
  if(/couloir de distribution/i.test(t))extras.push(['Circulation','Couloir de distribution — surface non renseignée']);
- if(/cuisine ouverte/i.test(t))extras.push(['Cuisine','Ouverte']);
- if(/cuisine[^.!?]{0,50}[ée]quip[ée]e/i.test(t))extras.push(['Cuisine','Équipée']);
+ const cuisineInfos=[];
+ if(/cuisine ouverte/i.test(t))cuisineInfos.push('Ouverte');
+ if(/cuisine[^.!?]{0,50}[ée]quip[ée]e/i.test(t))cuisineInfos.push('Équipée');
+ if(cuisineInfos.length)extras.push(['Cuisine',uniq(cuisineInfos).join(' · ')]);
  if(extras.length)out+=card('Informations complémentaires conservées','📌',extras);
  out+='<details class="rawNotes"><summary>📝 Voir la dictée originale complète</summary><div>'+E(raw)+'</div></details>';
  $('#facts').innerHTML=out;
@@ -564,8 +567,31 @@ async function verifyAddressV137(){
 }
 function cadMapURL(){
  const c=$('#cadCommune')?.value?.trim();
- if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.28';
+ if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.30';
  return '';
+}
+
+let photoItemsState=[];
+function photoDisplayName(file){return (file?.name||'Photo').replace(/\.[^.]+$/,'')}
+function renderPhotoManager(){
+ const box=$('#photoManager');if(!box)return;
+ if(!photoItemsState.length){box.innerHTML='';return}
+ box.innerHTML='<h3>📷 Photos du dossier</h3><div class="photoManageGrid">'+photoItemsState.map((p,i)=>`
+  <div class="photoManageCard" data-photo="${i}">
+   <img src="${p.url}" alt="${E(p.label)}">
+   <input class="photoLabel" value="${E(p.label)}" title="Nom de la photo">
+   <div class="photoActions">
+    <button type="button" data-photo-act="left" title="Déplacer avant">←</button>
+    <button type="button" data-photo-act="right" title="Déplacer après">→</button>
+    <button type="button" data-photo-act="delete" title="Supprimer">×</button>
+   </div>
+  </div>`).join('')+'</div>';
+}
+function currentPhotos(){return photoItemsState}
+function initPhotos(files){
+ photoItemsState.forEach(p=>{try{URL.revokeObjectURL(p.url)}catch{}});
+ photoItemsState=[...files].map(f=>({file:f,label:photoDisplayName(f),url:URL.createObjectURL(f)}));
+ renderPhotoManager();globalCheckpoint();
 }
 
 async function fileToDataURL(file){
@@ -585,9 +611,8 @@ async function downloadWord(){
  });
  document.querySelectorAll('#facts .otherSurface').forEach(b=>sections.push({title:b.querySelector('h4')?.innerText||'Surfaces annexes',rows:[...b.querySelectorAll('.surfaceRow')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('b')?.innerText||''])}));
  document.querySelectorAll('#facts .proGroup').forEach(b=>sections.push({title:b.querySelector('h3')?.innerText||'Informations',rows:[...b.querySelectorAll('.proRow')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('strong')?.innerText||''])}));
- const photoFiles=[...($('#photos')?.files||[])].slice(0,30);
  const photos=[];
- for(const f of photoFiles){try{photos.push({name:f.name,data:await fileToDataURL(f)})}catch{}}
+ for(const p of currentPhotos().slice(0,30)){try{photos.push({name:p.label||photoDisplayName(p.file),data:await fileToDataURL(p.file)})}catch{}}
  const payload={
   owner:$('#owner')?.value||'',phone:$('#ownerPhone')?.value||'',address:$('#address')?.value||'',
   commune:$('#cadCommune')?.value||'',section:$('#cadSection')?.value||'',parcel:$('#cadParcel')?.value||'',
@@ -602,10 +627,13 @@ async function downloadWord(){
   document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1500);
  }catch(e){alert('Export Word impossible : '+e.message)}
 }
-function printableHTML(){
+async function printableHTML(){
  const title=ficheTitle(), facts=$('#facts')?.innerHTML||'', mapUrl=cadMapURL();
  const refsTxt=cadParcels.map(p=>`${E(p.section)} ${E(String(parseInt(p.numero,10)))}`).join(' • ');
  const mapBlock=mapUrl?`<section class="cadPrint"><h2>Plan cadastral</h2><img src="${mapUrl}" alt="Plan cadastral"><div>Parcelles : ${refsTxt}</div></section>`:'';
+ const photoItems=[];
+ for(const p of currentPhotos().slice(0,30)){try{const data=await fileToDataURL(p.file),label=p.label||photoDisplayName(p.file);photoItems.push(`<figure class="photoPrint"><img src="${data}" alt="${E(label)}"><figcaption>${E(label)}</figcaption></figure>`)}catch{}}
+ const photosBlock=photoItems.length?`<section class="photosPrint"><h2>Photographies du bien</h2><div class="photoGrid">${photoItems.join('')}</div></section>`:'';
  const meta=[
   ['Propriétaire',$('#owner')?.value||''],
   ['Téléphone',$('#ownerPhone')?.value||''],
@@ -618,19 +646,19 @@ function printableHTML(){
  ].filter(x=>x[1]);
  const head=meta.map(x=>`<div class="m"><span>${E(x[0])}</span><b>${E(x[1])}</b></div>`).join('');
  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${E(title)}</title>
- <style>body{font-family:Arial,sans-serif;color:#17212b;margin:28px}h1{font-size:23px;margin-bottom:5px}.date{color:#667;font-size:12px;margin-bottom:18px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px}.m{border:1px solid #ccd5db;border-radius:8px;padding:8px}.m span,.m b{display:block}.m span{font-size:11px;color:#667;margin-bottom:3px}.proGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.proGroup,.surfaceHero{border:1px solid #ccd5db;border-radius:10px;padding:10px;margin:0 0 10px;break-inside:avoid}.proGroup h3,.surfaceHero h3{margin:0 0 8px}.proRow,.surfaceRow,.surfaceTotal,.grandTotal{display:flex;justify-content:space-between;gap:15px;padding:5px 0;border-bottom:1px solid #eee}.grandTotal{font-weight:bold;font-size:16px}.rawNotes{margin-top:14px}.cadPrint{break-inside:avoid;margin:15px 0}.cadPrint img{width:100%;max-width:760px;border:1px solid #ccd5db;border-radius:8px}.dossierHead,.calculatedTop{display:none}@media print{body{margin:10mm}.proGroup,.surfaceHero{break-inside:avoid}}</style></head><body>
- <h1>FICHE DE VISITE IMMOBILIÈRE</h1><div class="date">Document généré le ${new Date().toLocaleString('fr-FR')}</div><div class="meta">${head}</div>${mapBlock}${facts}</body></html>`;
+ <style>body{font-family:Arial,sans-serif;color:#17212b;margin:28px}h1{font-size:23px;margin-bottom:5px}.date{color:#667;font-size:12px;margin-bottom:18px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px}.m{border:1px solid #ccd5db;border-radius:8px;padding:8px}.m span,.m b{display:block}.m span{font-size:11px;color:#667;margin-bottom:3px}.proGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.proGroup,.surfaceHero{border:1px solid #ccd5db;border-radius:10px;padding:10px;margin:0 0 10px;break-inside:avoid}.proGroup h3,.surfaceHero h3{margin:0 0 8px}.proRow,.surfaceRow,.surfaceTotal,.grandTotal{display:flex;justify-content:space-between;gap:15px;padding:5px 0;border-bottom:1px solid #eee}.grandTotal{font-weight:bold;font-size:16px}.rawNotes{margin-top:14px}.cadPrint{break-inside:avoid;margin:15px 0}.cadPrint img{width:100%;max-width:760px;border:1px solid #ccd5db;border-radius:8px}.photosPrint{margin-top:18px}.photoGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.photoPrint{margin:0;break-inside:avoid;border:1px solid #ccd5db;border-radius:8px;padding:7px}.photoPrint img{display:block;width:100%;height:220px;object-fit:contain}.photoPrint figcaption{text-align:center;font-size:11px;margin-top:6px;color:#445}.dossierHead,.calculatedTop{display:none}@media print{body{margin:10mm}.proGroup,.surfaceHero{break-inside:avoid}}</style></head><body>
+ <h1>FICHE DE VISITE IMMOBILIÈRE</h1><div class="date">Document généré le ${new Date().toLocaleString('fr-FR')}</div><div class="meta">${head}</div>${mapBlock}${facts}${photosBlock}</body></html>`;
 }
-function downloadVisit(){
- const blob=new Blob([printableHTML()],{type:'text/html;charset=utf-8'});
+async function downloadVisit(){
+ const blob=new Blob([await printableHTML()],{type:'text/html;charset=utf-8'});
  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
  const safe=(($('#owner')?.value||$('#address')?.value||'bien').replace(/[^\p{L}\p{N}-]+/gu,'_').replace(/^_+|_+$/g,''));
  a.download=`Fiche_visite_${safe}.html`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
-function printVisit(){
+async function printVisit(){
  const w=window.open('','_blank');
  if(!w){alert("Autorise l'ouverture de fenêtre pour imprimer la fiche.");return}
- w.document.open();w.document.write(printableHTML());w.document.close();w.focus();setTimeout(()=>w.print(),250);
+ w.document.open();w.document.write(await printableHTML());w.document.close();w.focus();setTimeout(()=>w.print(),700);
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
@@ -648,7 +676,7 @@ document.addEventListener('click',e=>{
  const b=e.target.closest('button');if(!b)return;const row=b.closest('.proRow');
  if(b.classList.contains('rowDelete')&&row){row.remove();return}
  if(b.classList.contains('addTextRow')){const card=b.closest('.proGroup'),d=document.createElement('div');d.className='proRow';d.innerHTML='<span contenteditable="true" spellcheck="true">Nouvelle information</span><strong contenteditable="true" spellcheck="true">À compléter</strong><button type="button" class="rowDelete">×</button>';card.insertBefore(d,b);return}
- const act=b.dataset.act;if(!act)return;if(act==='undo'){undoSurface();return}if(act==='redo'){redoSurface();return}const level=b.closest('.levelBlock')?.dataset.level||'',sr=b.closest('.editableSurface'),id=sr?.dataset.id;
+ const act=b.dataset.act;if(!act)return;const level=b.closest('.levelBlock')?.dataset.level||'',sr=b.closest('.editableSurface'),id=sr?.dataset.id;
  if(act==='add-level'){let name=clean(prompt('Nom du nouveau niveau :','')||'');if(!name||manualLevels.includes(name))return;manualLevels.push(name);refreshSurfaceEditor();}
  else if(act==='delete-level')deleteLevel(level);
  else if(act==='level-up'||act==='level-down'){const i=manualLevels.indexOf(level),j=i+(act==='level-up'?-1:1);if(i<0||j<0||j>=manualLevels.length)return;[manualLevels[i],manualLevels[j]]=[manualLevels[j],manualLevels[i]];refreshSurfaceEditor();}
@@ -663,4 +691,52 @@ document.addEventListener('change',e=>{
  if(x&&e.target.classList.contains('pieceName')){x.name=clean(e.target.value)||'Pièce';refreshSurfaceEditor();return}
  if(e.target.classList.contains('levelName')){const block=e.target.closest('.levelBlock'),old=block?.dataset.level,neu=clean(e.target.value);if(!old||!neu||neu===old)return;if(manualLevels.includes(neu)){alert('Ce niveau existe déjà.');e.target.value=old;return}manualLevels=manualLevels.map(x=>x===old?neu:x);manualSurfaceRows.forEach(x=>{if(x.lvl===old)x.lvl=neu});refreshSurfaceEditor();}
 });
+
+// V13.30 — historique global de la fiche.
+let globalUndo=[],globalRedo=[],globalRestoring=false,lastFocusSnapshot='';
+function globalSnapshot(){
+ const vals={};document.querySelectorAll('input:not([type=file]),textarea,select').forEach((el,i)=>{if(el.id)vals['#'+el.id]=el.value});
+ return {vals,facts:$('#facts')?.innerHTML||'',rows:JSON.parse(JSON.stringify(manualSurfaceRows||[])),levels:[...(manualLevels||[])],
+  photos:photoItemsState.map(p=>({label:p.label,file:p.file,url:p.url}))};
+}
+function globalSig(s){return JSON.stringify({vals:s.vals,facts:s.facts,rows:s.rows,levels:s.levels,photos:s.photos.map(p=>p.label)})}
+function globalCheckpoint(){
+ if(globalRestoring)return;const s=globalSnapshot(),sig=globalSig(s),last=globalUndo[globalUndo.length-1];
+ if(!last||globalSig(last)!==sig){globalUndo.push(s);if(globalUndo.length>50)globalUndo.shift();globalRedo=[]}
+}
+function restoreGlobal(s){
+ if(!s)return;globalRestoring=true;
+ Object.entries(s.vals||{}).forEach(([sel,v])=>{const el=document.querySelector(sel);if(el)el.value=v});
+ if($('#facts'))$('#facts').innerHTML=s.facts||'';
+ manualSurfaceRows=JSON.parse(JSON.stringify(s.rows||[]));manualLevels=[...(s.levels||[])];
+ photoItemsState=(s.photos||[]).map(p=>({...p}));renderPhotoManager();
+ globalRestoring=false;
+}
+function globalUndoAction(){if(globalUndo.length<2)return;globalRedo.push(globalUndo.pop());restoreGlobal(globalUndo[globalUndo.length-1])}
+function globalRedoAction(){if(!globalRedo.length)return;const s=globalRedo.pop();globalUndo.push(s);restoreGlobal(s)}
+document.addEventListener('focusin',e=>{if(e.target.matches('input:not([type=file]),textarea,select,[contenteditable=true]'))lastFocusSnapshot=globalSig(globalSnapshot())});
+document.addEventListener('focusout',e=>{if(e.target.matches('input:not([type=file]),textarea,select,[contenteditable=true]')&&globalSig(globalSnapshot())!==lastFocusSnapshot)globalCheckpoint()});
+document.addEventListener('click',e=>{
+ const g=e.target.closest('[data-global-act]');
+ if(g){if(g.dataset.globalAct==='undo')globalUndoAction();else globalRedoAction();return}
+ const pb=e.target.closest('[data-photo-act]');
+ if(pb){
+  const card=pb.closest('.photoManageCard'),i=Number(card?.dataset.photo),act=pb.dataset.photoAct;
+  if(!Number.isInteger(i)||!photoItemsState[i])return;
+  if(act==='left'&&i>0)[photoItemsState[i-1],photoItemsState[i]]=[photoItemsState[i],photoItemsState[i-1]];
+  if(act==='right'&&i<photoItemsState.length-1)[photoItemsState[i+1],photoItemsState[i]]=[photoItemsState[i],photoItemsState[i+1]];
+  if(act==='delete')photoItemsState.splice(i,1);
+  renderPhotoManager();globalCheckpoint();return;
+ }
+ // checkpoint after UI mutation buttons (piece/level/text delete/add/move)
+ if(e.target.closest('[data-act],.rowDelete,.addTextRow'))setTimeout(globalCheckpoint,0);
+});
+document.addEventListener('change',e=>{
+ if(e.target.id==='photos'){initPhotos(e.target.files);return}
+ if(e.target.classList.contains('photoLabel')){
+  const i=Number(e.target.closest('.photoManageCard')?.dataset.photo);
+  if(photoItemsState[i]){photoItemsState[i].label=clean(e.target.value)||photoDisplayName(photoItemsState[i].file);renderPhotoManager();globalCheckpoint()}
+ }
+});
+setTimeout(globalCheckpoint,0);
 })();
