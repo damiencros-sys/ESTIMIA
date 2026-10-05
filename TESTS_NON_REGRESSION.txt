@@ -1,0 +1,5 @@
+V13.25 — BASE VERROUILLÉE
+JEAN TEST: 110 m² annoncé; salon 35; cuisine 11; chambres 18+15; SDB 7; couloir sans surface; garage 25 annexe; total intérieur 86; adresse 28 route de lamalou le vieux, 34240 Combes; C732+C679.
+FUMAT: adresse 2 lotissement les castors, 34600 Bédarieux; BH60; accepte « adresse ... et aux deux lotissement les castors ».
+Base surfaces = V13.21, où le cas Jean exact avait passé le test.
+Aucune reprise des modifications BAL/zoom V13.23/V13.24.

@@ -110,15 +110,11 @@ function loadCadParcelsFromHidden(){
  renderCadParcelsList();renderMultiCadPlan();
 }
 function cad(t){
- const s=clean(t).replace(/\bnum[ée]ros?\b/gi,'numero').replace(/\bn[°º]\b/gi,'numero');
- let section='',parcel='',m;
+ const s=clean(t).replace(/\bnum[ée]ros?\b/gi,'numero').replace(/\bn[°º]\b/gi,'numero'); let m;
  m=s.match(/\b(?:r[ée]f[ée]rence\s+cadastrale\s+)?section\s+([a-z]{1,3})\s+(?:numero\s*)?(\d{1,4})\b/i);
  if(m)return {section:m[1].toUpperCase(),parcel:m[2]};
  m=s.match(/\bparcelle\s+([a-z]{1,3})\s+(\d{1,4})\b/i);
- if(m)return {section:m[1].toUpperCase(),parcel:m[2]};
- m=s.match(/\bsection\s+([a-z]{1,3})\b/i);if(m)section=m[1].toUpperCase();
- m=s.match(/\bparcelle(?:\s+(?:numero|n°))?\s*(\d{1,4})\b/i);if(m)parcel=m[1];
- return {section,parcel};
+ return m?{section:m[1].toUpperCase(),parcel:m[2]}:{section:'',parcel:''};
 }
 function addressV1310(t){
  const text=clean(t);
@@ -141,25 +137,14 @@ function addressV1310(t){
 }
 
 function address(t){
- const s=clean(t);
- const ways='(?:route|rue|chemin|avenue|boulevard|impasse|lotissement|place|all[ée]e|mont[ée]e|traverse|quai|cours)';
- // Work from CP+commune backwards: much more stable with long natural dictations.
+ const s=clean(t), ways='(?:route|rue|chemin|avenue|boulevard|impasse|lotissement|place|all[ée]e|mont[ée]e|traverse|quai|cours)';
  const cpRx=/\b(\d{5})\s+([\p{L}][\p{L}'’ -]{1,50}?)(?=\s+(?:la\s+r[ée]f[ée]rence|r[ée]f[ée]rence|section|parcelle|cadastre|cadastrale|c['’]?est|maison|appartement|villa|terrain|salon|s[ée]jour|cuisine|chambre)\b|[,.;!?]|$)/giu;
  for(const cp of s.matchAll(cpRx)){
-   const left=s.slice(Math.max(0,cp.index-180),cp.index);
-   // Normal speech and common recognition variants:
-   // "l'adresse est au 2 lotissement", "l'adresse ... et aux deux lotissement".
-   const ar=new RegExp("(?:l['’]adresse|adresse)(?:\\s+de\\s+la\\s+maison|\\s+du\\s+bien)?[\\s\\S]{0,35}?(?:est|et)?\\s*(?:au|aux|à|a)?\\s*(?:deux|2)\\s+("+ways+"\\b[\\s\\S]{1,90})$","iu");
-   let m=left.match(ar);
-   if(m)return {street:'2 '+clean(m[1]).replace(/[,:;.\s]+$/,''),postcode:cp[1],city:clean(cp[2]).replace(/[,:;.\s]+$/,'')};
-   // Any numeric address.
-   const nr=new RegExp("(?:l['’]adresse|adresse)(?:\\s+de\\s+la\\s+maison|\\s+du\\s+bien)?[\\s\\S]{0,35}?(?:est|et)?\\s*(?:au|aux|à|a)?\\s*(\\d{1,4})\\s+("+ways+"\\b[\\s\\S]{1,90})$","iu");
-   m=left.match(nr);
-   if(m)return {street:clean(m[1]+' '+m[2]).replace(/[,:;.\s]+$/,''),postcode:cp[1],city:clean(cp[2]).replace(/[,:;.\s]+$/,'')};
-   // Last-resort numbered way immediately before CP.
-   const generic=new RegExp("\\b(\\d{1,4})\\s+("+ways+"\\b[\\s\\S]{1,90})$","iu");
-   m=left.match(generic);
-   if(m)return {street:clean(m[1]+' '+m[2]).replace(/[,:;.\s]+$/,''),postcode:cp[1],city:clean(cp[2]).replace(/[,:;.\s]+$/,'')};
+  const left=s.slice(Math.max(0,cp.index-180),cp.index);
+  let m=left.match(new RegExp("(?:l['’]adresse|adresse)(?:\\s+de\\s+la\\s+maison|\\s+du\\s+bien)?[\\s\\S]{0,35}?(?:est|et)?\\s*(?:au|aux|à|a)?\\s*(?:deux|2)\\s+("+ways+"\\b[\\s\\S]{1,90})$","iu"));
+  if(m)return {street:'2 '+clean(m[1]).replace(/[,:;.\s]+$/,''),postcode:cp[1],city:clean(cp[2]).replace(/[,:;.\s]+$/,'')};
+  m=left.match(new RegExp("(?:l['’]adresse|adresse)(?:\\s+de\\s+la\\s+maison|\\s+du\\s+bien)?[\\s\\S]{0,35}?(?:est|et)?\\s*(?:au|aux|à|a)?\\s*(\\d{1,4})\\s+("+ways+"\\b[\\s\\S]{1,90})$","iu"));
+  if(m)return {street:clean(m[1]+' '+m[2]).replace(/[,:;.\s]+$/,''),postcode:cp[1],city:clean(cp[2]).replace(/[,:;.\s]+$/,'')};
  }
  return {street:'',postcode:'',city:''};
 }
@@ -386,7 +371,7 @@ function renderMultiCadPlan(){
  const com=$('#cadCommune')?.value?.trim();if(!com)return;
  const title=document.createElement('div');title.innerHTML='<b>Plan cadastral — '+E(com)+' — '+cadParcels.map(p=>E(p.section)+' '+parseInt(p.numero,10)).join(' • ')+'</b>';
  const img=document.createElement('img');img.alt='Plan cadastral des parcelles';img.style.cssText='display:block;width:100%;max-width:720px;max-height:500px;object-fit:contain;margin-top:8px;border:1px solid #ddd;border-radius:8px;background:#fff';
- img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.22.2';
+ img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.25';
  img.dataset.cadMap='1';
  const link=document.createElement('a');link.href=img.src;link.target='_blank';link.rel='noopener';link.textContent='Ouvrir le plan cadastral';link.style.cssText='display:inline-block;margin-top:8px';
  box.append(title,img,link);
@@ -482,7 +467,7 @@ async function verifyAddressV137(){
 }
 function cadMapURL(){
  const c=$('#cadCommune')?.value?.trim();
- if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.22.2';
+ if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.25';
  return '';
 }
 

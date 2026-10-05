@@ -262,12 +262,9 @@ def _multi_context_map_png(commune, refs, width=760, height=520):
     if not all_m: raise HTTPException(404,"Géométrie cadastrale indisponible.")
     xs=[p[0] for p in all_m]; ys=[p[1] for p in all_m]
     cx=(min(xs)+max(xs))/2; cy=(min(ys)+max(ys))/2
-    dx=max(xs)-min(xs); dy=max(ys)-min(ys)
-    pad=1.12; aspect=width/height
-    target_w=max(dx*pad,35.0); target_h=max(dy*pad,35.0)
-    if target_w/target_h < aspect: target_w=target_h*aspect
-    else: target_h=target_w/aspect
-    half_x=target_w/2; half_y=target_h/2
+    span=max(max(xs)-min(xs),max(ys)-min(ys),55.0)*1.55
+    aspect=width/height; half_y=span/2; half_x=max(span*aspect/2,(max(xs)-min(xs))*0.65)
+    half_y=max(half_y,(max(ys)-min(ys))*0.65)
     bbox=(cx-half_x,cy-half_y,cx+half_x,cy+half_y)
     layers="AMORCES_CAD,LIEUDIT,CP.CadastralParcel,SUBFISCAL,CLOTURE,DETAIL_TOPO,HYDRO,VOIE_COMMUNICATION,BU.Building,BORNE_REPERE"
     params={"service":"WMS","version":"1.3","request":"GetMap","layers":layers,"styles":"",
@@ -275,7 +272,7 @@ def _multi_context_map_png(commune, refs, width=760, height=520):
             "width":str(width),"height":str(height),"language":"fre"}
     url=f"https://inspire.cadastre.gouv.fr/scpc/{code_insee}.wms?"+urllib.parse.urlencode(params)
     try:
-        req=urllib.request.Request(url,headers={"User-Agent":"ESTIMIA/13.22.2"})
+        req=urllib.request.Request(url,headers={"User-Agent":"ESTIMIA/13.25"})
         with urllib.request.urlopen(req,timeout=20) as r:
             raw=r.read(); ctype=r.headers.get("Content-Type","")
         if "image" not in ctype.lower(): raise ValueError("Réponse WMS non image")
