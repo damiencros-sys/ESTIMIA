@@ -1,0 +1,1 @@
+V13.40 — correction synchronisation dictée -> carte propriétaire 1 (nom/prénom/téléphone), conservation autres propriétaires, rafraîchissement au chargement et nouveau dossier. Alignement champs compléments. Modules serveur/photos/cadastre inchangés.

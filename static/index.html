@@ -6,11 +6,11 @@
 <meta name="theme-color" content="#15324a">
 <title>ESTIM’IA</title>
 <link rel="manifest" href="/static/manifest.json">
-<link rel="stylesheet" href="/static/style.css?v=13.39">
+<link rel="stylesheet" href="/static/style.css?v=13.40">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<link rel="stylesheet" href="/static/v13_dossiers_pro.css?v=13.39">
+<link rel="stylesheet" href="/static/v13_dossiers_pro.css?v=13.40">
 <style>
 .cadParcelsList{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:9px 0}.cadParcelsLabel{flex-basis:100%;font-weight:700;margin:2px 0 1px}
 .cadParcelChip{display:inline-flex;align-items:center;gap:7px;border:1px solid #cbd8de;border-radius:999px;padding:6px 9px;background:#f7fafb;font-size:13px}
@@ -52,7 +52,7 @@
 .exportStatus.error{display:block;background:#fff0f0;border:1px solid #e4aaaa;color:#8a2828}
 #printVisit:disabled,#wordVisit:disabled{opacity:.65;cursor:wait}
 
-/* V13.39 : croix Supprimer visibles sur toutes les lignes structurées */
+/* V13.40 : croix Supprimer visibles sur toutes les lignes structurées */
 #facts .proGroup .proRow{display:grid!important;grid-template-columns:minmax(110px,.8fr) minmax(160px,1.5fr) 38px!important;align-items:center!important;gap:10px!important;padding:8px 0!important;position:relative!important}
 #facts .proGroup .proRow>.rowDelete{display:inline-flex!important;visibility:visible!important;opacity:1!important;grid-column:3!important;grid-row:1!important;position:static!important;transform:none!important;justify-self:end!important;align-items:center!important;justify-content:center!important;width:34px!important;height:34px!important;margin:0!important;padding:0!important;border:1px solid #efcaca!important;border-radius:8px!important;background:#fff!important;color:#c33!important;font-size:20px!important;line-height:1!important;cursor:pointer!important}
 #facts .proGroup .proRow>.rowDelete:hover{background:#fff5f5!important}
@@ -68,7 +68,7 @@
 @keyframes estimSpin{to{transform:rotate(360deg)}}
 #printVisit:disabled,#downloadWord:disabled{opacity:.65;cursor:wait}
 
-/* V13.39 — gestion complète des photos */
+/* V13.40 — gestion complète des photos */
 .photoManagerHead{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:12px 0 10px}
 .photoManagerHead h3{margin:0}
 .photoCount{font-weight:500;color:#687781;font-size:.9em}
@@ -92,7 +92,7 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 .estExtraSection{background:white;border:1px solid #d8e3e6;border-radius:10px;margin:9px 0;padding:13px 15px}.estExtraSection summary{cursor:pointer;font-weight:700;color:#173a52}.estExtraSection[open] summary{margin-bottom:12px}.estExtrasSections>h3{font-size:18px;margin:12px 0}.estExtrasSections h3 small{font-size:12px;font-weight:400}.estCount{font-size:12px;font-weight:400;color:#647781;margin-left:7px}
 @media(max-width:720px){.estContactRow{grid-template-columns:1fr 1fr}.estContactRow button{grid-column:2}}
 </style><style>
-/* V13.39 — fiches contacts modernes, sans modification des autres modules */
+/* V13.40 — fiches contacts modernes, sans modification des autres modules */
 .ownersModern{margin:8px 0 22px}.ownersEyebrow{font-size:10px;letter-spacing:1.3px;font-weight:800;color:#638397}.ownersTitle h3{font-size:21px;margin:3px 0;color:#173a52}.ownersTitle p{font-size:13px;color:#687b88;margin:0 0 15px}
 .ownersCount{font-size:12px;vertical-align:middle;background:#e9f1f4;border-radius:20px;padding:4px 9px;color:#45697a}
 .ownerCard{border:1px solid #dce6eb;background:#fff;border-radius:16px;margin:12px 0;padding:17px;box-shadow:0 4px 16px rgba(25,58,78,.055)}
@@ -109,6 +109,11 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 .addOwnerCard{display:block;width:100%;border:1px dashed #8fb8ae;border-radius:12px;padding:14px;background:#f3faf7;color:#166b5d;font-weight:800;cursor:pointer;margin-top:13px}
 .ownerLegacy{display:none!important}
 @media(max-width:650px){.ownerFields{grid-template-columns:1fr}.ownerCard{padding:13px}.ownerDetail{grid-template-columns:minmax(0,1fr) auto}}
+</style><style>
+.estExtraSection .cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.estExtraSection .cols label{display:block;min-width:0;font-weight:650;font-size:13px}
+.estExtraSection .cols input,.estExtraSection .cols select{display:block;box-sizing:border-box;width:100%;min-height:43px;margin-top:6px;border:1px solid #d4e0e7;border-radius:10px;background:#fff;padding:9px 11px;font-size:14px}
+@media(max-width:680px){.estExtraSection .cols{grid-template-columns:1fr}}
 </style></head>
 <body>
 <aside id="caseSidebar" class="caseSidebar" aria-label="Mes dossiers">
@@ -124,7 +129,7 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 
 
 <header>
-  <div><div class="estBrand"><b>ESTIM’IA</b><span class="estVersion">V13.39</span></div><small>Assistant d’estimation immobilière</small></div>
+  <div><div class="estBrand"><b>ESTIM’IA</b><span class="estVersion">V13.40</span></div><small>Assistant d’estimation immobilière</small></div>
   <button id="new" type="button" hidden aria-hidden="true">+ Nouveau</button>
 </header>
 <div id="globalHistory" class="globalHistory">
@@ -207,14 +212,14 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 
     <button id="downloadWord" type="button" class="secondary">📄 Télécharger la fiche Word</button>
   <div id="saveStatus" class="status"></div>
-  <p class="small">V13.39 : fiche entièrement modifiable + gestion des niveaux et des pièces.</p>
+  <p class="small">V13.40 : fiche entièrement modifiable + gestion des niveaux et des pièces.</p>
 </section>
 </main>
-<script src="/static/app.js?v=13.39"></script>
+<script src="/static/app.js?v=13.40"></script>
 <script src="/static/v7_pro.js"></script>
 <script src="/static/v8_fiche_pro.js"></script>
-<script src="/static/v13_visite.js?v=13.39"></script>
-<script src="/static/v13_dossiers_pro.js?v=13.39"></script>
+<script src="/static/v13_visite.js?v=13.40"></script>
+<script src="/static/v13_dossiers_pro.js?v=13.40"></script>
 
 
 <div id="exportOverlay" class="exportOverlay" aria-live="polite">
