@@ -640,7 +640,7 @@ async function buildExportPayload(){
  document.querySelectorAll('#facts .otherSurface').forEach(b=>sections.push({title:b.querySelector('h4')?.innerText||'Surfaces annexes',rows:[...b.querySelectorAll('.surfaceRow')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('b')?.innerText||''])}));
  document.querySelectorAll('#facts .proGroup').forEach(b=>sections.push({title:b.querySelector('h3')?.innerText||'Informations',rows:[...b.querySelectorAll('.proRow')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('strong')?.innerText||''])}));
  const photos=[];for(const p of currentPhotos()){try{photos.push({name:p.label||photoDisplayName(p.file),data:await optimizedPhotoDataURL(p.file)})}catch{}}
- return {owner:$('#owner')?.value||'',phone:$('#ownerPhone')?.value||'',emails:readEmails(),address:$('#address')?.value||'',commune:$('#cadCommune')?.value||'',section:$('#cadSection')?.value||'',parcel:$('#cadParcel')?.value||'',property_type:$('#type')?.value||'',surface:$('#surfaceHab')?.value||'',surface_carrez:$('#surfaceCarrez')?.value||'',sections,parcels:cadParcels.map(p=>({section:p.section,numero:p.numero})),facts:$('#facts')?.innerText||'',photos,generated_date:new Date().toLocaleDateString('fr-FR')};
+ return {owner:$('#owner')?.value||'',phone:$('#ownerPhone')?.value||'',address:$('#address')?.value||'',commune:$('#cadCommune')?.value||'',section:$('#cadSection')?.value||'',parcel:$('#cadParcel')?.value||'',property_type:$('#type')?.value||'',surface:$('#surfaceHab')?.value||'',surface_carrez:$('#surfaceCarrez')?.value||'',sections,parcels:cadParcels.map(p=>({section:p.section,numero:p.numero})),facts:$('#facts')?.innerText||'',photos,generated_date:new Date().toLocaleDateString('fr-FR')};
 }
 async function downloadWord(){
  const payload=await buildExportPayload();
@@ -664,7 +664,6 @@ async function printableHTML(){
  const meta=[
   ['Propriétaire',$('#owner')?.value||''],
   ['Téléphone',$('#ownerPhone')?.value||''],
-  ['E-mail(s)',readEmails().join(' • ')],
   ['Adresse',$('#address')?.value||''],
   ['Type',$('#type')?.value||''],
   ['Surface habitable',$('#surfaceHab')?.value?$('#surfaceHab').value+' m²':''],
@@ -705,7 +704,7 @@ document.addEventListener('DOMContentLoaded',()=>{
  $('#downloadVisit')?.addEventListener('click',downloadVisit);
  $('#downloadWord')?.addEventListener('click',()=>withExportModal('word',downloadWord,'downloadWord'));
  document.addEventListener('estimia:parcels-restored',loadCadParcelsFromHidden);
- loadCadParcelsFromHidden();applyPropertyTheme();renderEmails();
+ loadCadParcelsFromHidden();applyPropertyTheme();
  $('#type')?.addEventListener('input',applyPropertyTheme);
 });
 
@@ -843,29 +842,10 @@ async function withExportModal(kind,fn,buttonId){
  catch(e){exportModal('error',kind);throw e}
  finally{if(btn)btn.disabled=false}
 }
-// V13.37 — e-mails multiples, manuels et persistants via emailsJSON.
-function readEmails(){
- try{return JSON.parse(document.querySelector('#emailsJSON')?.value||'[]').filter(Boolean)}catch{return []}
-}
-function writeEmails(a){
- const h=document.querySelector('#emailsJSON');if(h)h.value=JSON.stringify(a);
- renderEmails();
- h?.dispatchEvent(new Event('input',{bubbles:true}));
-}
-function renderEmails(){
- const box=document.querySelector('#emailList');if(!box)return;
- const a=readEmails();
- box.innerHTML=a.map((v,i)=>`<div class="emailRow" data-email="${i}"><input type="email" value="${E(v)}" placeholder="adresse@email.fr"><button type="button" class="emailDelete" title="Supprimer cet e-mail">×</button></div>`).join('');
-}
-document.addEventListener('click',e=>{
- if(e.target.id==='addEmail'){const a=readEmails();a.push('');writeEmails(a);setTimeout(()=>document.querySelector('#emailList .emailRow:last-child input')?.focus(),0);return}
- if(e.target.classList.contains('emailDelete')){const row=e.target.closest('.emailRow'),i=Number(row?.dataset.email),a=readEmails();if(Number.isInteger(i)){a.splice(i,1);writeEmails(a)}return}
-});
-document.addEventListener('input',e=>{
- const row=e.target.closest?.('.emailRow');if(!row||e.target.tagName!=='INPUT')return;
- const i=Number(row.dataset.email),a=readEmails();if(Number.isInteger(i)){a[i]=e.target.value;const h=document.querySelector('#emailsJSON');if(h){h.value=JSON.stringify(a);h.dispatchEvent(new Event('input',{bubbles:true}))}}
-});
-document.addEventListener('DOMContentLoaded',renderEmails);
-document.addEventListener('estimia:emails-restored',renderEmails);
+// V13.37 : e-mails multiples (stockés dans le champ caché pour la sauvegarde des dossiers).
+function estReadEmails(){try{return JSON.parse(document.getElementById('estEmailsJSON')?.value||'[]')}catch{return []}}
+function estRenderEmails(){const box=document.getElementById('estEmailRows');if(!box)return;box.innerHTML='';estReadEmails().forEach((value,i)=>{const row=document.createElement('div');row.className='estEmailRow';const inp=document.createElement('input');inp.type='email';inp.placeholder='adresse@email.fr';inp.value=value;inp.addEventListener('input',()=>{const a=estReadEmails();a[i]=inp.value;document.getElementById('estEmailsJSON').value=JSON.stringify(a);document.getElementById('estEmailsJSON').dispatchEvent(new Event('input',{bubbles:true}))});const del=document.createElement('button');del.type='button';del.textContent='× Supprimer';del.addEventListener('click',()=>{const a=estReadEmails();a.splice(i,1);document.getElementById('estEmailsJSON').value=JSON.stringify(a);estRenderEmails();document.getElementById('estEmailsJSON').dispatchEvent(new Event('input',{bubbles:true}))});row.append(inp,del);box.append(row)})}
+document.getElementById('estAddEmail')?.addEventListener('click',()=>{const a=estReadEmails();a.push('');document.getElementById('estEmailsJSON').value=JSON.stringify(a);estRenderEmails();document.querySelector('#estEmailRows .estEmailRow:last-child input')?.focus();document.getElementById('estEmailsJSON').dispatchEvent(new Event('input',{bubbles:true}))});
+document.addEventListener('estimia:emails-restored',estRenderEmails);estRenderEmails();
 
 })();

@@ -67,7 +67,7 @@ function restore(d){
  if($('#photoStatus'))$('#photoStatus').textContent=d.text?.photoStatus||'';
  removePlan();const plan=d.html?.cadPlan||d.cadPlanHTML||'';
  if(plan){const host=$('.cadastreBox');if(host)host.insertAdjacentHTML('beforeend',plan)}
- restoring=false;document.dispatchEvent(new Event('estimia:parcels-restored'));document.dispatchEvent(new Event('estimia:emails-restored'));document.querySelector('#type')?.dispatchEvent(new Event('input',{bubbles:true}));renderList();closeDrawer();window.scrollTo({top:0,behavior:'smooth'});
+ document.dispatchEvent(new Event('estimia:emails-restored'));document.querySelector('#type')?.dispatchEvent(new Event('input',{bubbles:true}));restoring=false;document.dispatchEvent(new Event('estimia:parcels-restored'));renderList();closeDrawer();window.scrollTo({top:0,behavior:'smooth'});
 }
 function clearForm(){
  restoring=true;currentId=null;

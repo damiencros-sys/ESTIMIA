@@ -273,7 +273,7 @@ def _multi_context_map_png(commune, refs, width=760, height=520):
             "width":str(width),"height":str(height),"language":"fre"}
     url=f"https://inspire.cadastre.gouv.fr/scpc/{code_insee}.wms?"+urllib.parse.urlencode(params)
     try:
-        req=urllib.request.Request(url,headers={"User-Agent":"ESTIMIA/13.37"})
+        req=urllib.request.Request(url,headers={"User-Agent":"ESTIMIA/13.36"})
         with urllib.request.urlopen(req,timeout=20) as r:
             raw=r.read(); ctype=r.headers.get("Content-Type","")
         if "image" not in ctype.lower(): raise ValueError("Réponse WMS non image")
