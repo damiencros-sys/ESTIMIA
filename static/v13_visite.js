@@ -469,7 +469,7 @@ function renderMultiCadPlan(){
  const com=$('#cadCommune')?.value?.trim();if(!com)return;
  const title=document.createElement('div');title.innerHTML='<b>Plan cadastral — '+E(com)+' — '+cadParcels.map(p=>E(p.section)+' '+parseInt(p.numero,10)).join(' • ')+'</b>';
  const img=document.createElement('img');img.alt='Plan cadastral des parcelles';img.style.cssText='display:block;width:100%;max-width:720px;max-height:500px;object-fit:contain;margin-top:8px;border:1px solid #ddd;border-radius:8px;background:#fff';
- img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.38';
+ img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.39';
  img.dataset.cadMap='1';
  const link=document.createElement('a');link.href=img.src;link.target='_blank';link.rel='noopener';link.textContent='Ouvrir le plan cadastral';link.style.cssText='display:inline-block;margin-top:8px';
  box.append(title,img,link);
@@ -578,7 +578,7 @@ async function verifyAddressV137(){
 }
 function cadMapURL(){
  const c=$('#cadCommune')?.value?.trim();
- if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.38';
+ if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.39';
  return '';
 }
 
@@ -640,7 +640,7 @@ async function buildExportPayload(){
  document.querySelectorAll('#facts .otherSurface').forEach(b=>sections.push({title:b.querySelector('h4')?.innerText||'Surfaces annexes',rows:[...b.querySelectorAll('.surfaceRow')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('b')?.innerText||''])}));
  document.querySelectorAll('#facts .proGroup').forEach(b=>sections.push({title:b.querySelector('h3')?.innerText||'Informations',rows:[...b.querySelectorAll('.proRow')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('strong')?.innerText||''])}));
  const photos=[];for(const p of currentPhotos()){try{photos.push({name:p.label||photoDisplayName(p.file),data:await optimizedPhotoDataURL(p.file)})}catch{}}
- return {owner:$('#owner')?.value||'',phone:$('#ownerPhone')?.value||'',address:$('#address')?.value||'',commune:$('#cadCommune')?.value||'',section:$('#cadSection')?.value||'',parcel:$('#cadParcel')?.value||'',property_type:$('#type')?.value||'',surface:$('#surfaceHab')?.value||'',surface_carrez:$('#surfaceCarrez')?.value||'',sections,parcels:cadParcels.map(p=>({section:p.section,numero:p.numero})),facts:$('#facts')?.innerText||'',photos,generated_date:new Date().toLocaleDateString('fr-FR')};
+ return {owner:$('#owner')?.value||'',phone:$('#ownerPhone')?.value||'',owners:ownerCardsState,address:$('#address')?.value||'',commune:$('#cadCommune')?.value||'',section:$('#cadSection')?.value||'',parcel:$('#cadParcel')?.value||'',property_type:$('#type')?.value||'',surface:$('#surfaceHab')?.value||'',surface_carrez:$('#surfaceCarrez')?.value||'',sections,parcels:cadParcels.map(p=>({section:p.section,numero:p.numero})),facts:$('#facts')?.innerText||'',photos,generated_date:new Date().toLocaleDateString('fr-FR')};
 }
 async function downloadWord(){
  const payload=await buildExportPayload();
@@ -728,7 +728,7 @@ document.addEventListener('change',e=>{
  if(e.target.classList.contains('levelName')){const block=e.target.closest('.levelBlock'),old=block?.dataset.level,neu=clean(e.target.value);if(!old||!neu||neu===old)return;if(manualLevels.includes(neu)){alert('Ce niveau existe déjà.');e.target.value=old;return}manualLevels=manualLevels.map(x=>x===old?neu:x);manualSurfaceRows.forEach(x=>{if(x.lvl===old)x.lvl=neu});refreshSurfaceEditor();}
 });
 
-// V13.38 — historique global de la fiche.
+// V13.39 — historique global de la fiche.
 let globalUndo=[],globalRedo=[],globalRestoring=false,lastFocusSnapshot='';
 function globalSnapshot(){
  const vals={};document.querySelectorAll('input:not([type=file]),textarea,select').forEach((el,i)=>{if(el.id)vals['#'+el.id]=el.value});
@@ -789,7 +789,7 @@ document.addEventListener('change',e=>{
 });
 setTimeout(globalCheckpoint,0);
 
-// V13.38 — boutons Supprimer manquants dans les rubriques structurées.
+// V13.39 — boutons Supprimer manquants dans les rubriques structurées.
 // Ne touche pas aux contrôles Photos ni Surfaces, déjà validés.
 function ensureStructuredDeleteButtons(){
  document.querySelectorAll('#facts .proGroup .proRow').forEach(row=>{
@@ -816,7 +816,7 @@ if(_v133RenderFacts){
 }
 setTimeout(ensureStructuredDeleteButtons,0);
 
-// V13.38 — fenêtre centrale de progression Word/PDF.
+// V13.39 — fenêtre centrale de progression Word/PDF.
 function exportModal(state,kind){
  let ov=document.getElementById('exportOverlay');
  if(!ov)return;
@@ -842,13 +842,13 @@ async function withExportModal(kind,fn,buttonId){
  catch(e){exportModal('error',kind);throw e}
  finally{if(btn)btn.disabled=false}
 }
-// V13.38 : e-mails multiples (stockés dans le champ caché pour la sauvegarde des dossiers).
+// V13.39 : e-mails multiples (stockés dans le champ caché pour la sauvegarde des dossiers).
 function estReadEmails(){try{return JSON.parse(document.getElementById('estEmailsJSON')?.value||'[]')}catch{return []}}
 function estRenderEmails(){const box=document.getElementById('estEmailRows');if(!box)return;box.innerHTML='';estReadEmails().forEach((value,i)=>{const row=document.createElement('div');row.className='estEmailRow';const inp=document.createElement('input');inp.type='email';inp.placeholder='adresse@email.fr';inp.value=value;inp.addEventListener('input',()=>{const a=estReadEmails();a[i]=inp.value;document.getElementById('estEmailsJSON').value=JSON.stringify(a);document.getElementById('estEmailsJSON').dispatchEvent(new Event('input',{bubbles:true}))});const del=document.createElement('button');del.type='button';del.textContent='× Supprimer';del.addEventListener('click',()=>{const a=estReadEmails();a.splice(i,1);document.getElementById('estEmailsJSON').value=JSON.stringify(a);estRenderEmails();document.getElementById('estEmailsJSON').dispatchEvent(new Event('input',{bubbles:true}))});row.append(inp,del);box.append(row)})}
 document.getElementById('estAddEmail')?.addEventListener('click',()=>{const a=estReadEmails();a.push('');document.getElementById('estEmailsJSON').value=JSON.stringify(a);estRenderEmails();document.querySelector('#estEmailRows .estEmailRow:last-child input')?.focus();document.getElementById('estEmailsJSON').dispatchEvent(new Event('input',{bubbles:true}))});
 document.addEventListener('estimia:emails-restored',estRenderEmails);estRenderEmails();
 
-// V13.38 : contacts supplémentaires (données JSON sauvegardées avec le dossier).
+// V13.39 : contacts supplémentaires (données JSON sauvegardées avec le dossier).
 function estContactsRead(){try{return JSON.parse(document.getElementById('estContactsJSON')?.value||'[]')}catch{return []}}
 function estContactsWrite(a){const el=document.getElementById('estContactsJSON');if(!el)return;el.value=JSON.stringify(a);el.dispatchEvent(new Event('input',{bubbles:true}))}
 function estContactsRender(){
@@ -873,5 +873,59 @@ function estUpdateCounts(){
 }
 document.addEventListener('input',estUpdateCounts);document.addEventListener('change',estUpdateCounts);
 document.addEventListener('estimia:contacts-restored',estUpdateCounts);estUpdateCounts();
+
+// V13.39 — propriétaires indépendants, coordonnées multiples.
+let ownerCardsState=[];
+const ownEl=id=>document.getElementById(id);
+function ownLoad(){
+ let others=[];try{others=JSON.parse(ownEl('estContactsJSON')?.value||'[]')}catch{}
+ let mails=[];try{mails=JSON.parse(ownEl('estEmailsJSON')?.value||'[]')}catch{}
+ const name=(ownEl('owner')?.value||'').trim(),parts=name.split(/\s+/);
+ ownerCardsState=[{nom:parts.length>1?parts.slice(0,-1).join(' '):name,prenom:parts.length>1?parts.at(-1):'',phones:[ownEl('ownerPhone')?.value||''],emails:mails.length?mails:['']}];
+ for(const c of others)ownerCardsState.push({nom:c.nom||'',prenom:c.prenom||'',phones:c.phones||[c.telephone||''],emails:c.emails||['']});
+ ownRender();
+}
+function ownSync(){
+ const first=ownerCardsState[0]||{nom:'',prenom:'',phones:[],emails:[]};
+ if(ownEl('owner'))ownEl('owner').value=[first.nom,first.prenom].filter(Boolean).join(' ');
+ if(ownEl('ownerPhone'))ownEl('ownerPhone').value=first.phones[0]||'';
+ const others=ownerCardsState.slice(1).map(c=>({nom:c.nom,prenom:c.prenom,telephone:c.phones[0]||'',phones:c.phones,emails:c.emails}));
+ for(const [id,val] of [['estContactsJSON',others],['estEmailsJSON',first.emails]]){
+  const el=ownEl(id);if(el){el.value=JSON.stringify(val);el.dispatchEvent(new Event('input',{bubbles:true}))}
+ }
+}
+function ownRender(){
+ const box=ownEl('ownersCards');if(!box)return;box.innerHTML='';
+ ownEl('ownersCount').textContent=ownerCardsState.length;
+ ownerCardsState.forEach((c,i)=>{
+  const card=document.createElement('article');card.className='ownerCard';
+  const head=document.createElement('div');head.className='ownerCardHead';
+  const title=document.createElement('div');title.className='ownerCardIdentity';
+  const av=document.createElement('span');av.className='ownerAvatar';av.textContent='👤';
+  const name=document.createElement('span');name.textContent='Propriétaire '+(i+1);title.append(av,name);head.append(title);
+  if(i>0){const del=document.createElement('button');del.className='ownerRemove';del.type='button';del.textContent='× Supprimer';del.onclick=()=>{if(confirm('Supprimer ce propriétaire et ses coordonnées ?')){ownerCardsState.splice(i,1);ownSync();ownRender()}};head.append(del)}
+  card.append(head);
+  const fields=document.createElement('div');fields.className='ownerFields';
+  for(const [key,label] of [['nom','Nom'],['prenom','Prénom']]){
+   const wrap=document.createElement('label');wrap.textContent=label;const input=document.createElement('input');input.value=c[key]||'';input.placeholder=label;input.addEventListener('input',()=>{c[key]=input.value;ownSync()});wrap.append(input);fields.append(wrap)
+  }card.append(fields);
+  for(const [key,label,typ] of [['phones','Téléphones','tel'],['emails','E-mails','email']]){
+   const grp=document.createElement('div');grp.className='ownerDetailGroup';const strong=document.createElement('strong');strong.textContent=label;grp.append(strong);
+   (c[key]||[]).forEach((val,k)=>{
+    const row=document.createElement('div');row.className='ownerDetail';
+    const wrap=document.createElement('label');const input=document.createElement('input');input.type=typ;input.placeholder=typ==='tel'?'Numéro de téléphone':'adresse@email.fr';input.value=val||'';
+    input.addEventListener('input',()=>{c[key][k]=input.value;ownSync()});wrap.append(input);row.append(wrap);
+    const del=document.createElement('button');del.type='button';del.textContent='×';del.title='Supprimer cette coordonnée';del.onclick=()=>{c[key].splice(k,1);ownSync();ownRender()};row.append(del);grp.append(row)
+   });
+   const add=document.createElement('button');add.type='button';add.className='ownerAddDetail';add.textContent='＋ Ajouter un '+(key==='phones'?'téléphone':'e-mail');add.onclick=()=>{c[key].push('');ownSync();ownRender()};grp.append(add);card.append(grp);
+  }box.append(card);
+ });
+}
+ownEl('addOwnerCard')?.addEventListener('click',()=>{ownerCardsState.push({nom:'',prenom:'',phones:[''],emails:['']});ownSync();ownRender()});
+document.addEventListener('estimia:contacts-restored',()=>setTimeout(ownLoad,0));
+// La dictée renseigne les champs historiques : synchroniser la première fiche après la structuration.
+const ownerObserver=new MutationObserver(()=>{});
+document.addEventListener('change',e=>{if(e.target?.id==='owner'||e.target?.id==='ownerPhone')ownLoad()});
+ownLoad();
 
 })();

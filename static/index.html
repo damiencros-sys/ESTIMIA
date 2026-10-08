@@ -6,11 +6,11 @@
 <meta name="theme-color" content="#15324a">
 <title>ESTIM’IA</title>
 <link rel="manifest" href="/static/manifest.json">
-<link rel="stylesheet" href="/static/style.css?v=13.38">
+<link rel="stylesheet" href="/static/style.css?v=13.39">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<link rel="stylesheet" href="/static/v13_dossiers_pro.css?v=13.38">
+<link rel="stylesheet" href="/static/v13_dossiers_pro.css?v=13.39">
 <style>
 .cadParcelsList{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:9px 0}.cadParcelsLabel{flex-basis:100%;font-weight:700;margin:2px 0 1px}
 .cadParcelChip{display:inline-flex;align-items:center;gap:7px;border:1px solid #cbd8de;border-radius:999px;padding:6px 9px;background:#f7fafb;font-size:13px}
@@ -52,7 +52,7 @@
 .exportStatus.error{display:block;background:#fff0f0;border:1px solid #e4aaaa;color:#8a2828}
 #printVisit:disabled,#wordVisit:disabled{opacity:.65;cursor:wait}
 
-/* V13.38 : croix Supprimer visibles sur toutes les lignes structurées */
+/* V13.39 : croix Supprimer visibles sur toutes les lignes structurées */
 #facts .proGroup .proRow{display:grid!important;grid-template-columns:minmax(110px,.8fr) minmax(160px,1.5fr) 38px!important;align-items:center!important;gap:10px!important;padding:8px 0!important;position:relative!important}
 #facts .proGroup .proRow>.rowDelete{display:inline-flex!important;visibility:visible!important;opacity:1!important;grid-column:3!important;grid-row:1!important;position:static!important;transform:none!important;justify-self:end!important;align-items:center!important;justify-content:center!important;width:34px!important;height:34px!important;margin:0!important;padding:0!important;border:1px solid #efcaca!important;border-radius:8px!important;background:#fff!important;color:#c33!important;font-size:20px!important;line-height:1!important;cursor:pointer!important}
 #facts .proGroup .proRow>.rowDelete:hover{background:#fff5f5!important}
@@ -68,7 +68,7 @@
 @keyframes estimSpin{to{transform:rotate(360deg)}}
 #printVisit:disabled,#downloadWord:disabled{opacity:.65;cursor:wait}
 
-/* V13.38 — gestion complète des photos */
+/* V13.39 — gestion complète des photos */
 .photoManagerHead{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:12px 0 10px}
 .photoManagerHead h3{margin:0}
 .photoCount{font-weight:500;color:#687781;font-size:.9em}
@@ -91,6 +91,24 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 .estContacts{margin:14px 0}.estContactRow{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;margin:8px 0;align-items:center}.estContactRow input{min-width:0;width:100%;box-sizing:border-box}.estContactRow button{border:1px solid #e9baba;background:#fff;color:#b33;border-radius:8px;padding:9px;cursor:pointer}
 .estExtraSection{background:white;border:1px solid #d8e3e6;border-radius:10px;margin:9px 0;padding:13px 15px}.estExtraSection summary{cursor:pointer;font-weight:700;color:#173a52}.estExtraSection[open] summary{margin-bottom:12px}.estExtrasSections>h3{font-size:18px;margin:12px 0}.estExtrasSections h3 small{font-size:12px;font-weight:400}.estCount{font-size:12px;font-weight:400;color:#647781;margin-left:7px}
 @media(max-width:720px){.estContactRow{grid-template-columns:1fr 1fr}.estContactRow button{grid-column:2}}
+</style><style>
+/* V13.39 — fiches contacts modernes, sans modification des autres modules */
+.ownersModern{margin:8px 0 22px}.ownersEyebrow{font-size:10px;letter-spacing:1.3px;font-weight:800;color:#638397}.ownersTitle h3{font-size:21px;margin:3px 0;color:#173a52}.ownersTitle p{font-size:13px;color:#687b88;margin:0 0 15px}
+.ownersCount{font-size:12px;vertical-align:middle;background:#e9f1f4;border-radius:20px;padding:4px 9px;color:#45697a}
+.ownerCard{border:1px solid #dce6eb;background:#fff;border-radius:16px;margin:12px 0;padding:17px;box-shadow:0 4px 16px rgba(25,58,78,.055)}
+.ownerCardHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;gap:10px}
+.ownerCardIdentity{display:flex;align-items:center;gap:10px;font-weight:750;color:#193a50}
+.ownerAvatar{display:inline-flex;align-items:center;justify-content:center;width:35px;height:35px;background:#eaf4f2;border-radius:11px;font-size:18px}
+.ownerFields{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ownerFields label,.ownerDetail label{display:block;font-size:12px;font-weight:700;color:#496475}
+.ownerFields input,.ownerDetail input{display:block;width:100%;box-sizing:border-box;border:1px solid #d3e0e7;border-radius:10px;background:#fbfdfe;padding:11px 12px;margin-top:5px;font-size:15px}
+.ownerDetail{display:grid;grid-template-columns:1fr auto;gap:9px;align-items:end;margin-top:10px}
+.ownerDetail button,.ownerRemove{background:#fff;border:1px solid #efc9c9;color:#ae3939;border-radius:9px;padding:10px;cursor:pointer}
+.ownerAddDetail{border:0;background:none;color:#126d67;font-weight:700;padding:8px 0;cursor:pointer;text-align:left}
+.ownerDetailGroup{margin-top:12px}.ownerDetailGroup strong{font-size:12px;color:#496475}
+.addOwnerCard{display:block;width:100%;border:1px dashed #8fb8ae;border-radius:12px;padding:14px;background:#f3faf7;color:#166b5d;font-weight:800;cursor:pointer;margin-top:13px}
+.ownerLegacy{display:none!important}
+@media(max-width:650px){.ownerFields{grid-template-columns:1fr}.ownerCard{padding:13px}.ownerDetail{grid-template-columns:minmax(0,1fr) auto}}
 </style></head>
 <body>
 <aside id="caseSidebar" class="caseSidebar" aria-label="Mes dossiers">
@@ -104,9 +122,9 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 </aside>
 <button id="caseOpen" type="button" class="caseOpen">☰ Mes dossiers</button>
 
-<div style="position:fixed;right:8px;bottom:8px;z-index:99999;background:#111;color:#fff;padding:6px 9px;border-radius:8px;font:12px Arial;opacity:.82">ESTIM’IA V13.38 DOCUMENTS PRO</div>
+
 <header>
-  <div><div class="estBrand"><b>ESTIM’IA</b><span class="estVersion">V13.38</span></div><small>Assistant d’estimation immobilière</small></div>
+  <div><div class="estBrand"><b>ESTIM’IA</b><span class="estVersion">V13.39</span></div><small>Assistant d’estimation immobilière</small></div>
   <button id="new" type="button" hidden aria-hidden="true">+ Nouveau</button>
 </header>
 <div id="globalHistory" class="globalHistory">
@@ -116,12 +134,14 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 <main>
 <section class="card">
   <div class="step">DOSSIER</div>
-  <div class="identityGrid">
-    <label>👤 Propriétaire<input id="owner" placeholder="Nom et prénom du propriétaire"></label>
-    <label>☎️ Téléphone<input id="ownerPhone" inputmode="tel" placeholder="Téléphone"></label>
+  <div class="ownersModern">
+    <div class="ownersTitle"><div><span class="ownersEyebrow">CONTACTS DU DOSSIER</span><h3>Propriétaires <span id="ownersCount" class="ownersCount">1</span></h3><p>Les coordonnées de chaque personne sont regroupées dans sa fiche.</p></div></div>
+    <div id="ownersCards"></div>
+    <button id="addOwnerCard" type="button" class="addOwnerCard">＋ Ajouter un propriétaire</button>
+    <input type="hidden" id="estContactsJSON" value="[]">
+    <input type="hidden" id="estEmailsJSON" value="[]">
+    <div class="ownerLegacy" aria-hidden="true"><input id="owner"><input id="ownerPhone"></div>
   </div>
-  <div class="estContacts"><strong>👥 Autres propriétaires / contacts</strong><div id="estContactRows"></div><button id="estAddContact" type="button" class="miniBtn">＋ Ajouter nom, prénom et téléphone</button><input type="hidden" id="estContactsJSON" value="[]"></div>
-  <div class="estEmails"><strong>✉️ E-mails du propriétaire</strong><div id="estEmailRows"></div><button id="estAddEmail" type="button" class="miniBtn">＋ Ajouter un e-mail</button><input type="hidden" id="estEmailsJSON" value="[]"></div>
   <label>📍 Adresse du bien
     <div class="addressLine"><input id="address" placeholder="Dicte l’adresse ou commence à la saisir"><button id="checkAddress" type="button" class="miniBtn">🔎 Vérifier</button></div>
   </label>
@@ -187,14 +207,14 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 
     <button id="downloadWord" type="button" class="secondary">📄 Télécharger la fiche Word</button>
   <div id="saveStatus" class="status"></div>
-  <p class="small">V13.38 : fiche entièrement modifiable + gestion des niveaux et des pièces.</p>
+  <p class="small">V13.39 : fiche entièrement modifiable + gestion des niveaux et des pièces.</p>
 </section>
 </main>
-<script src="/static/app.js?v=13.38"></script>
+<script src="/static/app.js?v=13.39"></script>
 <script src="/static/v7_pro.js"></script>
 <script src="/static/v8_fiche_pro.js"></script>
-<script src="/static/v13_visite.js?v=13.38"></script>
-<script src="/static/v13_dossiers_pro.js?v=13.38"></script>
+<script src="/static/v13_visite.js?v=13.39"></script>
+<script src="/static/v13_dossiers_pro.js?v=13.39"></script>
 
 
 <div id="exportOverlay" class="exportOverlay" aria-live="polite">

@@ -1,0 +1,1 @@
+V13.39 — Cartes propriétaires modernes : nom, prénom, téléphones et e-mails multiples par personne. Ajout/suppression, sauvegarde via champs JSON historiques. Modules photos/cadastre/exports serveur inchangés.
