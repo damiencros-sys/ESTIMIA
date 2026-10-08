@@ -6,11 +6,11 @@
 <meta name="theme-color" content="#15324a">
 <title>ESTIM’IA</title>
 <link rel="manifest" href="/static/manifest.json">
-<link rel="stylesheet" href="/static/style.css?v=13.37">
+<link rel="stylesheet" href="/static/style.css?v=13.38">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<link rel="stylesheet" href="/static/v13_dossiers_pro.css?v=13.37">
+<link rel="stylesheet" href="/static/v13_dossiers_pro.css?v=13.38">
 <style>
 .cadParcelsList{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:9px 0}.cadParcelsLabel{flex-basis:100%;font-weight:700;margin:2px 0 1px}
 .cadParcelChip{display:inline-flex;align-items:center;gap:7px;border:1px solid #cbd8de;border-radius:999px;padding:6px 9px;background:#f7fafb;font-size:13px}
@@ -52,7 +52,7 @@
 .exportStatus.error{display:block;background:#fff0f0;border:1px solid #e4aaaa;color:#8a2828}
 #printVisit:disabled,#wordVisit:disabled{opacity:.65;cursor:wait}
 
-/* V13.37 : croix Supprimer visibles sur toutes les lignes structurées */
+/* V13.38 : croix Supprimer visibles sur toutes les lignes structurées */
 #facts .proGroup .proRow{display:grid!important;grid-template-columns:minmax(110px,.8fr) minmax(160px,1.5fr) 38px!important;align-items:center!important;gap:10px!important;padding:8px 0!important;position:relative!important}
 #facts .proGroup .proRow>.rowDelete{display:inline-flex!important;visibility:visible!important;opacity:1!important;grid-column:3!important;grid-row:1!important;position:static!important;transform:none!important;justify-self:end!important;align-items:center!important;justify-content:center!important;width:34px!important;height:34px!important;margin:0!important;padding:0!important;border:1px solid #efcaca!important;border-radius:8px!important;background:#fff!important;color:#c33!important;font-size:20px!important;line-height:1!important;cursor:pointer!important}
 #facts .proGroup .proRow>.rowDelete:hover{background:#fff5f5!important}
@@ -68,7 +68,7 @@
 @keyframes estimSpin{to{transform:rotate(360deg)}}
 #printVisit:disabled,#downloadWord:disabled{opacity:.65;cursor:wait}
 
-/* V13.37 — gestion complète des photos */
+/* V13.38 — gestion complète des photos */
 .photoManagerHead{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:12px 0 10px}
 .photoManagerHead h3{margin:0}
 .photoCount{font-weight:500;color:#687781;font-size:.9em}
@@ -87,7 +87,11 @@
 .estExtras{margin:15px 0;border:1px solid #d5dfe5;border-radius:10px;padding:12px;background:#fafcfd}.estExtras summary{font-weight:700;cursor:pointer}.estExtras .cols{margin-top:12px}.estDocs{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px}.estDocs label{display:flex;gap:5px;align-items:center}
 body[data-property-theme="maison"]{background:#edf6ef!important}body[data-property-theme="appartement"]{background:#ecf4fb!important}body[data-property-theme="terrain"]{background:#f9f1e3!important}body[data-property-theme="immeuble"]{background:#f8edef!important}body[data-property-theme="local"]{background:#f3edf8!important}body[data-property-theme="garage"]{background:#eff2f5!important}
 </style>
-</head>
+<style>
+.estContacts{margin:14px 0}.estContactRow{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;margin:8px 0;align-items:center}.estContactRow input{min-width:0;width:100%;box-sizing:border-box}.estContactRow button{border:1px solid #e9baba;background:#fff;color:#b33;border-radius:8px;padding:9px;cursor:pointer}
+.estExtraSection{background:white;border:1px solid #d8e3e6;border-radius:10px;margin:9px 0;padding:13px 15px}.estExtraSection summary{cursor:pointer;font-weight:700;color:#173a52}.estExtraSection[open] summary{margin-bottom:12px}.estExtrasSections>h3{font-size:18px;margin:12px 0}.estExtrasSections h3 small{font-size:12px;font-weight:400}.estCount{font-size:12px;font-weight:400;color:#647781;margin-left:7px}
+@media(max-width:720px){.estContactRow{grid-template-columns:1fr 1fr}.estContactRow button{grid-column:2}}
+</style></head>
 <body>
 <aside id="caseSidebar" class="caseSidebar" aria-label="Mes dossiers">
   <div class="caseSidebarHead">
@@ -100,9 +104,9 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 </aside>
 <button id="caseOpen" type="button" class="caseOpen">☰ Mes dossiers</button>
 
-<div style="position:fixed;right:8px;bottom:8px;z-index:99999;background:#111;color:#fff;padding:6px 9px;border-radius:8px;font:12px Arial;opacity:.82">ESTIM’IA V13.37 DOCUMENTS PRO</div>
+<div style="position:fixed;right:8px;bottom:8px;z-index:99999;background:#111;color:#fff;padding:6px 9px;border-radius:8px;font:12px Arial;opacity:.82">ESTIM’IA V13.38 DOCUMENTS PRO</div>
 <header>
-  <div><div class="estBrand"><b>ESTIM’IA</b><span class="estVersion">V13.37</span></div><small>Assistant d’estimation immobilière</small></div>
+  <div><div class="estBrand"><b>ESTIM’IA</b><span class="estVersion">V13.38</span></div><small>Assistant d’estimation immobilière</small></div>
   <button id="new" type="button" hidden aria-hidden="true">+ Nouveau</button>
 </header>
 <div id="globalHistory" class="globalHistory">
@@ -116,6 +120,7 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
     <label>👤 Propriétaire<input id="owner" placeholder="Nom et prénom du propriétaire"></label>
     <label>☎️ Téléphone<input id="ownerPhone" inputmode="tel" placeholder="Téléphone"></label>
   </div>
+  <div class="estContacts"><strong>👥 Autres propriétaires / contacts</strong><div id="estContactRows"></div><button id="estAddContact" type="button" class="miniBtn">＋ Ajouter nom, prénom et téléphone</button><input type="hidden" id="estContactsJSON" value="[]"></div>
   <div class="estEmails"><strong>✉️ E-mails du propriétaire</strong><div id="estEmailRows"></div><button id="estAddEmail" type="button" class="miniBtn">＋ Ajouter un e-mail</button><input type="hidden" id="estEmailsJSON" value="[]"></div>
   <label>📍 Adresse du bien
     <div class="addressLine"><input id="address" placeholder="Dicte l’adresse ou commence à la saisir"><button id="checkAddress" type="button" class="miniBtn">🔎 Vérifier</button></div>
@@ -142,20 +147,7 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 </section>
 
 <section class="card">
-  <details class="estExtras"><summary>＋ Compléments du bien (facultatif)</summary><div class="cols">
-<label>Disponibilité<select id="estAvailability"><option value=""></option><option>Libre</option><option>Occupé</option></select></label>
-<label>Usage<select id="estUsage"><option value=""></option><option>Habitation</option><option>Mixte</option><option>Professionnel</option></select></label>
-<label>Location<select id="estRental"><option value=""></option><option>Aucune</option><option>Annuelle</option><option>Saisonnière</option></select></label>
-<label>Loyer mensuel (€)<input id="estRent" type="number"></label>
-<label>Année de construction<input id="estYear"></label>
-<label>État général<select id="estCondition"><option value=""></option><option>Bon état</option><option>À rafraîchir</option><option>À rénover</option><option>À réhabiliter</option></select></label>
-<label>Mitoyenneté<input id="estPartyWall"></label><label>Accessibilité PMR<select id="estPMR"><option value=""></option><option>Oui</option><option>Non</option></select></label>
-<label>Ascenseur<select id="estElevator"><option value=""></option><option>Oui</option><option>Non</option></select></label><label>Nombre de stationnements<input id="estParking" type="number"></label>
-<label>Copropriété : numéro de lot<input id="estLot"></label><label>Syndic<input id="estSyndic"></label>
-<label>Charges annuelles (€)<input id="estCharges" type="number"></label><label>Travaux votés<input id="estWorks"></label>
-<label>Orientation<input id="estOrientation"></label><label>Environnement<input id="estEnvironment"></label>
-<label>Nuisances<input id="estNuisances"></label><label>Accès<input id="estAccess"></label></div>
-<div class="estDocs"><b>Documents disponibles</b><label><input id="estDocTitle" type="checkbox"> Acte de propriété</label><label><input id="estDocDpe" type="checkbox"> Diagnostics</label><label><input id="estDocTax" type="checkbox"> Taxe foncière</label><label><input id="estDocCopro" type="checkbox"> Copropriété</label><label><input id="estDocSpanc" type="checkbox"> SPANC</label></div></details>
+<div class="estExtrasSections"><h3>Compléments du bien <small>— facultatif</small></h3><details class="estExtraSection"><summary>Situation du bien <span class="estCount"></span></summary><div class="cols"><label>Disponibilité<select id="estAvailability"><option value=""></option><option>Libre</option><option>Occupé</option></select></label><label>Usage<select id="estUsage"><option value=""></option><option>Habitation</option><option>Mixte</option><option>Professionnel</option></select></label><label>Location<select id="estRental"><option value=""></option><option>Aucune</option><option>Annuelle</option><option>Saisonnière</option></select></label><label>Loyer mensuel (€)<input id="estRent" type="number"></label></div></details><details class="estExtraSection"><summary>Caractéristiques générales <span class="estCount"></span></summary><div class="cols"><label>Année de construction<input id="estYear"></label><label>État général<select id="estCondition"><option value=""></option><option>Bon état</option><option>À rafraîchir</option><option>À rénover</option><option>À réhabiliter</option></select></label><label>Mitoyenneté<input id="estPartyWall"></label><label>Accessibilité PMR<select id="estPMR"><option value=""></option><option>Oui</option><option>Non</option></select></label><label>Ascenseur<select id="estElevator"><option value=""></option><option>Oui</option><option>Non</option></select></label><label>Nombre de stationnements<input id="estParking" type="number"></label></div></details><details class="estExtraSection"><summary>Copropriété <span class="estCount"></span></summary><div class="cols"><label>Copropriété : numéro de lot<input id="estLot"></label><label>Syndic<input id="estSyndic"></label><label>Charges annuelles (€)<input id="estCharges" type="number"></label><label>Travaux votés<input id="estWorks"></label></div></details><details class="estExtraSection"><summary>Environnement et accès <span class="estCount"></span></summary><div class="cols"><label>Orientation<input id="estOrientation"></label><label>Environnement<input id="estEnvironment"></label><label>Nuisances<input id="estNuisances"></label><label>Accès<input id="estAccess"></label></div></details><details class="estExtraSection"><summary>Construction et équipements <span class="estCount"></span></summary><div class="cols"><label>Toiture<input id="estRoof" placeholder="À renseigner si nécessaire"></label><label>Façades<input id="estFacade" placeholder="À renseigner si nécessaire"></label><label>Menuiseries<input id="estWindows" placeholder="À renseigner si nécessaire"></label><label>Chauffage<input id="estHeating" placeholder="À renseigner si nécessaire"></label><label>Eau chaude<input id="estHotWater" placeholder="À renseigner si nécessaire"></label><label>Réseaux<input id="estNetworks" placeholder="À renseigner si nécessaire"></label></div></details><details class="estExtraSection"><summary>Documents disponibles <span class="estCount"></span></summary><div class="estDocs"><b>Documents disponibles</b><label><input id="estDocTitle" type="checkbox"> Acte de propriété</label><label><input id="estDocDpe" type="checkbox"> Diagnostics</label><label><input id="estDocTax" type="checkbox"> Taxe foncière</label><label><input id="estDocCopro" type="checkbox"> Copropriété</label><label><input id="estDocSpanc" type="checkbox"> SPANC</label></div></details></div>
   <div class="step">1 · PHOTOS</div>
   <h2>Photos de la visite</h2>
   <p>Ajoute toutes les photos. Elles seront jointes au dossier et pourront ensuite être analysées par l’IA.</p>
@@ -195,14 +187,14 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 
     <button id="downloadWord" type="button" class="secondary">📄 Télécharger la fiche Word</button>
   <div id="saveStatus" class="status"></div>
-  <p class="small">V13.37 : fiche entièrement modifiable + gestion des niveaux et des pièces.</p>
+  <p class="small">V13.38 : fiche entièrement modifiable + gestion des niveaux et des pièces.</p>
 </section>
 </main>
-<script src="/static/app.js?v=13.37"></script>
+<script src="/static/app.js?v=13.38"></script>
 <script src="/static/v7_pro.js"></script>
 <script src="/static/v8_fiche_pro.js"></script>
-<script src="/static/v13_visite.js?v=13.37"></script>
-<script src="/static/v13_dossiers_pro.js?v=13.37"></script>
+<script src="/static/v13_visite.js?v=13.38"></script>
+<script src="/static/v13_dossiers_pro.js?v=13.38"></script>
 
 
 <div id="exportOverlay" class="exportOverlay" aria-live="polite">

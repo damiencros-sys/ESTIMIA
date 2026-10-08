@@ -1,0 +1,1 @@
+V13.38 — Six rubriques repliables indépendantes, compteurs de champs, contacts multiples nom/prénom/téléphone avec ajout et suppression. Base V13.37 corrigée, exports/photos non modifiés.
