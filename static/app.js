@@ -15,6 +15,16 @@ $('#photos').addEventListener('change',e=>{
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 let dictationHistory=[];
+function persistDictations(){
+ const field=document.querySelector('#dictationSessionsJSON');
+ if(field){field.value=JSON.stringify(dictationHistory);field.dispatchEvent(new Event('input',{bubbles:true}));}
+}
+function restoreDictations(){
+ try{const a=JSON.parse(document.querySelector('#dictationSessionsJSON')?.value||'[]');dictationHistory=Array.isArray(a)?a:[];}catch{dictationHistory=[];}
+ renderHistory();
+}
+document.addEventListener('estimia:dictations-restored',restoreDictations);
+
 
 function cleanDictation(text){
   let x=String(text||'').trim();
@@ -27,7 +37,7 @@ function renderHistory(){
   const b=$('#dictationHistory');
   if(!b) return;
   b.innerHTML=dictationHistory.length
-    ? dictationHistory.map((d,i)=>`<div class="historyItem"><small>Dictée ${i+1}</small>${esc(d.cleaned)}</div>`).join('')
+    ? dictationHistory.map((d,i)=>`<div class="historyItem"><small>Dictée ${i+1}${d.date?' — '+new Date(d.date).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}):''}</small><div>${esc(d.cleaned)}</div></div>`).join('')
     : '<div class="empty">Aucune dictée.</div>';
 }
 function appendTranscript(text){
@@ -36,7 +46,9 @@ function appendTranscript(text){
   const n=$('#notes');
   const before=n.value;
   n.value=(n.value.trim()+' '+cleaned).trim();
-  dictationHistory.push({before,raw:text,cleaned});
+  dictationHistory.push({before,raw:text,cleaned,date:new Date().toISOString()});
+  persistDictations();
+  n.dispatchEvent(new Event('input',{bubbles:true}));
   renderHistory();
 }
 
@@ -101,7 +113,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!dictationHistory.length){ setStatus('#recordStatus','Aucune dictée à annuler.'); return; }
     const last=dictationHistory.pop();
     $('#notes').value=last.before;
-    renderHistory();
+    renderHistory();persistDictations();$('#notes').dispatchEvent(new Event('input',{bubbles:true}));
     setStatus('#recordStatus','↩️ Dernière dictée annulée.');
   });
   if(clear) clear.addEventListener('click',()=>{
@@ -109,7 +121,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(confirm('Effacer toute la dictée ?')){
       $('#notes').value='';
       dictationHistory=[];
-      renderHistory();
+      renderHistory();persistDictations();$('#notes').dispatchEvent(new Event('input',{bubbles:true}));
       setStatus('#recordStatus','🗑️ Dictée effacée.');
     }
   });

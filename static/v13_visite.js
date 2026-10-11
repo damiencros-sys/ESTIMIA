@@ -469,7 +469,7 @@ function renderMultiCadPlan(){
  const com=$('#cadCommune')?.value?.trim();if(!com)return;
  const title=document.createElement('div');title.innerHTML='<b>Plan cadastral — '+E(com)+' — '+cadParcels.map(p=>E(p.section)+' '+parseInt(p.numero,10)).join(' • ')+'</b>';
  const img=document.createElement('img');img.alt='Plan cadastral des parcelles';img.style.cssText='display:block;width:100%;max-width:720px;max-height:500px;object-fit:contain;margin-top:8px;border:1px solid #ddd;border-radius:8px;background:#fff';
- img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.40';
+ img.src='/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||com)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.41';
  img.dataset.cadMap='1';
  const link=document.createElement('a');link.href=img.src;link.target='_blank';link.rel='noopener';link.textContent='Ouvrir le plan cadastral';link.style.cssText='display:inline-block;margin-top:8px';
  box.append(title,img,link);
@@ -580,7 +580,7 @@ async function verifyAddressV137(){
 }
 function cadMapURL(){
  const c=$('#cadCommune')?.value?.trim();
- if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.40';
+ if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.41';
  return '';
 }
 
@@ -730,7 +730,7 @@ document.addEventListener('change',e=>{
  if(e.target.classList.contains('levelName')){const block=e.target.closest('.levelBlock'),old=block?.dataset.level,neu=clean(e.target.value);if(!old||!neu||neu===old)return;if(manualLevels.includes(neu)){alert('Ce niveau existe déjà.');e.target.value=old;return}manualLevels=manualLevels.map(x=>x===old?neu:x);manualSurfaceRows.forEach(x=>{if(x.lvl===old)x.lvl=neu});refreshSurfaceEditor();}
 });
 
-// V13.40 — historique global de la fiche.
+// V13.41 — historique global de la fiche.
 let globalUndo=[],globalRedo=[],globalRestoring=false,lastFocusSnapshot='';
 function globalSnapshot(){
  const vals={};document.querySelectorAll('input:not([type=file]),textarea,select').forEach((el,i)=>{if(el.id)vals['#'+el.id]=el.value});
@@ -791,7 +791,7 @@ document.addEventListener('change',e=>{
 });
 setTimeout(globalCheckpoint,0);
 
-// V13.40 — boutons Supprimer manquants dans les rubriques structurées.
+// V13.41 — boutons Supprimer manquants dans les rubriques structurées.
 // Ne touche pas aux contrôles Photos ni Surfaces, déjà validés.
 function ensureStructuredDeleteButtons(){
  document.querySelectorAll('#facts .proGroup .proRow').forEach(row=>{
@@ -818,7 +818,7 @@ if(_v133RenderFacts){
 }
 setTimeout(ensureStructuredDeleteButtons,0);
 
-// V13.40 — fenêtre centrale de progression Word/PDF.
+// V13.41 — fenêtre centrale de progression Word/PDF.
 function exportModal(state,kind){
  let ov=document.getElementById('exportOverlay');
  if(!ov)return;
@@ -844,13 +844,13 @@ async function withExportModal(kind,fn,buttonId){
  catch(e){exportModal('error',kind);throw e}
  finally{if(btn)btn.disabled=false}
 }
-// V13.40 : e-mails multiples (stockés dans le champ caché pour la sauvegarde des dossiers).
+// V13.41 : e-mails multiples (stockés dans le champ caché pour la sauvegarde des dossiers).
 function estReadEmails(){try{return JSON.parse(document.getElementById('estEmailsJSON')?.value||'[]')}catch{return []}}
 function estRenderEmails(){const box=document.getElementById('estEmailRows');if(!box)return;box.innerHTML='';estReadEmails().forEach((value,i)=>{const row=document.createElement('div');row.className='estEmailRow';const inp=document.createElement('input');inp.type='email';inp.placeholder='adresse@email.fr';inp.value=value;inp.addEventListener('input',()=>{const a=estReadEmails();a[i]=inp.value;document.getElementById('estEmailsJSON').value=JSON.stringify(a);document.getElementById('estEmailsJSON').dispatchEvent(new Event('input',{bubbles:true}))});const del=document.createElement('button');del.type='button';del.textContent='× Supprimer';del.addEventListener('click',()=>{const a=estReadEmails();a.splice(i,1);document.getElementById('estEmailsJSON').value=JSON.stringify(a);estRenderEmails();document.getElementById('estEmailsJSON').dispatchEvent(new Event('input',{bubbles:true}))});row.append(inp,del);box.append(row)})}
 document.getElementById('estAddEmail')?.addEventListener('click',()=>{const a=estReadEmails();a.push('');document.getElementById('estEmailsJSON').value=JSON.stringify(a);estRenderEmails();document.querySelector('#estEmailRows .estEmailRow:last-child input')?.focus();document.getElementById('estEmailsJSON').dispatchEvent(new Event('input',{bubbles:true}))});
 document.addEventListener('estimia:emails-restored',estRenderEmails);estRenderEmails();
 
-// V13.40 : contacts supplémentaires (données JSON sauvegardées avec le dossier).
+// V13.41 : contacts supplémentaires (données JSON sauvegardées avec le dossier).
 function estContactsRead(){try{return JSON.parse(document.getElementById('estContactsJSON')?.value||'[]')}catch{return []}}
 function estContactsWrite(a){const el=document.getElementById('estContactsJSON');if(!el)return;el.value=JSON.stringify(a);el.dispatchEvent(new Event('input',{bubbles:true}))}
 function estContactsRender(){
@@ -876,7 +876,7 @@ function estUpdateCounts(){
 document.addEventListener('input',estUpdateCounts);document.addEventListener('change',estUpdateCounts);
 document.addEventListener('estimia:contacts-restored',estUpdateCounts);estUpdateCounts();
 
-// V13.40 — propriétaires indépendants, coordonnées multiples.
+// V13.41 — propriétaires indépendants, coordonnées multiples.
 let ownerCardsState=[];
 const ownEl=id=>document.getElementById(id);
 function ownLoad(){
