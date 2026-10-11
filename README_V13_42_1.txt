@@ -1,0 +1,1 @@
+Correctif : la phrase « comble aménageable sur toute la surface de la maison » est conservée dans la rubrique Combles, sans inventer de m². Aucune modification du microphone ni des dictées cumulatives.

@@ -1,0 +1,1 @@
+V13.42.2 : reconnaissance des matériaux et modes de pose d’isolation, des planchers et des toitures, avec distinction charpente/plancher/toiture. Les matériaux ne sont pas inférés. Moteur de dictée inchangé.

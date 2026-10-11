@@ -427,11 +427,73 @@ function menu(t){
 }
 function structure(t){
  const r=[],cl=clauses(t);
- const charp=cl.find(c=>/charpente|plafonnette|plancher béton|dalle béton/i.test(c));if(charp){let v='';if(/béton/i.test(charp))v='Structure / charpente béton';if(/plafonnette/i.test(charp))v+=(v?' — ':'')+'plafonnettes mentionnées';if(/pas de bois|sans bois/i.test(charp))v+=(v?' — ':'')+'absence de bois signalée';r.push(['Charpente / structure',v||clean(charp)]);}
- const comb=cl.find(c=>/trappe|accès[^.!?]{0,30}combles?|combles?[^.!?]{0,30}accès/i.test(c));if(comb){let v='Accès aux combles';if(/haut de l['’]escalier|en haut de l['’]escalier/i.test(comb))v+=' — en haut de l’escalier';r.push(['Combles',v]);}
+ // Une même visite peut mentionner plusieurs isolants et plusieurs techniques.
+ // On conserve séparément matériau, mode de pose, plancher et toiture.
+ const norm=t.replace(/’/g,"'");
+ const facts=(patterns)=>patterns.filter(([rx])=>rx.test(norm)).map(([,label])=>label);
+ const insulation=facts([
+  [/laine de verre/i,'Laine de verre'],[/laine de roche/i,'Laine de roche'],[/ouate de cellulose/i,'Ouate de cellulose'],[/fibre de bois|laine de bois/i,'Fibre / laine de bois'],
+  [/laine de chanvre|isolant chanvre/i,'Chanvre'],[/laine de mouton/i,'Laine de mouton'],[/laine de coton|coton recycl[ée]/i,'Coton'],
+  [/li[eè]ge(?: expans[ée])?/i,'Liège'],[/polystyr[eè]ne expans[ée]|\bPSE\b/i,'Polystyrène expansé (PSE)'],
+  [/polystyr[eè]ne extrud[ée]|\bXPS\b/i,'Polystyrène extrudé (XPS)'],[/polyur[ée]thane|\bPUR\b|\bPIR\b/i,'Polyuréthane / PIR'],
+  [/mousse ph[ée]nolique/i,'Mousse phénolique'],[/vermiculite/i,'Vermiculite'],[/perlite/i,'Perlite'],
+  [/laine de lin/i,'Lin'],[/paille/i,'Paille'],[/b[ée]ton de chanvre/i,'Béton de chanvre'],[/laine min[ée]rale/i,'Laine minérale (type non précisé)'],
+  [/isolant mince|multicouche|multir[ée]flecteur/i,'Isolant mince / multicouche']
+ ]);
+ const insulationContext=/\b(?:combles?|isolation|isolant|isol[ée]s?|laine de|ouate de|fibre de|souffl[ée]e?|d[ée]roul[ée]e?)\b/i.test(norm);
+ const poses=facts([[/souffl[ée]e?s?|insuffl[ée]e?s?/i,'soufflée / insufflée'],[/d[ée]roul[ée]e?s?/i,'déroulée'],[/projet[ée]e?s?/i,'projetée'],[/panneaux?\b/i,'en panneaux'],[/rouleaux?\b/i,'en rouleaux'],[/vrac\b/i,'en vrac']]);
+ if(insulation.length&&insulationContext){
+  const matches=[];
+  for(const [rx,label] of [
+   [/laine de verre/i,'Laine de verre'],[/laine de roche/i,'Laine de roche'],[/ouate de cellulose/i,'Ouate de cellulose'],[/fibre de bois|laine de bois/i,'Fibre / laine de bois'],
+   [/laine de chanvre|isolant chanvre/i,'Chanvre'],[/laine de mouton/i,'Laine de mouton'],[/laine de coton|coton recycl[ée]/i,'Coton'],[/li[eè]ge(?: expans[ée])?/i,'Liège'],
+   [/polystyr[eè]ne expans[ée]|\bPSE\b/i,'Polystyrène expansé (PSE)'],[/polystyr[eè]ne extrud[ée]|\bXPS\b/i,'Polystyrène extrudé (XPS)'],
+   [/polyur[ée]thane|\bPUR\b|\bPIR\b/i,'Polyuréthane / PIR'],[/mousse ph[ée]nolique/i,'Mousse phénolique'],[/vermiculite/i,'Vermiculite'],[/perlite/i,'Perlite'],
+   [/laine de lin/i,'Lin'],[/paille/i,'Paille'],[/b[ée]ton de chanvre/i,'Béton de chanvre'],[/laine min[ée]rale/i,'Laine minérale (type non précisé)'],
+   [/isolant mince|multicouche|multir[ée]flecteur/i,'Isolant mince / multicouche']]){
+    const m=rx.exec(norm);if(!m)continue;
+    const local=norm.slice(Math.max(0,m.index-24),Math.min(norm.length,m.index+m[0].length+32));
+    const pm=local.match(/\b(souffl[ée]e?s?|insuffl[ée]e?s?|d[ée]roul[ée]e?s?|projet[ée]e?s?|en panneaux?|en rouleaux?|en vrac)\b/i);
+    matches.push(label+(pm?' — '+pm[0].toLowerCase():''));
+   }
+  r.push(['Isolation des combles',matches.join(' · ')]);
+ }else if(/(?:combles?|toiture)[^.!?]{0,55}isol[ée]s?|isol[ée]s?[^.!?]{0,55}(?:combles?|toiture)/i.test(norm)){
+  r.push(['Isolation des combles','Isolation mentionnée — matériau non précisé']);
+ }
+ const floors=facts([
+  [/(?:plancher|dalle|sol)[^.!?]{0,20}\bb[ée]ton\b|\bdalle\s+(?:en\s+)?b[ée]ton\b/i,'Béton'],
+  [/(?:plancher|solivage|solives?|dalle|sol)[^.!?]{0,20}\bbois\b/i,'Bois'],
+  [/poutrelles?[- ]hourdis|plancher hourdis|entrevous/i,'Poutrelles-hourdis / entrevous'],
+  [/plancher collaborant|bac acier collaborant/i,'Plancher collaborant'],
+  [/plancher m[ée]tallique/i,'Métallique'],[/plancher terre cuite/i,'Terre cuite']
+ ]);
+ if(floors.length)r.push(['Plancher / dalle',floors.join(' · ')]);
+ const roofs=facts([
+  [/toiture\s+(?:en\s+)?(?:dur|b[ée]ton)|toit\s+(?:en\s+)?b[ée]ton/i,'Toiture en dur / béton (selon dictée)'],
+  [/toiture[^.!?]{0,25}\btuile|couverture[^.!?]{0,25}\btuile/i,'Tuiles'],
+  [/toiture[^.!?]{0,25}\bardoise|couverture[^.!?]{0,25}\bardoise/i,'Ardoises'],
+  [/toiture[^.!?]{0,25}\bzinc/i,'Zinc'],[/toiture[^.!?]{0,25}\bbac acier/i,'Bac acier'],
+  [/toiture[- ]terrasse|toit[- ]terrasse/i,'Toiture-terrasse'],
+  [/toiture[^.!?]{0,25}\bfibrociment/i,'Fibrociment']
+ ]);
+ if(roofs.length)r.push(['Toiture / couverture',roofs.join(' · ')]);
+ const charp=cl.find(c=>/charpente|plafonnette/i.test(c));
+ if(charp){let v='';if(/charpente[^.!?]{0,25}\bbois/i.test(charp))v='Charpente bois';else if(/charpente[^.!?]{0,25}\bb[ée]ton/i.test(charp))v='Charpente béton';if(/plafonnette/i.test(charp))v+=(v?' — ':'')+'plafonnettes mentionnées';if(/pas de bois|sans bois/i.test(charp))v+=(v?' — ':'')+'absence de bois signalée';r.push(['Charpente / structure',v||clean(charp)]);}
+ const comb=cl.filter(c=>/\bcombles?\b/i.test(c));
+ if(comb.length){
+  const all=comb.join(' · '),details=[];
+  if(/\bcombles?\s+non\s+am[ée]nag[ée]s?\b/i.test(all))details.push('Non aménagés');
+  else if(/\bcombles?\s+am[ée]nageables?\b|\bam[ée]nageables?\s+combles?\b/i.test(all))details.push('Aménageables');
+  else if(/\bcombles?\s+am[ée]nag[ée]s?\b/i.test(all))details.push('Aménagés');
+  if(/\b(?:sur\s+)?toute?\s+la\s+surface\s+de\s+la\s+maison\b/i.test(all))details.push('sur toute la surface de la maison (surface non chiffrée)');
+  if(/trappe|acc[eè]s[^.!?]{0,30}combles?|combles?[^.!?]{0,30}acc[eè]s/i.test(all))details.push('Accès mentionné');
+  if(/haut de l['’]escalier|en haut de l['’]escalier/i.test(all))details.push('en haut de l’escalier');
+  r.push(['Combles',details.length?details.join(' — '):clean(comb[0])]);
+ }
  const facade=cl.find(c=>/façade|crépi|enduit/i.test(c));if(facade&&/retrait|décollement|fissure/i.test(facade))r.push(['Façade / enduit',/retrait de cr[eé]pi/i.test(facade)?'Retrait de crépi signalé':clean(facade)]);
  return r;
 }
+
 function exteriors(t){
  const r=[],cl=clauses(t);
  const garden=cl.find(c=>/\bjardin\b/i.test(c));
