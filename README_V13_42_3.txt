@@ -1,0 +1,1 @@
+Correctif : toiture en dur ne signifie pas toiture béton ou charpente béton ; la mention sur toute la surface de la maison est conservée malgré le découpage des clauses. Vérifier les données antérieures déjà enregistrées : le correctif ne supprime pas automatiquement les lignes existantes.

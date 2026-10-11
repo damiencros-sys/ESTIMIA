@@ -469,7 +469,8 @@ function structure(t){
  ]);
  if(floors.length)r.push(['Plancher / dalle',floors.join(' · ')]);
  const roofs=facts([
-  [/toiture\s+(?:en\s+)?(?:dur|b[ée]ton)|toit\s+(?:en\s+)?b[ée]ton/i,'Toiture en dur / béton (selon dictée)'],
+  [/toiture\s+(?:en\s+)?dur(?:e)?\b/i,'Toiture en dur'],
+  [/(?:toiture|toit)\s+(?:en\s+)?b[ée]ton\b/i,'Toiture en béton'],
   [/toiture[^.!?]{0,25}\btuile|couverture[^.!?]{0,25}\btuile/i,'Tuiles'],
   [/toiture[^.!?]{0,25}\bardoise|couverture[^.!?]{0,25}\bardoise/i,'Ardoises'],
   [/toiture[^.!?]{0,25}\bzinc/i,'Zinc'],[/toiture[^.!?]{0,25}\bbac acier/i,'Bac acier'],
@@ -478,14 +479,14 @@ function structure(t){
  ]);
  if(roofs.length)r.push(['Toiture / couverture',roofs.join(' · ')]);
  const charp=cl.find(c=>/charpente|plafonnette/i.test(c));
- if(charp){let v='';if(/charpente[^.!?]{0,25}\bbois/i.test(charp))v='Charpente bois';else if(/charpente[^.!?]{0,25}\bb[ée]ton/i.test(charp))v='Charpente béton';if(/plafonnette/i.test(charp))v+=(v?' — ':'')+'plafonnettes mentionnées';if(/pas de bois|sans bois/i.test(charp))v+=(v?' — ':'')+'absence de bois signalée';r.push(['Charpente / structure',v||clean(charp)]);}
+ if(charp){let v='';if(/\bcharpente\s+(?:en\s+)?bois\b/i.test(charp))v='Charpente bois';else if(/\bcharpente\s+(?:en\s+)?b[ée]ton\b/i.test(charp))v='Charpente béton';if(/plafonnette/i.test(charp))v+=(v?' — ':'')+'plafonnettes mentionnées';if(/pas de bois|sans bois/i.test(charp))v+=(v?' — ':'')+'absence de bois signalée';if(v||/\bcharpente\b/i.test(charp)&&!/(?:toiture\s+en\s+dur|plancher\s+b[ée]ton)/i.test(charp))r.push(['Charpente / structure',v||clean(charp)]);}
  const comb=cl.filter(c=>/\bcombles?\b/i.test(c));
  if(comb.length){
   const all=comb.join(' · '),details=[];
   if(/\bcombles?\s+non\s+am[ée]nag[ée]s?\b/i.test(all))details.push('Non aménagés');
   else if(/\bcombles?\s+am[ée]nageables?\b|\bam[ée]nageables?\s+combles?\b/i.test(all))details.push('Aménageables');
   else if(/\bcombles?\s+am[ée]nag[ée]s?\b/i.test(all))details.push('Aménagés');
-  if(/\b(?:sur\s+)?toute?\s+la\s+surface\s+de\s+la\s+maison\b/i.test(all))details.push('sur toute la surface de la maison (surface non chiffrée)');
+  if(/\b(?:sur\s+)?toute?\s+la\s+surface\s+de\s+la\s+maison\b/i.test(norm))details.push('sur toute la surface de la maison (surface non chiffrée)');
   if(/trappe|acc[eè]s[^.!?]{0,30}combles?|combles?[^.!?]{0,30}acc[eè]s/i.test(all))details.push('Accès mentionné');
   if(/haut de l['’]escalier|en haut de l['’]escalier/i.test(all))details.push('en haut de l’escalier');
   r.push(['Combles',details.length?details.join(' — '):clean(comb[0])]);
