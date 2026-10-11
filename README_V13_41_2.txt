@@ -1,0 +1,1 @@
+Correctif : nouvelle dictée accessible dès que des notes existent, y compris sur les anciens dossiers. Transcription existante récupérée dans l’historique. Arrêt/enregistrement explicite. Ne modifie pas les modules cadastre, photos et exports.

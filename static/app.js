@@ -21,8 +21,15 @@ function persistDictations(){
 }
 function restoreDictations(){
  try{const a=JSON.parse(document.querySelector('#dictationSessionsJSON')?.value||'[]');dictationHistory=Array.isArray(a)?a:[];}catch{dictationHistory=[];}
+ // Dossiers anciens : préserver la transcription existante dans l'historique.
+ const oldText=$('#notes')?.value?.trim()||'';
+ if(!dictationHistory.length&&oldText){
+   dictationHistory=[{before:'',raw:oldText,cleaned:oldText,date:null,legacy:true}];
+   persistDictations();
+ }
  renderHistory();
 }
+
 document.addEventListener('estimia:dictations-restored',()=>{restoreDictations();if(!recognizing)recordingButtons(dictationHistory.length?'ready':'idle')});
 
 
@@ -56,9 +63,11 @@ function appendTranscript(text){
 let liveFinal='',liveInterim='',liveBefore='',recordStopping=false;
 function recordingButtons(mode){
  const start=$('#record'),stop=$('#finishDictation'),again=$('#newDictation');
- if(start)start.hidden=(mode!=='idle');
+ const hasText=!!$('#notes')?.value?.trim()||dictationHistory.length>0;
+ if(start){start.hidden=(mode==='recording'||hasText);start.textContent='🎙️ Démarrer la dictée';}
  if(stop)stop.hidden=(mode!=='recording');
- if(again)again.hidden=(mode!=='ready');
+ if(again)again.hidden=(mode==='recording'||!hasText);
+
 }
 function commitCurrentDictation(){
  const text=(liveFinal+' '+liveInterim).trim();
@@ -77,6 +86,10 @@ function beginDictation(){
  if(!SpeechRecognition){
    setStatus('#recordStatus',"Micro indisponible dans ce navigateur. Utilise Chrome ou le micro du clavier.");
    $('#notes').focus();return;
+ }
+ if(!dictationHistory.length&&$('#notes').value.trim()){
+   dictationHistory=[{before:'',raw:$('#notes').value,cleaned:$('#notes').value,date:null,legacy:true}];
+   persistDictations();renderHistory();
  }
  liveFinal='';liveInterim='';liveBefore=$('#notes').value;
  recognition=new SpeechRecognition();
@@ -117,11 +130,11 @@ $('#finishDictation')?.addEventListener('click',()=>{
  try{recognition.stop()}catch(e){recordStopping=false}
 });
 recordingButtons('idle');
-
+$('#notes')?.addEventListener('input',()=>{if(!recognizing)recordingButtons('idle')});
 
 
 document.addEventListener('DOMContentLoaded',()=>{
-  renderHistory();
+  restoreDictations();recordingButtons('idle');
   const undo=$('#undoDictation'), clear=$('#clearDictation');
   if(undo) undo.addEventListener('click',()=>{
     if(recognizing){setStatus('#recordStatus','Termine la dictée en cours avant d’annuler.');return;} if(!dictationHistory.length){ setStatus('#recordStatus','Aucune dictée à annuler.'); return; }
