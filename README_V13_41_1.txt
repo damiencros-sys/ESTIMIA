@@ -1,0 +1,1 @@
+V13.41.1 : bouton explicite Terminer et enregistrer, puis Ajouter une nouvelle dictée. Aperçu vocal direct dans la zone texte, enregistrement dans l'historique à l'arrêt, cumul sans écrasement. Photos, cadastre, exports non modifiés.

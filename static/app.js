@@ -23,7 +23,7 @@ function restoreDictations(){
  try{const a=JSON.parse(document.querySelector('#dictationSessionsJSON')?.value||'[]');dictationHistory=Array.isArray(a)?a:[];}catch{dictationHistory=[];}
  renderHistory();
 }
-document.addEventListener('estimia:dictations-restored',restoreDictations);
+document.addEventListener('estimia:dictations-restored',()=>{restoreDictations();if(!recognizing)recordingButtons(dictationHistory.length?'ready':'idle')});
 
 
 function cleanDictation(text){
@@ -52,57 +52,71 @@ function appendTranscript(text){
   renderHistory();
 }
 
-$('#record').addEventListener('click',()=>{
-  if(!SpeechRecognition){
-    setStatus('#recordStatus',"La dictée directe n'est pas disponible dans ce navigateur. Sur Samsung, ouvre ESTIM’IA dans Chrome. Tu peux aussi utiliser le micro du clavier Samsung/Google dans la zone de notes.");
-    $('#notes').focus();
-    return;
-  }
-  if(recognizing && recognition){
-    recognition.stop();
-    return;
-  }
 
-  recognition=new SpeechRecognition();
-  recognition.lang='fr-FR';
-  recognition.continuous=true;
-  recognition.interimResults=true;
-
-  let finalText='';
-  recognition.onstart=()=>{
-    recognizing=true;
-    $('#record').textContent='⏹️ Arrêter la dictée';
-    $('#record').classList.add('recording');
-    setStatus('#recordStatus','🎙️ Dictée en cours… parle normalement.');
-  };
-  recognition.onresult=(event)=>{
-    let interim='';
-    for(let i=event.resultIndex;i<event.results.length;i++){
-      const t=event.results[i][0].transcript;
-      if(event.results[i].isFinal) finalText+=t+' ';
-      else interim+=t;
-    }
-    setStatus('#recordStatus', interim ? '🎙️ '+interim : '🎙️ Dictée en cours…');
-  };
-  recognition.onerror=(event)=>{
-    const map={
-      'not-allowed':"Micro non autorisé. Autorise le micro pour ce site.",
-      'no-speech':"Je n’ai pas entendu de parole. Réessaie.",
-      'network':"La reconnaissance vocale du navigateur n’est pas disponible pour le moment."
-    };
-    setStatus('#recordStatus',map[event.error]||('Erreur de dictée : '+event.error));
-  };
-  recognition.onend=()=>{
-    recognizing=false;
-    $('#record').textContent='🎙️ Démarrer la dictée';
-    $('#record').classList.remove('recording');
-    if(finalText.trim()){
-      appendTranscript(finalText);
-      setStatus('#recordStatus','✓ Dictée ajoutée aux notes. Tu peux corriger le texte.');
-    }
-  };
-  try{recognition.start()}catch(e){setStatus('#recordStatus','Impossible de démarrer la dictée : '+e.message)}
+let liveFinal='',liveInterim='',liveBefore='',recordStopping=false;
+function recordingButtons(mode){
+ const start=$('#record'),stop=$('#finishDictation'),again=$('#newDictation');
+ if(start)start.hidden=(mode!=='idle');
+ if(stop)stop.hidden=(mode!=='recording');
+ if(again)again.hidden=(mode!=='ready');
+}
+function commitCurrentDictation(){
+ const text=(liveFinal+' '+liveInterim).trim();
+ liveFinal='';liveInterim='';
+ if(text){
+   // Append only once; preserve the previous text and any manual corrections.
+   appendTranscript(text);
+   setStatus('#recordStatus','✓ Séquence enregistrée. Tu peux ajouter une nouvelle dictée.');
+ }else{
+   setStatus('#recordStatus','Aucune parole reconnue dans cette séquence.');
+ }
+ recordingButtons('ready');
+}
+function beginDictation(){
+ if(recognizing||recordStopping)return;
+ if(!SpeechRecognition){
+   setStatus('#recordStatus',"Micro indisponible dans ce navigateur. Utilise Chrome ou le micro du clavier.");
+   $('#notes').focus();return;
+ }
+ liveFinal='';liveInterim='';liveBefore=$('#notes').value;
+ recognition=new SpeechRecognition();
+ recognition.lang='fr-FR';recognition.continuous=true;recognition.interimResults=true;
+ recognition.onstart=()=>{
+   recognizing=true;recordStopping=false;recordingButtons('recording');
+   setStatus('#recordStatus','🎙️ Dictée en cours… Parle normalement, puis termine et enregistre.');
+ };
+ recognition.onresult=event=>{
+   // Rebuild from all current results, avoiding duplicate interim/final fragments.
+   let final='',interim='';
+   for(let i=0;i<event.results.length;i++){
+     const r=event.results[i],t=r[0].transcript;
+     if(r.isFinal)final+=t+' ';else interim+=t+' ';
+   }
+   liveFinal=final;liveInterim=interim;
+   const preview=(final+' '+interim).trim();
+   $('#notes').value=(liveBefore.trim()+' '+preview).trim();
+   setStatus('#recordStatus','🎙️ Dictée en cours… Clique sur « Terminer et enregistrer » pour conserver cette séquence.');
+ };
+ recognition.onerror=event=>{
+   const map={'not-allowed':'Micro non autorisé.','no-speech':'Aucune parole détectée.','network':'Reconnaissance vocale indisponible.'};
+   setStatus('#recordStatus',map[event.error]||('Erreur : '+event.error));
+ };
+ recognition.onend=()=>{
+   recognizing=false;recordStopping=false;
+   // Remove live preview before appendTranscript, which adds the complete segment once.
+   $('#notes').value=liveBefore;
+   commitCurrentDictation();
+ };
+ try{recognition.start()}catch(e){recognizing=false;recordStopping=false;recordingButtons('ready');setStatus('#recordStatus','Impossible de démarrer : '+e.message)}
+}
+$('#record').addEventListener('click',beginDictation);
+$('#newDictation')?.addEventListener('click',beginDictation);
+$('#finishDictation')?.addEventListener('click',()=>{
+ if(!recognition||recordStopping)return;
+ recordStopping=true;setStatus('#recordStatus','⏳ Enregistrement de la séquence…');
+ try{recognition.stop()}catch(e){recordStopping=false}
 });
+recordingButtons('idle');
 
 
 
@@ -110,14 +124,14 @@ document.addEventListener('DOMContentLoaded',()=>{
   renderHistory();
   const undo=$('#undoDictation'), clear=$('#clearDictation');
   if(undo) undo.addEventListener('click',()=>{
-    if(!dictationHistory.length){ setStatus('#recordStatus','Aucune dictée à annuler.'); return; }
+    if(recognizing){setStatus('#recordStatus','Termine la dictée en cours avant d’annuler.');return;} if(!dictationHistory.length){ setStatus('#recordStatus','Aucune dictée à annuler.'); return; }
     const last=dictationHistory.pop();
     $('#notes').value=last.before;
     renderHistory();persistDictations();$('#notes').dispatchEvent(new Event('input',{bubbles:true}));
     setStatus('#recordStatus','↩️ Dernière dictée annulée.');
   });
   if(clear) clear.addEventListener('click',()=>{
-    if(!$('#notes').value.trim()) return;
+    if(recognizing){setStatus('#recordStatus','Termine la dictée en cours avant d’effacer.');return;} if(!$('#notes').value.trim()) return;
     if(confirm('Effacer toute la dictée ?')){
       $('#notes').value='';
       dictationHistory=[];
