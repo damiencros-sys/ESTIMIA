@@ -167,7 +167,12 @@ function markers(text){
  add(/\b(?:rez\s*[- ]?\s*de\s*[- ]?\s*chauss[ée]e|rdc)\b/ig,'rdc');
  add(/\brez\s*[- ]?\s*de\s*[- ]?\s*jardin\b/ig,'rdj');
  add(/\bsous\s*[- ]?\s*sol\b/ig,'ss');
- add(/\bcombles?\b/ig,'combles');
+ // Ne pas changer de niveau pour une simple mention de trappe / accès / isolation
+ // ou une description des combles non aménagés. Un changement de zone doit être explicite.
+ add(/\b(?:dans\s+les|sous\s+les|aux|dans\s+des)\s+combles?\s+(?:am[ée]nag[ée]s?|habitables?|transform[ée]s?\s+en\s+\w+)?\b/ig,'combles');
+ add(/\bcombles?\s+(?:am[ée]nag[ée]s?|habitables?|transform[ée]s?\s+en)\b/ig,'combles');
+ // 'on monte dans les combles' et 'au niveau des combles'
+ add(/\b(?:on\s+monte\s+|on\s+passe\s+|au\s+niveau\s+)(?:dans\s+|des\s+|aux\s+)?combles?\b/ig,'combles');
  add(/\b(?:1er|premier)\s+[ée]tage\b/ig,'floor',1);
  add(/\b(?:2e|2ème|deuxi[eè]me)\s+[ée]tage\b/ig,'floor',2);
  add(/\b(?:3e|3ème|troisi[eè]me)\s+[ée]tage\b/ig,'floor',3);
@@ -175,6 +180,13 @@ function markers(text){
  add(/(?:[aà]\s+l['’ ]?\s*autre\s+[ée]tage|autre\s+[ée]tage|[ée]tage\s+sup[ée]rieur|on\s+monte\s+encore(?:\s+d['’ ]un\s+[ée]tage)?)/ig,'next');
  add(/(?:[aà]\s+l['’ ]?\s*[ée]tage|au\s+[ée]tage|on\s+(?:passe|monte)\s+(?:[aà]\s+l['’ ]?\s*|au\s+)[ée]tage)/ig,'implicit');
  add(/(?:^|[.!?,;:]\s*)[ée]tage(?=\s*[:,.-]|\s+(?:il\s+y\s+a|on\s+trouve|avec|chambre|salle|bureau|palier|d[ée]gagement|wc|nous|je))/ig,'implicit');
+ // Exclure les références descriptives, sans changement de niveau.
+ const filtered=candidates.filter(c=>{
+   if(c.kind!=='combles')return true;
+   const before=text.slice(Math.max(0,c.i-55),c.i);
+   return !/(?:trappe|acc[eè]s|isolation|toiture|charpente|grenier|escalier|hauteur)\s+(?:d['’ ]?acc[eè]s\s+)?(?:[aà]\s+|aux\s+|des\s+|de\s+|vers\s+)?$/i.test(before);
+ });
+ candidates.length=0;candidates.push(...filtered);
  candidates.sort((x,y)=>x.i-y.i||(y.end-y.i)-(x.end-x.i));
  const chosen=[];for(const c of candidates){if(chosen.some(z=>c.i<z.end&&c.end>z.i))continue;chosen.push(c)}
  chosen.sort((x,y)=>x.i-y.i);
