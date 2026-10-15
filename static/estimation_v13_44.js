@@ -19,7 +19,7 @@ btn.addEventListener('click',async()=>{
   const u='/api/estimation/dvf?'+new URLSearchParams({commune:code,type_bien,surface});
   const resp=await fetch(u);const d=await resp.json();if(!resp.ok)throw Error(d.detail||'Erreur du service');
   if(d.status!=='indicatif'){
-   status.textContent=d.message||'Données insuffisantes';return;
+   status.textContent=(d.message||'Données insuffisantes')+(d.diagnostic?' (Diagnostic : '+d.diagnostic+')':'');return;
   }
   status.textContent=`${d.nombre} ventes filtrées — valeur statistique indicative (sans ajustement qualitatif).`;
   const table=d.comparables.map(c=>`<tr><td>${esc(c.date)}</td><td>${esc(c.surface)} m²</td><td>${fmt(c.prix)}</td><td>${fmt(c.prix_m2)}/m²</td></tr>`).join('');
