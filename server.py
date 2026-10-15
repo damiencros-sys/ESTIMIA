@@ -781,6 +781,81 @@ def _dvf_extract(payload, typ, surface):
     comparables.sort(key=lambda x:x['date'],reverse=True)
     return comparables,len(raw)
 
+
+# V13.52 : source géolocalisée publique, téléchargée par département et année.
+# La disponibilité dépend du service officiel ; le programme n'invente jamais de ventes.
+def _dvf_geo_year(code, year, timeout=35):
+    import gzip, io
+    from urllib.request import Request, urlopen
+    dept=code[:2] if not code.startswith(('97','98')) else code[:3]
+    url=f'https://files.data.gouv.fr/geo-dvf/latest/csv/{year}/departements/{dept}.csv.gz'
+    # Priorité au petit CSV communal : réduit drastiquement le temps et la mémoire Render.
+    commune_url=f'https://files.data.gouv.fr/geo-dvf/latest/csv/{year}/communes/{dept}/{code}.csv'
+    try:
+        with urlopen(Request(commune_url,headers={'User-Agent':'ESTIMIA/13.52'}),timeout=15) as response:
+            communal=response.read(8*1024*1024+1)
+            if len(communal)>8*1024*1024:raise ValueError('CSV communal trop volumineux')
+        data=communal
+        url=commune_url
+    except urllib.error.HTTPError as exc:
+        if exc.code!=404:raise
+        data=None
+    if data is None:
+        req=Request(url,headers={'User-Agent':'ESTIMIA/13.52 (DVF open data)','Accept':'application/gzip'})
+        with urlopen(req,timeout=timeout) as response:
+            compressed=response.read(90*1024*1024+1)
+            if len(compressed)>90*1024*1024:raise ValueError('Archive départementale trop volumineuse')
+        data=gzip.decompress(compressed)
+        if len(data)>650*1024*1024:raise ValueError('Données décompressées trop volumineuses')
+    text=io.StringIO(data.decode('utf-8-sig',errors='replace'))
+    reader=csv.DictReader(text)
+    if not {'id_mutation','code_commune','type_local','surface_reelle_bati','valeur_fonciere'}.issubset(reader.fieldnames or []):
+        raise ValueError('Colonnes DVF géolocalisées non reconnues')
+    import collections
+    groups=collections.defaultdict(lambda:{'local_rows':[],'prix':0,'date':'','adresse':''})
+    for r in reader:
+        if str(r.get('code_commune') or '')!=code:continue
+        if (r.get('nature_mutation') or '').lower().strip()!='vente':continue
+        mutation=(r.get('id_mutation') or '')+'-'+(r.get('numero_disposition') or '')
+        g=groups[mutation]
+        g['prix']=_dvf_decimal(r.get('valeur_fonciere'))
+        g['date']=r.get('date_mutation') or ''
+        g['adresse']=str(r.get('adresse_nom_voie') or '')[:140]
+        kind=(r.get('type_local') or '').strip()
+        surf=_dvf_decimal(r.get('surface_reelle_bati'))
+        if kind in ('Maison','Appartement') and surf>0:
+            g['local_rows'].append((kind,surf,r.get('nombre_pieces_principales') or '',r.get('id_parcelle') or ''))
+    count=0
+    with _DVF_LOCK:
+        db=_dvf_db()
+        try:
+            for mutation,g in groups.items():
+                # Multiple distinct built premises are excluded; duplicated parcel rows
+                # are collapsed only if identical (otherwise price allocation is unsafe).
+                locals_=set(g['local_rows'])
+                if len(locals_)!=1 or g['prix']<=10000:continue
+                typ,surf,_,_=next(iter(locals_))
+                if not 15<=surf<=1000:continue
+                db.execute('INSERT OR REPLACE INTO ventes VALUES (?,?,?,?,?,?,?,?)',
+                    (year,mutation,code,g['date'],g['prix'],surf,typ,g['adresse']))
+                count+=1
+            db.commit()
+        finally:db.close()
+    return count,url
+
+@app.post('/api/estimation/dvf/actualiser')
+def dvf_actualiser(commune: str, annee: int=2024):
+    commune=commune.strip()
+    if not re.fullmatch(r'\d{5}',commune):
+        r=_resolve_commune(commune)
+        if not r:raise HTTPException(400,'Commune non reconnue')
+        commune=str(r['code'])
+    if not 2019<=annee<=2026:raise HTTPException(400,'Année hors plage')
+    try:
+        count,url=_dvf_geo_year(commune,annee)
+        return {'status':'ok','ventes_importees':count,'source':url,'message':f'{count} vente(s) simple(s) indexée(s) pour {commune} en {annee}.'}
+    except Exception as exc:
+        raise HTTPException(502,f'Téléchargement officiel impossible ({type(exc).__name__}) : {str(exc)[:150]}')
 @app.get('/api/estimation/dvf')
 def estimation_dvf(commune: str, type_bien: str, surface: float):
     commune=commune.strip()
@@ -794,35 +869,29 @@ def estimation_dvf(commune: str, type_bien: str, surface: float):
     if not 12<=surface<=1000:raise HTTPException(400,'Surface habitable suspecte ou manquante : vérifier la fiche avant estimation')
     typ={'maison':'111','appartement':'121'}.get(type_bien.strip().lower())
     if not typ:raise HTTPException(400,'Seuls maisons et appartements sont pris en charge')
-    cerema='https://apidf.k8-dev.cerema.fr/dvf_opendata/mutations'
-    params={'code_insee':commune,'codtypbien':typ,'sbati_min':max(12,round(surface*.5)),
-            'sbati_max':min(1000,round(surface*2)),'page_size':200,'fields':'all'}
-    sources=[
-        ('Cerema DVF+',cerema+'?'+urllib.parse.urlencode(params)),
-        ('FoncierData / DGFiP',f'https://foncierdata.fr/api/v1/commune/{commune}/transactions.json')
-    ]
-    diagnostics=[]; candidates=[]; source_url=''; source_name=''
+    diagnostics=[];candidates=[];source_url='';source_name=''
     local,local_count=_dvf_local(commune,typ,surface)
     if local:
-        candidates=local;source_name='Archives officielles DGFiP importées';source_url='https://www.data.gouv.fr/datasets/demandes-de-valeurs-foncieres'
-    diagnostics.append({'source':'Archives DGFiP locales','etat':'accessible' if local_count else 'non_importees','lignes':local_count,'comparables':len(local)})
-    for name,url in ([] if len(candidates)>=3 else sources):
-        try:
-            payload=get_json(url,timeout=12)
-            rows,n=_dvf_extract(payload,typ,surface)
-            diagnostics.append({'source':name,'etat':'accessible','lignes':n,'comparables':len(rows)})
-            if len(rows)>len(candidates):
-                candidates=rows;source_url=url;source_name=name
-            if len(candidates)>=3:break
-        except urllib.error.HTTPError as exc:
-            diagnostics.append({'source':name,'etat':'erreur_http','code':exc.code})
-        except Exception as exc:
-            diagnostics.append({'source':name,'etat':'connexion_impossible','detail':type(exc).__name__})
+        candidates=local;source_name='Données DGFiP géolocalisées';source_url='https://files.data.gouv.fr/geo-dvf/latest/'
+    diagnostics.append({'source':'Cache DVF local','etat':'accessible' if local_count else 'vide','lignes':local_count,'comparables':len(local)})
+    if len(candidates)<3:
+        for year in (2025,2024,2023):
+            try:
+                count,url=_dvf_geo_year(commune,year)
+                diagnostics.append({'source':f'DVF géolocalisées {year}','etat':'accessible','lignes':count})
+                local,local_count=_dvf_local(commune,typ,surface)
+                if len(local)>len(candidates):
+                    candidates=local;source_name='Données DGFiP géolocalisées';source_url=url
+                if len(candidates)>=3:break
+            except urllib.error.HTTPError as exc:
+                diagnostics.append({'source':f'DVF géolocalisées {year}','etat':'erreur_http','code':exc.code})
+            except Exception as exc:
+                diagnostics.append({'source':f'DVF géolocalisées {year}','etat':'connexion_impossible','detail':type(exc).__name__})
     if len(candidates)<3:
         any_access=any(d['etat']=='accessible' for d in diagnostics)
         return {'status':'insuffisant' if any_access else 'indisponible',
                 'message':(f'{len(candidates)} vente(s) comparable(s) exploitable(s) : au moins 3 nécessaires.'
-                           if any_access else 'Aucune source DVF joignable. Importer une archive officielle DVF pour travailler sans API.'),
+                           if any_access else 'Téléchargement des fichiers DVF départementaux impossible. Vérifier la connectivité de Render ou importer un fichier DVF.'),
                 'source':source_url,'comparables':candidates[:30],'diagnostics':diagnostics,
                 'diagnostic':' ; '.join(f"{d['source']}: {d['etat']}"+(f" ({d.get('code')})" if d.get('code') else '') for d in diagnostics)}
     vals=sorted(c['prix_m2'] for c in candidates)

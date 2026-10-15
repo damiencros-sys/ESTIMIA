@@ -1,0 +1,1 @@
+V13.52: suppression des deux endpoints cassés. Téléchargement automatique des fichiers DVF géolocalisés par département (2025, 2024, 2023), cache local, diagnostics. Connexion Render non testable depuis cet environnement. Import ZIP manuel conservé.\n
