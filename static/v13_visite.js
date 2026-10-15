@@ -478,18 +478,29 @@ function structure(t){
   [/toiture[^.!?]{0,25}\bfibrociment/i,'Fibrociment']
  ]);
  if(roofs.length)r.push(['Toiture / couverture',roofs.join(' · ')]);
- const charp=cl.find(c=>/charpente|plafonnette/i.test(c));
- if(charp){let v='';if(/\bcharpente\s+(?:en\s+)?bois\b/i.test(charp))v='Charpente bois';else if(/\bcharpente\s+(?:en\s+)?b[ée]ton\b/i.test(charp))v='Charpente béton';if(/plafonnette/i.test(charp))v+=(v?' — ':'')+'plafonnettes mentionnées';if(/pas de bois|sans bois/i.test(charp))v+=(v?' — ':'')+'absence de bois signalée';if(v||/\bcharpente\b/i.test(charp)&&!/(?:toiture\s+en\s+dur|plancher\s+b[ée]ton)/i.test(charp))r.push(['Charpente / structure',v||clean(charp)]);}
- const comb=cl.filter(c=>/\bcombles?\b/i.test(c));
- if(comb.length){
-  const all=comb.join(' · '),details=[];
-  if(/\bcombles?\s+non\s+am[ée]nag[ée]s?\b/i.test(all))details.push('Non aménagés');
-  else if(/\bcombles?\s+am[ée]nageables?\b|\bam[ée]nageables?\s+combles?\b/i.test(all))details.push('Aménageables');
-  else if(/\bcombles?\s+am[ée]nag[ée]s?\b/i.test(all))details.push('Aménagés');
-  if(/\b(?:sur\s+)?toute?\s+la\s+surface\s+de\s+la\s+maison\b/i.test(norm))details.push('sur toute la surface de la maison (surface non chiffrée)');
-  if(/trappe|acc[eè]s[^.!?]{0,30}combles?|combles?[^.!?]{0,30}acc[eè]s/i.test(all))details.push('Accès mentionné');
-  if(/haut de l['’]escalier|en haut de l['’]escalier/i.test(all))details.push('en haut de l’escalier');
-  r.push(['Combles',details.length?details.join(' — '):clean(comb[0])]);
+ // Les matériaux de la toiture, du plancher et de la charpente sont indépendants.
+ // Une charpente ne peut être renseignée que si le mot a été explicitement prononcé.
+ const charpExplicit=norm.match(/\bcharpente\s+(?:en\s+|de\s+)?(?:bois|b[ée]ton|m[ée]tal(?:lique)?|acier|fer|traditionnelle|industrielle|fermettes?)\b/i);
+ if(charpExplicit){
+  const material=charpExplicit[0].replace(/^charpente\s*/i,'').replace(/^(?:en|de)\s+/i,'');
+  r.push(['Charpente / structure','Charpente '+material.toLowerCase()]);
+ }else if(/\bcharpente\b/i.test(norm)){
+  // Une mention générique de charpente reste une mention, sans matériau inventé.
+  r.push(['Charpente / structure','Charpente mentionnée — matériau non précisé']);
+ }
+ // La nature et l'étendue des combles sont conservées sans inventer de surface.
+ // « comble aménageable » au singulier est courant dans la reconnaissance vocale.
+ const hasCombles=/\bcombles?\b/i.test(norm);
+ if(hasCombles){
+  const details=[];
+  if(/\bcombles?\s+non\s+am[ée]nag[ée]s?\b/i.test(norm))details.push('Non aménagés');
+  else if(/\bcombles?\s+am[ée]nageables?\b|\bam[ée]nageables?\s+combles?\b/i.test(norm))details.push('Aménageables');
+  else if(/\bcombles?\s+am[ée]nag[ée]s?\b/i.test(norm))details.push('Aménagés');
+  if(/\b(?:sur\s+)?tout(?:e)?\s+la\s+surface\s+de\s+la\s+maison\b/i.test(norm))details.push('Sur toute la surface de la maison (surface non chiffrée)');
+  if(/\btrappe\b[^.!?]{0,55}\bcombles?\b|\bacc[eè]s\b[^.!?]{0,55}\bcombles?\b|\bcombles?\b[^.!?]{0,55}\bacc[eè]s\b/i.test(norm))details.push('Accès mentionné');
+  if(/\b(?:en\s+)?haut\s+de\s+l['’]escalier\b/i.test(norm))details.push('En haut de l’escalier');
+  if(details.length)r.push(['Combles',uniq(details).join(' — ')]);
+  else r.push(['Combles','Combles mentionnés — caractéristiques non précisées']);
  }
  const facade=cl.find(c=>/façade|crépi|enduit/i.test(c));if(facade&&/retrait|décollement|fissure/i.test(facade))r.push(['Façade / enduit',/retrait de cr[eé]pi/i.test(facade)?'Retrait de crépi signalé':clean(facade)]);
  return r;

@@ -610,3 +610,59 @@ async def save(address:str=Form(""),type:str=Form(""),surface:str=Form(""),notes
         (folder/f"{i:02d}{ext}").write_bytes(raw); saved+=1
     (folder/"dossier.json").write_text(json.dumps(meta,ensure_ascii=False,indent=2),encoding="utf-8")
     return {"id":did,"photos":saved}
+
+
+# ESTIM'IA V13.43 — première passerelle DVF (source publique externe, disponibilité non garantie).
+@app.get('/api/estimation/dvf')
+def estimation_dvf(commune: str, type_bien: str, surface: float):
+    if not re.fullmatch(r'\d{5}',commune):
+        raise HTTPException(400,'Code INSEE de cinq chiffres requis')
+    if surface<=0 or surface>20000:
+        raise HTTPException(400,'Surface habitable positive requise')
+    typ={'maison':'Maison','appartement':'Appartement'}.get(type_bien.strip().lower())
+    if not typ:
+        raise HTTPException(400,'Première version : maisons et appartements uniquement')
+    url='https://api.cquest.org/dvf?'+urllib.parse.urlencode({'code_commune':commune})
+    try:
+        data=get_json(url,timeout=12)
+    except Exception:
+        return {'status':'indisponible','message':'Le service externe DVF ne répond pas. Aucune valeur ne peut être calculée.','source':url,'comparables':[]}
+    raw=data.get('features',[]) if isinstance(data,dict) else []
+    if not raw and isinstance(data,dict):raw=data.get('results',data.get('data',[]))
+    if not isinstance(raw,list):raw=[]
+    seen=set(); comparables=[]
+    for item in raw:
+        d=item.get('properties',item) if isinstance(item,dict) else {}
+        if not isinstance(d,dict):continue
+        if str(d.get('type_local','')).lower()!=typ.lower():continue
+        def num(v):
+            try:return float(str(v).replace(' ','').replace(',','.'))
+            except:return 0
+        prix=num(d.get('valeur_fonciere',d.get('valeur',0)))
+        bati=num(d.get('surface_reelle_bati',d.get('surface_bati',0)))
+        date=str(d.get('date_mutation',''))[:10]
+        if prix<=10000 or bati<15 or bati>1000 or not date:continue
+        if bati/surface<0.55 or bati/surface>1.8:continue
+        # Exclure les mutations avec plusieurs locaux si le fournisseur fournit l'information.
+        nb=d.get('nombre_lots_batis',d.get('nb_locaux',1))
+        if num(nb)>1:continue
+        key=(d.get('id_mutation',d.get('idmutation')),date,prix,bati)
+        if key in seen:continue
+        seen.add(key)
+        comparables.append({'date':date,'prix':round(prix),'surface':bati,'prix_m2':round(prix/bati),'reference':str(key[0] or '')})
+    comparables.sort(key=lambda c:c['date'],reverse=True)
+    comparables=comparables[:120]
+    if len(comparables)<3:
+        return {'status':'insuffisant','message':'Moins de trois ventes comparables exploitables : aucune estimation automatique.','source':url,'comparables':comparables}
+    # Médiane robuste; fourchette indicative, sans prétendre corriger l'état ou les annexes.
+    values=sorted(c['prix_m2'] for c in comparables)
+    median=values[len(values)//2] if len(values)%2 else (values[len(values)//2-1]+values[len(values)//2])/2
+    selected=[c for c in comparables if 0.65*median<=c['prix_m2']<=1.35*median]
+    if len(selected)<3:
+        return {'status':'insuffisant','message':'Ventes trop dispersées pour une estimation fiable.','source':url,'comparables':comparables}
+    vals=sorted(c['prix_m2'] for c in selected)
+    m=vals[len(vals)//2] if len(vals)%2 else (vals[len(vals)//2-1]+vals[len(vals)//2])/2
+    def rnd(x):return round(x/1000)*1000
+    return {'status':'indicatif','source':url,'comparables':selected[:30], 'nombre':len(selected),'prix_m2_median':round(m),
+            'basse':rnd(m*surface*0.85),'centrale':rnd(m*surface),'haute':rnd(m*surface*1.15),
+            'avertissement':'Indication statistique non ajustée : état, terrain, travaux, dépendances, copropriété et qualité des transactions non évalués. Validation professionnelle indispensable.'}
