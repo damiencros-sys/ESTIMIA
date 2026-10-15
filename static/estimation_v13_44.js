@@ -11,9 +11,12 @@ btn.addEventListener('click',async()=>{
  const surface=Number(q('#surfaceHab')?.value||0);
  const status=q('#estimationStatus'),result=q('#estimationResults');result.replaceChildren();
  if(!type_bien||!surface){status.textContent='Renseigne le type (maison/appartement) et la surface habitable dans la fiche.';return;}
- let code=/^\d{5}$/.test(commune)?commune:null;
- if(!code && /lamalou/i.test(commune+' '+addr))code='34126';
- if(!code){status.textContent='Renseigne le code INSEE de la commune dans le champ Cadastre (ex. Lamalou-les-Bains : 34126).';return;}
+ let code=(q('#cadCommune')?.dataset.insee||'').trim();
+ if(!/^\d{5}$/.test(code))code=commune;
+ if(!code && /lamalou/i.test(addr))code='34126';
+ if(!code){status.textContent='Renseigne la commune dans le champ Cadastre (ex. Lamalou-les-Bains ou 34126).';return;}
+ // Le serveur accepte le nom et le résout en code INSEE avant toute requête DVF.
+ if(code==='34240' && /lamalou/i.test(addr))code='34126';
  btn.disabled=true;status.textContent='Recherche des ventes réelles en cours…';
  try{
   const u='/api/estimation/dvf?'+new URLSearchParams({commune:code,type_bien,surface});
