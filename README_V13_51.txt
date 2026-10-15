@@ -1,0 +1,1 @@
+V13.51 - Diagnostic DVF / affichage import. Cache HTTP désactivé sur les fichiers frontend, formulaire DVF ouvert par défaut, indicateur de version visible, bouton Haut de page. Import officiel toujours manuel; aucun accès automatique aux transactions garanti. Tests locaux avec données fictives seulement.

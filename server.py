@@ -12,8 +12,15 @@ DATA=BASE/"data"; DATA.mkdir(exist_ok=True)
 app=FastAPI(title="ESTIM'IA V2")
 app.mount("/static",StaticFiles(directory=BASE/"static"),name="static")
 
+@app.middleware("http")
+async def _no_cache_frontend(request, call_next):
+    response=await call_next(request)
+    if request.url.path.startswith("/static/") or request.url.path=="/":
+        response.headers["Cache-Control"]="no-store, no-cache, must-revalidate"
+    return response
+
 @app.get("/")
-def home(): return FileResponse(BASE/"static"/"index.html")
+def home(): return FileResponse(BASE/"static"/"index.html",headers={"Cache-Control":"no-store, no-cache, must-revalidate", "Pragma":"no-cache"})
 
 
 def get_json(url, timeout=20):
@@ -677,7 +684,7 @@ async def dvf_import(file: UploadFile=File(...), commune: str=Form(...)):
         if not r:raise HTTPException(400,'Commune non reconnue')
         code=str(r['code'])
     if not re.fullmatch(r'\d{5}',code):raise HTTPException(400,'Code INSEE invalide')
-    if not file.filename.lower().endswith('.zip'):raise HTTPException(400,'Archive ZIP DGFiP requise')
+    if not (file.filename or '').lower().endswith('.zip'):raise HTTPException(400,'Archive ZIP DGFiP requise')
     size=0
     with tempfile.NamedTemporaryFile(suffix='.zip',delete=False) as f:
         path=f.name
@@ -686,7 +693,7 @@ async def dvf_import(file: UploadFile=File(...), commune: str=Form(...)):
                 chunk=await file.read(1024*1024)
                 if not chunk:break
                 size+=len(chunk)
-                if size>_DVF_IMPORT_LIMIT:raise HTTPException(413,'Archive supérieure à 110 Mo')
+                if size>_DVF_IMPORT_LIMIT:raise HTTPException(413,'Archive supérieure à 110 Mo : importer une archive annuelle moins volumineuse ou préparer un fichier communal')
                 f.write(chunk)
         except BaseException:
             os.unlink(path);raise
