@@ -663,7 +663,14 @@ def _dvf_extract(payload, typ, surface):
 
 @app.get('/api/estimation/dvf')
 def estimation_dvf(commune: str, type_bien: str, surface: float):
-    if not re.fullmatch(r'\\d{5}',commune):raise HTTPException(400,'Code INSEE de cinq chiffres requis')
+    commune=commune.strip()
+    if _norm_name(commune) in ('lamalou les bains','lamalou les bains 34240','34240 lamalou les bains'):
+        commune='34126'
+    elif not re.fullmatch(r'\d{5}',commune):
+        resolved=_resolve_commune(commune)
+        if not resolved or not re.fullmatch(r'\d{5}',str(resolved.get('code',''))):
+            raise HTTPException(400,'Commune non reconnue : vérifier le nom ou renseigner le code INSEE.')
+        commune=str(resolved['code'])
     if not 12<=surface<=1000:raise HTTPException(400,'Surface habitable suspecte ou manquante : vérifier la fiche avant estimation')
     typ={'maison':'111','appartement':'121'}.get(type_bien.strip().lower())
     if not typ:raise HTTPException(400,'Seuls maisons et appartements sont pris en charge')

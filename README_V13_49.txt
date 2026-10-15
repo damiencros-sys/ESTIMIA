@@ -1,0 +1,1 @@
+V13.49 — correction certaine : expression reguliere DVF incorrecte (double antislash) qui rejetait tous les codes INSEE. Resolution serveur des noms de communes, conversion Lamalou-les-Bains vers 34126. Les sources DVF externes restent a tester en production.
