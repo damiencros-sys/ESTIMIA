@@ -1,0 +1,1 @@
+V13.50 : ajout import des archives DVF annuelles officielles de la DGFiP, par commune, pour recherche sans API. Pas de données inventées. Attention: import temporaire sur Render sans disque persistant. Tests hors ligne et validation syntaxique; connexion Render non vérifiable ici. Annonces inchangées.

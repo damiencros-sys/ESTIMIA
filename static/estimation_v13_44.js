@@ -31,6 +31,17 @@ btn.addEventListener('click',async()=>{
  finally{btn.disabled=false;}
 });
 
+q('#dvfImport')?.addEventListener('click',async()=>{
+ const f=q('#dvfZip')?.files?.[0],status=q('#dvfImportStatus');
+ const commune=(q('#cadCommune')?.dataset.insee||q('#cadCommune')?.value||'').trim();
+ if(!f||!commune){status.textContent='Choisir un ZIP DVF officiel et renseigner la commune.';return;}
+ const btn=q('#dvfImport');btn.disabled=true;status.textContent='Import DVF en cours : cela peut prendre plusieurs minutes…';
+ try{const fd=new FormData();fd.append('file',f);fd.append('commune',commune);
+ const r=await fetch('/api/estimation/dvf/import',{method:'POST',body:fd});const d=await r.json();
+ if(!r.ok)throw Error(typeof d.detail==='string'?d.detail:'Import impossible');status.textContent=d.message;
+ }catch(e){status.textContent='Erreur import : '+e.message}finally{btn.disabled=false;}
+});
+
 const annoncesBtn=q('#launchAnnonces');
 const manual=[];let found=[];
 function displayAnnonces(){
