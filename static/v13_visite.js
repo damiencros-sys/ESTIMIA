@@ -31,6 +31,11 @@ function phone(t){
  }
  return '';
 }
+function emailFromDictation(t){
+ // Conserve les adresses déjà correctement transcrites par le navigateur.
+ const m=String(t||'').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+ return m?m[0].replace(/[.,;]+$/,''):'';
+}
 function commune(t){
  const tidy=v=>clean(v).replace(/\s+(?:section|parcelle|cadastre|cadastrale|code postal)\b.*$/iu,'').replace(/[,:;.\s]+$/,'');
  // Priorité au couple CP + commune situé dans la partie « adresse du bien ».
@@ -137,7 +142,12 @@ function addressV1310(t){
 }
 
 function address(t){
- const s=clean(t), ways='(?:route|rue|chemin|avenue|boulevard|impasse|lotissement|place|all[ée]e|mont[ée]e|traverse|quai|cours)';
+ const s=clean(t);
+ // Adresse annoncée dans une visite : « chez Mme X, au 18 avenue ..., 34240 Ville ».
+ // La capture ne doit pas avaler le nom du propriétaire ou la description suivante.
+ const direct=/\b(?:au|à|situ[ée]e?\s+au|situ[ée]e?\s+à)\s+(\d{1,4}(?:\s*(?:bis|ter))?\s+(?:rue|avenue|boulevard|route|chemin|impasse|place|all[ée]e|lotissement|quai|cours|traverse|mont[ée]e)\s+[^,.;!?]{3,85}?)\s*,?\s*(\d{5})\s+([\p{L}][\p{L}'’ -]{1,45}?)(?=\s*[.,;!?]|\s+(?:le\s+num[ée]ro|la\s+propri[ée]t[ée]|il\s+s['’]agit|la\s+maison|le\s+bien|le\s+terrain|section|cadastr[ée]e?)\b|$)/iu;
+ const dm=s.match(direct);if(dm)return {street:clean(dm[1]),postcode:dm[2],city:clean(dm[3])};
+ const ways='(?:route|rue|chemin|avenue|boulevard|impasse|lotissement|place|all[ée]e|mont[ée]e|traverse|quai|cours)';
  const cpRx=/\b(\d{5})\s+([\p{L}][\p{L}'’ -]{1,50}?)(?=\s+(?:la\s+r[ée]f[ée]rence|r[ée]f[ée]rence|section|parcelle|cadastre|cadastrale|c['’]?est|maison|appartement|villa|terrain|salon|s[ée]jour|cuisine|chambre)\b|[,.;!?]|$)/giu;
  for(const cp of s.matchAll(cpRx)){
   const left=s.slice(Math.max(0,cp.index-180),cp.index);
@@ -213,7 +223,7 @@ function surfaces(text){
   return name;
  };
  const push=(name,val,index)=>{
-  if(!Number.isFinite(val))return;
+  if(!Number.isFinite(val)||val<=0||val>250)return;
   name=canon(name);
   const cat=/garage|cave|grenier|atelier|dépendance|local|abri|cabanon|carport/i.test(name)?'Annexe':/terrasse|balcon|loggia/i.test(name)?'Extérieur':'Intérieur';
   const lvl=/cabanon|abri/i.test(name)?'Extérieur':levelAt(index);
@@ -232,6 +242,11 @@ function surfaces(text){
   if(/(?:sans|pas\s+de)\s*$/i.test(pre)&&/^(wc|toilettes?)$/i.test(m.name))continue;
   const stop=k+1<marks.length?marks[k+1].i:Math.min(t.length,m.end+140);
   let chunk=t.slice(m.end,stop);
+  // Une surface ne peut être attribuée à une pièce que dans son groupe immédiat.
+  // Les informations terrain/parcelle, niveaux, annexes ou dates coupent la portée.
+  chunk=chunk.split(/\b(?:terrain|parcelle|cadastr[ée]e?|section|surface\s+du\s+terrain|superficie\s+du\s+terrain|au\s+rez[- ]de[- ]chauss[ée]e|au\s+premier\s+[ée]tage|au\s+deuxi[eè]me\s+[ée]tage|[àa]\s+l['’][ée]tage|combles|[àa]\s+l['’]ext[ée]rieur)\b/i)[0];
+  // Au-delà de 65 caractères, une valeur risque d'appartenir à une autre information.
+  chunk=chunk.slice(0,65);
 
   // "pièce de 8,20 m² faisant office de bureau"
   if(/^pi[eè]ce$/i.test(m.name)&&!/faisant\s+office\s+de\s+bureau/i.test(chunk))continue;
@@ -591,8 +606,9 @@ async function render(){
  const raw=$('#notes').value||'',corr=$('#correction').value||'',t=clean(raw+' '+corr);
  const o=owner(t);if(o&&!$('#owner').value)$('#owner').value=o;
  const ph=phone(t);if(ph)$('#ownerPhone').value=ph;
+ const mail=emailFromDictation(t);
  // Synchroniser les cartes dès que la dictée a rempli les champs historiques.
- if(o||ph)ownUpdateFromDictation(o,ph);
+ if(o||ph||mail)ownUpdateFromDictation(o,ph,mail);
  const a=address(t);if(a&&a.street){$('#address').value=a.street;$('#cadCommune').value=a.city;$('#cadCommune').dataset.postcode=a.postcode||'';$('#cadCommune').dataset.insee='';await normalizeCommune(a.city,a.postcode||'');}
  const cps=parseCadParcels(t);if(cps.length){cps.forEach(p=>addCadParcel(p.section,p.numero,false));$('#cadSection').value='';$('#cadParcel').value='';}
  const cm=commune(t);
@@ -973,7 +989,7 @@ function ownLoad(){
  for(const c of others)ownerCardsState.push({nom:c.nom||'',prenom:c.prenom||'',phones:c.phones||[c.telephone||''],emails:c.emails||['']});
  ownRender();
 }
-function ownUpdateFromDictation(name,telephone){
+function ownUpdateFromDictation(name,telephone,email){
  const first=ownerCardsState[0];if(!first)return;
  if(name){
   const parts=String(name).trim().split(/\s+/);
@@ -984,6 +1000,7 @@ function ownUpdateFromDictation(name,telephone){
   if(!first.phones.length)first.phones.push(telephone);
   else first.phones[0]=telephone;
  }
+ if(email){if(!Array.isArray(first.emails))first.emails=[];if(!first.emails.includes(email)){const blank=first.emails.indexOf('');if(blank>=0)first.emails[blank]=email;else first.emails.push(email)}}
  ownSync();ownRender();
 }
 function ownSync(){
