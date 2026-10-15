@@ -666,3 +666,62 @@ def estimation_dvf(commune: str, type_bien: str, surface: float):
     return {'status':'indicatif','source':url,'comparables':selected[:30], 'nombre':len(selected),'prix_m2_median':round(m),
             'basse':rnd(m*surface*0.85),'centrale':rnd(m*surface),'haute':rnd(m*surface*1.15),
             'avertissement':'Indication statistique non ajustée : état, terrain, travaux, dépendances, copropriété et qualité des transactions non évalués. Validation professionnelle indispensable.'}
+
+
+# V13.44 : découverte d'annonces indexées par un moteur de recherche via son flux RSS public.
+# Aucun contournement des protections des portails, aucun scraping des pages d'annonces.
+@app.get('/api/estimation/annonces')
+def annonces_marche(commune: str, type_bien: str, surface: float = 0):
+    import xml.etree.ElementTree as ET
+    import html as htmlmod
+    from urllib.parse import urlparse
+    city=commune.strip()[:80]
+    if not re.fullmatch(r"[A-Za-zÀ-ÿ0-9 '’\-]{2,80}",city):
+        raise HTTPException(400,'Commune non valide')
+    typ=type_bien.lower().strip()
+    if typ not in ('maison','appartement'):
+        raise HTTPException(400,'Type de bien non pris en charge')
+    if not (0<=surface<=20000):
+        raise HTTPException(400,'Surface non valide')
+    query=f'"{city}" "{typ}" "vente" immobilier prix'
+    rss='https://www.bing.com/search?'+urllib.parse.urlencode({'q':query,'format':'rss','count':'30'})
+    allowed=('seloger.com','bienici.com','leboncoin.fr','logic-immo.com','orpi.com','century21.fr','laforet.com','iadfrance.fr','safti.fr','optimhome.com','capifrance.fr','foncia.com')
+    try:
+        req=urllib.request.Request(rss,headers={'User-Agent':'Mozilla/5.0 ESTIMIA/13.44','Accept':'application/rss+xml, application/xml'})
+        with urllib.request.urlopen(req,timeout=10) as resp:
+            xml=resp.read(350000)
+        channel=ET.fromstring(xml)
+        entries=channel.findall('.//item')
+    except Exception:
+        return {'status':'indisponible','annonces':[],'message':'La recherche publique des annonces ne répond pas. Aucun résultat inventé.','source':rss}
+    def strip_tags(x):return re.sub(r'<[^>]+>',' ',htmlmod.unescape(x or ''))
+    def euro(text):
+        # Prix explicite suivi de € / euros (pas les mensualités).
+        for m in re.finditer(r'(?<!\d)(\d{2,3}(?:[ \u00a0\u202f.]?\d{3}){1,2}|\d{5,7})\s*(?:€|euros?)(?!\s*/\s*mois)',text,re.I):
+            v=int(re.sub(r'\D','',m.group(1)))
+            if 15000<=v<=10000000:return v
+        return None
+    def area(text):
+        m=re.search(r'(?<!\d)(\d{2,4}(?:[.,]\d{1,2})?)\s*(?:m²|m2)\b',text,re.I)
+        if not m:return None
+        a=float(m.group(1).replace(',','.'))
+        return a if 12<=a<=2000 else None
+    out=[];seen=set()
+    for item in entries:
+        title=strip_tags(item.findtext('title'));description=strip_tags(item.findtext('description'));link=(item.findtext('link') or '').strip()
+        parsed=urlparse(link);host=(parsed.hostname or '').lower().removeprefix('www.')
+        if parsed.scheme not in ('https','http') or not any(host==d or host.endswith('.'+d) for d in allowed):continue
+        txt=title+' '+description
+        if not re.search(r'\b'+re.escape(typ)+r's?\b',txt,re.I):continue
+        if not re.search(re.escape(city),txt,re.I):continue
+        key=(host, re.sub(r'[^a-z0-9]','',title.lower()))
+        if key in seen:continue
+        seen.add(key)
+        price=euro(txt);sqm=area(txt)
+        # Prix/m² uniquement si les deux nombres sont explicites dans le résultat indexé.
+        out.append({'titre':title[:180],'description':description[:400],'url':link,'site':host,
+                    'prix':price,'surface':sqm,'prix_m2':round(price/sqm) if price and sqm else None,
+                    'fiabilite':'À vérifier : extrait indexé, annonce et disponibilité non contrôlées'})
+    return {'status':'resultats' if out else 'aucun_resultat','annonces':out[:30],
+            'message':f'{len(out)} résultats indexés repérés. Prix, surfaces et disponibilité à vérifier sur les annonces originales.' if out else 'Aucune annonce exploitable repérée dans les résultats publics. Cela ne signifie pas absence de biens en vente.',
+            'source':rss,'limites':'Résultats non exhaustifs et potentiellement anciens ; aucune donnée d’annonce n’entre automatiquement dans la valeur DVF.'}
