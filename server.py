@@ -612,70 +612,101 @@ async def save(address:str=Form(""),type:str=Form(""),surface:str=Form(""),notes
     return {"id":did,"photos":saved}
 
 
-# V13.46 — Cerema DVF+ open-data (source institutionnelle) ; aucun montant inventé.
-# Le service historique cquest n'est plus utilisé : disponibilité explicitement non garantie.
+# V13.47 — Recherche DVF avec sources identifiées et diagnostics sans faux résultats.
+# Source 1: Cerema DVF+ (si accessible); source 2: foncierdata.fr, données DGFiP
+# (couverture partielle des communes). Aucun chiffre n'est inventé.
 def _dvf_num(v):
-    try:return float(str(v).replace(' ', '').replace('\u202f','').replace(',','.'))
+    try:return float(str(v).replace(' ', '').replace('\\u202f','').replace(',','.'))
     except (ValueError,TypeError):return 0.0
 
 def _dvf_rows(payload):
     if isinstance(payload,list):return payload
     if not isinstance(payload,dict):return []
-    for key in ('results','data','features','mutations'):
+    for key in ('results','resultats','data','features','mutations','transactions','items'):
         v=payload.get(key)
         if isinstance(v,list):return v
         if isinstance(v,dict):
-            for sub in ('results','data','items'):
+            for sub in ('results','data','items','transactions'):
                 if isinstance(v.get(sub),list):return v[sub]
     return []
 
-@app.get('/api/estimation/dvf')
-def estimation_dvf(commune: str, type_bien: str, surface: float):
-    if not re.fullmatch(r'\d{5}',commune):raise HTTPException(400,'Code INSEE de cinq chiffres requis')
-    if not 12<=surface<=1000:raise HTTPException(400,'Surface habitable suspecte ou manquante : vérifier la fiche avant estimation')
-    typ={'maison':'111','appartement':'121'}.get(type_bien.strip().lower())
-    if not typ:raise HTTPException(400,'Seuls maisons et appartements sont pris en charge')
-    base='https://apidf.k8-dev.cerema.fr/dvf_opendata/mutations'
-    params={'code_insee':commune,'codtypbien':typ,'sbati_min':max(12,round(surface*.5)),
-            'sbati_max':min(1000,round(surface*2)),'page_size':200,'fields':'all'}
-    url=base+'?'+urllib.parse.urlencode(params)
-    try:payload=get_json(url,timeout=20)
-    except Exception as exc:
-        return {'status':'indisponible','message':'API DVF+ Cerema indisponible ou inaccessible depuis le serveur. Aucun montant calculé.','source':url,'comparables':[],'diagnostic':type(exc).__name__}
+def _dvf_pick(d,*keys):
+    for key in keys:
+        if key in d and d[key] is not None:return d[key]
+    return None
+
+def _dvf_extract(payload, typ, surface):
     raw=_dvf_rows(payload)
     seen=set(); comparables=[]
     for item in raw:
         d=item.get('properties',item) if isinstance(item,dict) else {}
         if not isinstance(d,dict):continue
-        # Les mutations multi-locaux ne sont pas des comparables unitaires fiables.
-        nb=_dvf_num(d.get('nblocmut',d.get('nb_locaux',d.get('nombre_lots_batis',1))))
+        nb=_dvf_num(_dvf_pick(d,'nblocmut','nb_locaux','nombre_lots_batis','nombre_locaux'))
         if nb>1:continue
-        cod=str(d.get('codtypbien') or '')
-        if cod and cod!=typ:continue
-        prix=_dvf_num(d.get('valeurfonc',d.get('valeur_fonciere',d.get('valeur',0))))
-        bati=_dvf_num(d.get('sbati',d.get('surface_reelle_bati',d.get('surface_bati',0))))
-        date=str(d.get('datemut',d.get('date_mutation',d.get('date',d.get('anneemut','')))))[:10]
-        nature=str(d.get('libnatmut',d.get('nature_mutation','Vente'))).lower()
-        if nature and 'vente' not in nature and nature!='nan':continue
+        kind=str(_dvf_pick(d,'codtypbien','type_local','type_bien','type') or '').lower()
+        expected='maison' if typ=='111' else 'appartement'
+        if kind and not (kind==typ or expected in kind or (typ=='111' and kind=='1') or (typ=='121' and kind=='2')):continue
+        prix=_dvf_num(_dvf_pick(d,'valeurfonc','valeur_fonciere','valeur','prix','prix_vente'))
+        bati=_dvf_num(_dvf_pick(d,'sbati','surface_reelle_bati','surface_bati','surface','surface_habitable'))
+        date=str(_dvf_pick(d,'datemut','date_mutation','date','anneemut') or '')[:10]
+        nature=str(_dvf_pick(d,'libnatmut','nature_mutation') or 'Vente').lower()
+        if nature and 'vente' not in nature:continue
         if prix<=10000 or not 15<=bati<=1000 or not date:continue
         if not .55<=bati/surface<=1.8:continue
-        key=str(d.get('idnatmut',d.get('id_mutation',d.get('idmutation',''))))
-        unique=(key or (date,str(prix),str(bati)))
+        key=str(_dvf_pick(d,'idnatmut','id_mutation','idmutation','reference') or '')
+        unique=key or (date,str(prix),str(bati))
         if unique in seen:continue
         seen.add(unique)
         comparables.append({'date':date,'prix':round(prix),'surface':bati,'prix_m2':round(prix/bati),'reference':key})
     comparables.sort(key=lambda x:x['date'],reverse=True)
-    if len(comparables)<3:
-        return {'status':'insuffisant','message':f'{len(comparables)} mutation(s) unitaires exploitables : estimation automatique impossible. Vérifier le jeu de données ou élargir le secteur.','source':url,'comparables':comparables[:30],'brut':len(raw)}
-    vals=sorted(c['prix_m2'] for c in comparables)
+    return comparables,len(raw)
+
+@app.get('/api/estimation/dvf')
+def estimation_dvf(commune: str, type_bien: str, surface: float):
+    if not re.fullmatch(r'\\d{5}',commune):raise HTTPException(400,'Code INSEE de cinq chiffres requis')
+    if not 12<=surface<=1000:raise HTTPException(400,'Surface habitable suspecte ou manquante : vérifier la fiche avant estimation')
+    typ={'maison':'111','appartement':'121'}.get(type_bien.strip().lower())
+    if not typ:raise HTTPException(400,'Seuls maisons et appartements sont pris en charge')
+    cerema='https://apidf.k8-dev.cerema.fr/dvf_opendata/mutations'
+    params={'code_insee':commune,'codtypbien':typ,'sbati_min':max(12,round(surface*.5)),
+            'sbati_max':min(1000,round(surface*2)),'page_size':200,'fields':'all'}
+    sources=[
+        ('Cerema DVF+',cerema+'?'+urllib.parse.urlencode(params)),
+        ('FoncierData / DGFiP',f'https://foncierdata.fr/api/v1/commune/{commune}/transactions.json')
+    ]
+    diagnostics=[]; candidates=[]; source_url=''; source_name=''
+    for name,url in sources:
+        try:
+            payload=get_json(url,timeout=12)
+            rows,n=_dvf_extract(payload,typ,surface)
+            diagnostics.append({'source':name,'etat':'accessible','lignes':n,'comparables':len(rows)})
+            if len(rows)>len(candidates):
+                candidates=rows;source_url=url;source_name=name
+            if len(candidates)>=3:break
+        except urllib.error.HTTPError as exc:
+            diagnostics.append({'source':name,'etat':'erreur_http','code':exc.code})
+        except Exception as exc:
+            diagnostics.append({'source':name,'etat':'connexion_impossible','detail':type(exc).__name__})
+    if len(candidates)<3:
+        any_access=any(d['etat']=='accessible' for d in diagnostics)
+        return {'status':'insuffisant' if any_access else 'indisponible',
+                'message':(f'{len(candidates)} vente(s) comparable(s) exploitable(s) : au moins 3 nécessaires.'
+                           if any_access else 'Aucune source DVF joignable depuis le serveur.'),
+                'source':source_url,'comparables':candidates[:30],'diagnostics':diagnostics,
+                'diagnostic':' ; '.join(f"{d['source']}: {d['etat']}"+(f" ({d.get('code')})" if d.get('code') else '') for d in diagnostics)}
+    vals=sorted(c['prix_m2'] for c in candidates)
     mid=lambda x:(x[(len(x)-1)//2]+x[len(x)//2])/2
     median=mid(vals)
-    selected=[c for c in comparables if .65*median<=c['prix_m2']<=1.35*median]
-    if len(selected)<3:return {'status':'insuffisant','message':'Prix trop dispersés : estimation automatique impossible.','source':url,'comparables':comparables[:30]}
+    selected=[c for c in candidates if .65*median<=c['prix_m2']<=1.35*median]
+    if len(selected)<3:
+        return {'status':'insuffisant','message':'Prix trop dispersés : estimation automatique impossible.',
+                'source':source_url,'comparables':candidates[:30],'diagnostics':diagnostics}
     m=mid(sorted(c['prix_m2'] for c in selected)); rnd=lambda x:round(x/1000)*1000
-    return {'status':'indicatif','source':url,'comparables':selected[:30],'nombre':len(selected),
-            'prix_m2_median':round(m),'basse':rnd(m*surface*.85),'centrale':rnd(m*surface),'haute':rnd(m*surface*1.15),
-            'avertissement':'Fourchette statistique DVF+ non ajustée : état, terrain, travaux, dépendances, localisation précise et composition des mutations non certifiés. Avis de valeur professionnel à valider.'}
+    return {'status':'indicatif','source':source_url,'source_nom':source_name,
+            'comparables':selected[:30],'nombre':len(selected),'diagnostics':diagnostics,
+            'prix_m2_median':round(m),'basse':rnd(m*surface*.85),
+            'centrale':rnd(m*surface),'haute':rnd(m*surface*1.15),
+            'avertissement':'Fourchette statistique non ajustée : état, terrain, travaux et dépendances non pris en compte. Données tierces à vérifier avant tout avis de valeur.'}
 
 # V13.44 : découverte d'annonces indexées par un moteur de recherche via son flux RSS public.
 # Aucun contournement des protections des portails, aucun scraping des pages d'annonces.
