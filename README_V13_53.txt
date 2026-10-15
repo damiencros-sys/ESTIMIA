@@ -1,0 +1,1 @@
+V13.53 : recherche annonces : diagnostics RSS, normalisation accents, liens directs permanents vers recherches par site. Aucun scraping de portail protégé ni garantie de résultat automatique. DVF inchangé.

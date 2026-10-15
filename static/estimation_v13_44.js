@@ -55,10 +55,18 @@ annoncesBtn?.addEventListener('click',async()=>{
  const commune=/^\d{5}$/.test(raw)?(raw==='34126'?'Lamalou-les-Bains':raw):raw||(/lamalou/i.test(addr)?'Lamalou-les-Bains':'');
  const typ=(q('#type')?.value||'').toLowerCase();const type_bien=typ.includes('appartement')?'appartement':typ.includes('maison')||typ.includes('villa')?'maison':'';
  const surface=Number(q('#surfaceHab')?.value||0);const status=q('#annoncesStatus');
+ const links=q('#annoncesLinks');
+ if(links){
+  const term=type_bien+' vente '+commune;
+  const urls=[['Google – annonces immobilières','https://www.google.com/search?q='+encodeURIComponent(term+' site:seloger.com OR site:bienici.com OR site:leboncoin.fr')],['SeLoger – recherche','https://www.google.com/search?q='+encodeURIComponent(term+' site:seloger.com')],['Bien’ici – recherche','https://www.google.com/search?q='+encodeURIComponent(term+' site:bienici.com')],['Leboncoin – recherche','https://www.google.com/search?q='+encodeURIComponent(term+' site:leboncoin.fr')],['Agences locales','https://www.google.com/search?q='+encodeURIComponent(term+' agence immobilière')]];
+  links.replaceChildren(document.createTextNode('Recherches directes (ouvrent les sites de recherche, pas des annonces vérifiées) : '));
+  for(const [label,url] of urls){const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=label;a.style.marginRight='12px';links.append(a);}
+ }
+
  if(!commune||!type_bien){status.textContent='Renseigne la commune (nom), et le type maison/appartement. Si le cadastre contient seulement un code INSEE, saisis le nom de la commune dans l’adresse.';return;}
  if(/^\d{5}$/.test(commune)){status.textContent='Nom de commune nécessaire pour rechercher les annonces (le code INSEE seul ne suffit pas).';return;}
  annoncesBtn.disabled=true;status.textContent='Recherche des annonces indexées…';
- try{const res=await fetch('/api/estimation/annonces?'+new URLSearchParams({commune,type_bien,surface}));const d=await res.json();if(!res.ok)throw Error(d.detail||'Erreur serveur');found=d.annonces||[];status.textContent=d.message+(d.limites?' '+d.limites:'');displayAnnonces();}
+ try{const res=await fetch('/api/estimation/annonces?'+new URLSearchParams({commune,type_bien,surface}));const d=await res.json();if(!res.ok)throw Error(d.detail||'Erreur serveur');found=d.annonces||[];status.textContent=d.message+(d.limites?' '+d.limites:'')+(d.diagnostics?.length?' Diagnostic : '+d.diagnostics.map(x=>x.etat+' ('+(x.extraits??x.code??x.detail??'?')+')').join(' ; '):'');displayAnnonces();}
  catch(e){status.textContent='Recherche indisponible : '+e.message;found=[];displayAnnonces();}
  finally{annoncesBtn.disabled=false;}
 });

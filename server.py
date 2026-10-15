@@ -908,60 +908,94 @@ def estimation_dvf(commune: str, type_bien: str, surface: float):
             'centrale':rnd(m*surface),'haute':rnd(m*surface*1.15),
             'avertissement':'Fourchette statistique non ajustée : état, terrain, travaux et dépendances non pris en compte. Données tierces à vérifier avant tout avis de valeur.'}
 
-# V13.44 : découverte d'annonces indexées par un moteur de recherche via son flux RSS public.
-# Aucun contournement des protections des portails, aucun scraping des pages d'annonces.
+# V13.53 — Découverte d'annonces indexées. Aucune extraction de portail protégé.
+# Une annonce indexée n'est pas une annonce dont la disponibilité a été vérifiée.
+MARKET_DOMAINS=('seloger.com','bienici.com','leboncoin.fr','logic-immo.com',
+'orpi.com','century21.fr','laforet.com','iadfrance.fr','safti.fr',
+'optimhome.com','capifrance.fr','foncia.com','guy-hoquet.com',
+'etreproprio.com','superimmo.com','paruvendu.fr','green-acres.fr')
+
+def _market_clean(s):
+    import html
+    return re.sub(r'\s+',' ',re.sub(r'<[^>]+>',' ',html.unescape(s or ''))).strip()
+
+def _market_euro(s):
+    # Accept 245 000 €, 245.000 €, 245000 euros and 245k €.
+    pattern=r'(?<!\d)(\d{2,3}(?:[ \u00a0\u202f.]?\d{3}){1,2}|\d{5,7}|\d{2,4}\s?k)\s*(?:€|euros?)(?!\s*/\s*mois)'
+    for m in re.finditer(pattern,s,re.I):
+        raw=m.group(1).lower().replace(' ','').replace('\u00a0','').replace('\u202f','')
+        value=int(float(raw[:-1])*1000) if raw.endswith('k') else int(re.sub(r'\D','',raw))
+        if 15000<=value<=10000000:return value
+    return None
+
+def _market_area(s):
+    for m in re.finditer(r'(?<!\d)(\d{2,4}(?:[.,]\d{1,2})?)\s*(?:m²|m2)\b',s,re.I):
+        v=float(m.group(1).replace(',','.'))
+        if 12<=v<=1000:return v
+    return None
+
+def _market_host(url):
+    from urllib.parse import urlparse
+    try:
+        p=urlparse(url);host=(p.hostname or '').lower().removeprefix('www.')
+        if p.scheme not in ('http','https'):return None
+        return host if any(host==d or host.endswith('.'+d) for d in MARKET_DOMAINS) else None
+    except ValueError:return None
+
+def _market_parse_rss(xml, city, typ):
+    import xml.etree.ElementTree as ET
+    root=ET.fromstring(xml)
+    entries=root.findall('.//item')
+    out=[];stats={'extraits':len(entries),'domaines_non_retenus':0,'sans_type':0,'sans_commune':0,'doublons':0}
+    seen=set()
+    citykey=re.sub(r'[^a-z0-9]','',__import__('unicodedata').normalize('NFKD',city).encode('ascii','ignore').decode().lower())
+    for item in entries:
+        title=_market_clean(item.findtext('title'))
+        description=_market_clean(item.findtext('description'))
+        url=(item.findtext('link') or '').strip();host=_market_host(url)
+        if not host:stats['domaines_non_retenus']+=1;continue
+        combined=title+' '+description
+        if not re.search(r'\b'+typ+r's?\b',combined,re.I):stats['sans_type']+=1;continue
+        normalized=re.sub(r'[^a-z0-9]','',__import__('unicodedata').normalize('NFKD',combined).encode('ascii','ignore').decode().lower())
+        # Require city or postal code in the indexed extract to prevent out-of-town listings.
+        postal='34240' if citykey=='lamaloulesbains' else ''
+        if citykey not in normalized and not (postal and postal in normalized):stats['sans_commune']+=1;continue
+        from urllib.parse import urlsplit,urlunsplit
+        parts=urlsplit(url);canonical=urlunsplit((parts.scheme,parts.netloc,parts.path.rstrip('/'),'',''))
+        if canonical in seen:stats['doublons']+=1;continue
+        seen.add(canonical)
+        price=_market_euro(combined);area=_market_area(combined)
+        out.append({'titre':title[:180],'description':description[:400],'url':url,
+          'site':host,'prix':price,'surface':area,'prix_m2':round(price/area) if price and area else None,
+          'fiabilite':'Extrait indexé : disponibilité, prix et caractéristiques non vérifiés'})
+    return out,stats
+
 @app.get('/api/estimation/annonces')
 def annonces_marche(commune: str, type_bien: str, surface: float = 0):
-    import xml.etree.ElementTree as ET
-    import html as htmlmod
-    from urllib.parse import urlparse
-    city=commune.strip()[:80]
-    if not re.fullmatch(r"[A-Za-zÀ-ÿ0-9 '’\-]{2,80}",city):
-        raise HTTPException(400,'Commune non valide')
-    typ=type_bien.lower().strip()
-    if typ not in ('maison','appartement'):
-        raise HTTPException(400,'Type de bien non pris en charge')
-    if not (0<=surface<=20000):
-        raise HTTPException(400,'Surface non valide')
-    query=f'"{city}" "{typ}" "vente" immobilier prix'
-    rss='https://www.bing.com/search?'+urllib.parse.urlencode({'q':query,'format':'rss','count':'30'})
-    allowed=('seloger.com','bienici.com','leboncoin.fr','logic-immo.com','orpi.com','century21.fr','laforet.com','iadfrance.fr','safti.fr','optimhome.com','capifrance.fr','foncia.com')
-    try:
-        req=urllib.request.Request(rss,headers={'User-Agent':'Mozilla/5.0 ESTIMIA/13.44','Accept':'application/rss+xml, application/xml'})
-        with urllib.request.urlopen(req,timeout=10) as resp:
-            xml=resp.read(350000)
-        channel=ET.fromstring(xml)
-        entries=channel.findall('.//item')
-    except Exception:
-        return {'status':'indisponible','annonces':[],'message':'Le moteur de recherche public ne répond pas ou refuse les requêtes automatisées. Aucune annonce vérifiée.','source':rss}
-    def strip_tags(x):return re.sub(r'<[^>]+>',' ',htmlmod.unescape(x or ''))
-    def euro(text):
-        # Prix explicite suivi de € / euros (pas les mensualités).
-        for m in re.finditer(r'(?<!\d)(\d{2,3}(?:[ \u00a0\u202f.]?\d{3}){1,2}|\d{5,7})\s*(?:€|euros?)(?!\s*/\s*mois)',text,re.I):
-            v=int(re.sub(r'\D','',m.group(1)))
-            if 15000<=v<=10000000:return v
-        return None
-    def area(text):
-        m=re.search(r'(?<!\d)(\d{2,4}(?:[.,]\d{1,2})?)\s*(?:m²|m2)\b',text,re.I)
-        if not m:return None
-        a=float(m.group(1).replace(',','.'))
-        return a if 12<=a<=2000 else None
-    out=[];seen=set()
-    for item in entries:
-        title=strip_tags(item.findtext('title'));description=strip_tags(item.findtext('description'));link=(item.findtext('link') or '').strip()
-        parsed=urlparse(link);host=(parsed.hostname or '').lower().removeprefix('www.')
-        if parsed.scheme not in ('https','http') or not any(host==d or host.endswith('.'+d) for d in allowed):continue
-        txt=title+' '+description
-        if not re.search(r'\b'+re.escape(typ)+r's?\b',txt,re.I):continue
-        if not re.search(re.escape(city),txt,re.I):continue
-        key=(host, re.sub(r'[^a-z0-9]','',title.lower()))
-        if key in seen:continue
-        seen.add(key)
-        price=euro(txt);sqm=area(txt)
-        # Prix/m² uniquement si les deux nombres sont explicites dans le résultat indexé.
-        out.append({'titre':title[:180],'description':description[:400],'url':link,'site':host,
-                    'prix':price,'surface':sqm,'prix_m2':round(price/sqm) if price and sqm else None,
-                    'fiabilite':'À vérifier : extrait indexé, annonce et disponibilité non contrôlées'})
-    return {'status':'resultats' if out else 'aucun_resultat','annonces':out[:30],
-            'message':f'{len(out)} résultats indexés repérés. Prix, surfaces et disponibilité à vérifier sur les annonces originales.' if out else 'Recherche effectuée, mais aucun extrait ne contient une annonce exploitable. Cela ne signifie pas absence de biens en vente.',
-            'source':rss,'limites':'Résultats non exhaustifs et potentiellement anciens ; aucune donnée d’annonce n’entre automatiquement dans la valeur DVF.'}
+    city=commune.strip()[:80];typ=type_bien.lower().strip()
+    if not re.fullmatch(r"[A-Za-zÀ-ÿ0-9 '’\-]{2,80}",city):raise HTTPException(400,'Commune non valide')
+    if typ not in ('maison','appartement'):raise HTTPException(400,'Type de bien non pris en charge')
+    if not 0<=surface<=20000:raise HTTPException(400,'Surface non valide')
+    # RSS only indexes snippets. Never claim these are active listings.
+    searches=[f'{typ} vente {city} 34240 immobilier',f'{typ} à vendre {city} prix m²']
+    all_rows=[];diag=[];seen=set();success=False
+    for query in searches:
+        url='https://www.bing.com/search?'+urllib.parse.urlencode({'q':query,'format':'rss','count':30})
+        try:
+            req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0','Accept':'application/rss+xml, application/xml'})
+            with urllib.request.urlopen(req,timeout=9) as response:
+                content=response.read(400000)
+            rows,stats=_market_parse_rss(content,city,typ)
+            success=True;diag.append({'source':'Bing RSS','etat':'accessible',**stats,'retenus':len(rows)})
+            for row in rows:
+                key=urllib.parse.urlsplit(row['url']).path.rstrip('/').lower()
+                if key not in seen:seen.add(key);all_rows.append(row)
+        except urllib.error.HTTPError as e:diag.append({'source':'Bing RSS','etat':'erreur_http','code':e.code})
+        except Exception as e:diag.append({'source':'Bing RSS','etat':'indisponible','detail':type(e).__name__})
+    return {'status':'resultats' if all_rows else ('aucun_resultat' if success else 'indisponible'),
+       'annonces':all_rows[:30],
+       'message':(f'{len(all_rows)} extrait(s) d’annonces repéré(s), non vérifiés.' if all_rows else
+         'Aucune annonce exploitable dans les résultats indexés. Les portails peuvent bloquer leur indexation.' if success else
+         'Recherche automatisée inaccessible depuis le serveur. Utiliser les recherches directes ci-dessous.'),
+       'diagnostics':diag,'limites':'Résultats non exhaustifs. Les annonces ne sont pas confirmées disponibles et ne sont jamais assimilées à des ventes DVF.'}
+
