@@ -9,9 +9,9 @@ const uniq=a=>[...new Set(a.filter(Boolean))];
 function card(title,icon,rows){
  rows=rows.filter(r=>r[1]!==''&&r[1]!=null);
  if(!rows.length)return '';
- if(title==='Annexes'||title==='Extérieurs'){
-  const items=rows.map(([designation,nombre,detail])=>`<div class="proRow annexRow exteriorRow"><span contenteditable="true" spellcheck="true">${E(designation)}</span><strong><span contenteditable="true" spellcheck="false">${E(nombre)}</span></strong><span contenteditable="true" spellcheck="true">${E(detail||'')}</span><button type="button" class="rowDelete" title="Supprimer">×</button></div>`).join('');
-  return `<section class="proGroup editableCard annexCard exteriorCard"><h3 contenteditable="true" spellcheck="true">${icon} ${title}</h3><div class="annexHeader"><span>Désignation</span><span>Nombre</span><span>Détails dictés</span></div>${items}<button type="button" class="addTextRow miniEditBtn">＋ Ajouter une ligne</button></section>`;
+ if(title==='Annexes'){
+  const items=rows.map(([designation,nombre,detail])=>`<div class="proRow annexRow"><span contenteditable="true" spellcheck="true">${E(designation)}</span><strong><span contenteditable="true" spellcheck="false">${E(nombre)}</span></strong><span contenteditable="true" spellcheck="true">${E(detail||'')}</span><button type="button" class="rowDelete" title="Supprimer">×</button></div>`).join('');
+  return `<section class="proGroup editableCard annexCard"><h3 contenteditable="true" spellcheck="true">${icon} ${title}</h3><div class="annexHeader"><span>Désignation</span><span>Nombre</span><span>Détails dictés</span></div>${items}<button type="button" class="addTextRow miniEditBtn">＋ Ajouter une ligne</button></section>`;
  }
  if(title==='Sanitaires'){
   const items=rows.map(([k,v])=>{
@@ -495,6 +495,7 @@ function annexes(t){
  const text=clean(t),rows=[];
  const types=[
  ['Grange',/\bgranges?\b/gi],['Garage',/\bgarages?\b/gi],['Cave',/\bcaves?\b/gi],
+ ['Local piscine',/\b(?:local|locaux)\s+(?:technique\s+)?(?:de\s+)?piscine\b/gi],
  ['Chalet en bois',/\bchalets?\s+(?:en\s+)?bois\b/gi],['Chalet',/\bchalets?\b/gi],
  ['Mazet en pierre',/\bmazets?\s+(?:en\s+)?pierre\b/gi],['Mazet',/\bmazets?\b/gi],
  ["Cuisine d'été",/\bcuisines?\s+d[' ]été/gi],['Loggia',/\blogg?ias?\b/gi],
@@ -652,7 +653,7 @@ function structure(t){
 function exteriors(t){
  const text=clean(t),rows=[];
  const types=[
- ['Piscine',/\bpiscines?\b/gi],['Bassin de baignade',/\bbassins?\s+de\s+baignade\b/gi],['Bassin',/\bbassins?\b/gi],
+ ['Piscine',/(?<!\b(?:local|locaux)\s)(?<!\blocal\s+technique\s)\bpiscines?\b/gi],['Bassin de baignade',/\bbassins?\s+de\s+baignade\b/gi],['Bassin',/\bbassins?\b/gi],
  ['Jardin d’agrément',/\bjardins?\s+d[' ]agr[ée]ment\b/gi],['Jardin paysager',/\bjardins?\s+paysagers?\b/gi],['Jardin',/\bjardins?\b/gi],
  ['Parc arboré',/\bparcs?\s+arbor[ée]s?(?![A-Za-zÀ-ÿ])/gi],['Parc',/\bparcs?\b/gi],['Potager',/\bpotagers?\b/gi],
  ['Fontaine',/\bfontaines?\b/gi],['Barbecue',/\bbarbecues?\b/gi],['Plancha extérieure',/\bplanchas?\s+ext[ée]rieures?\b/gi],
@@ -724,6 +725,36 @@ function exteriors(t){
   row[2]=[...new Set([row[2],details].flatMap(v=>v.split(' — ').filter(Boolean)))].join(' — ');
  }
  return [...merged.values()];
+}
+function allAnnexes(t){
+ const merged=new Map();
+ // Les dépendances bâties et les aménagements du terrain sont réunis dans un seul tableau.
+ for(const [name,count,details] of [...annexes(t),...exteriors(t)]){
+  const key=clean(name).toLocaleLowerCase('fr');
+  if(!merged.has(key)){merged.set(key,[name,count,details]);continue;}
+  const old=merged.get(key);
+  old[1]=String(Math.max(Number(old[1])||1,Number(count)||1));
+  old[2]=[...new Set([old[2],details].flatMap(v=>String(v||'').split(' — ').filter(Boolean)))].join(' — ');
+ }
+ return [...merged.values()];
+}
+function divers(t){
+ // Les informations déjà reconnues dans une rubrique ne doivent pas être dupliquées.
+ // Conserver les observations libres non structurées dans des segments autonomes.
+ const text=clean(t),rows=[],seen=new Set();
+ const patterns=[
+  ['Servitude',/\bservitudes?\b[^.!?;]{0,155}/gi],
+  ['Mitoyenneté',/\bmitoyennet[ée]\b[^.!?;]{0,130}/gi],
+  ['Accès / passage',/\b(?:droit de passage|acc[eè]s difficile|chemin priv[ée])\b[^.!?;]{0,140}/gi],
+  ['Travaux complémentaires',/\b(?:travaux (?:à|a) pr[ée]voir|travaux importants|travaux de remise en [ée]tat)\b[^.!?;]{0,155}/gi],
+  ['Observation complémentaire',/\b(?:particularit[ée]|point [àa] signaler|information compl[ée]mentaire)\s*[:\-]?\s*[^.!?;]{0,150}/gi]
+ ];
+ for(const [name,rx] of patterns)for(const match of text.matchAll(rx)){
+  const detail=clean(match[0]);const key=name+'|'+detail.toLowerCase();
+  if(!detail||seen.has(key))continue;
+  seen.add(key);rows.push([name,detail]);
+ }
+ return rows;
 }
 function finance(t){
  const r=[];
@@ -862,10 +893,10 @@ async function render(){
    out+=msg;
  }
  out+='<div class="proGrid">';
- out+=card('Sanitaires','🚿',sanitary(t))+card('Chauffage & eau chaude','🔥',heating(t))+card('Réseaux & compteurs','⚡',networks(t))+card('Construction / structure','🏗️',structure(t))+card('Annexes','🏚️',annexes(t))+card('Extérieurs','🌳',exteriors(t))+card('Menuiseries & fermetures','🪟',menu(t))+card('État / désordres','⚠️',state(t))+card('Fiscalité','💶',finance(t));
+ out+=card('Sanitaires','🚿',sanitary(t))+card('Chauffage & eau chaude','🔥',heating(t))+card('Réseaux & compteurs','⚡',networks(t))+card('Construction / structure','🏗️',structure(t))+card('Annexes','🏚️',allAnnexes(t))+card('Divers','📌',divers(t))+card('Menuiseries & fermetures','🪟',menu(t))+card('État / désordres','⚠️',state(t))+card('Fiscalité','💶',finance(t));
  out+='</div>';
  const extras=[];
- if(/couloir de distribution/i.test(t))extras.push(['Circulation','Couloir de distribution — surface non renseignée']);
+
  const cuisineInfos=[];
  if(/cuisine ouverte/i.test(t))cuisineInfos.push('Ouverte');
  if(/cuisine[^.!?]{0,50}[ée]quip[ée]e/i.test(t))cuisineInfos.push('Équipée');
