@@ -1,0 +1,1 @@
+V13.62 : consultation automatique des contenances cadastrales pour les parcelles déjà reconnues; confirmation obligatoire avant utilisation comme surface du terrain vendu. Recherche annonces : domaines supplémentaires et classement par proximité de surface. Les annonces ne sont pas garanties : aucun bien fictif.

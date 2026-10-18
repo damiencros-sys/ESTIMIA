@@ -20,7 +20,33 @@ for(const [id,title,mode,opts] of schemas[k]){const lab=document.createElement('
 function sync(id,value){const dest={configuration:'#estPartyWall',etat:'#estCondition',charges:'#estCharges',occupation:'#estAvailability'}[id];if(!dest)return;const el=q(dest);if(!el)return;if(id==='configuration'){el.value=value;el.dispatchEvent(new Event('change',{bubbles:true}));}else if(id==='etat'){el.value=value;el.dispatchEvent(new Event('change',{bubbles:true}));}else if(id==='charges'){el.value=value;el.dispatchEvent(new Event('change',{bubbles:true}));}else if(id==='occupation'){el.value=value==='Libre'?'Libre':value?'Occupé':'';el.dispatchEvent(new Event('change',{bubbles:true}));}}
 function missing(){const k=kind(),surface=Number(q('#surfaceHab')?.value||0),commune=(q('#cadCommune')?.value||'').trim()||(q('#address')?.value||'').trim();const misses=[];if(!k)misses.push('type de bien');if(!commune)misses.push('commune / adresse');if(!surface||surface<=0)misses.push('surface habitable');for(const [id,title,mode] of schemas[k]||[]){const el=host.querySelector('[data-check="'+id+'"]');const v=(el?.value||'').trim();if(!v||(mode==='number'&&(!Number.isFinite(Number(v))||Number(v)<0))||(mode==='number'&&['terrain','surfaceCarrez','surfaceTotale','lots'].includes(id)&&Number(v)<=0))misses.push(title.toLowerCase());}return misses;}
 function update(){const misses=missing();launch.disabled=misses.length>0;const msg=q('#estCheckStatus');if(msg)msg.textContent=misses.length?'Estimation verrouillée : '+misses.join(' ; ')+'.':'✓ Informations obligatoires renseignées. Recherche DVF autorisée (estimation statistique indicative).';}
+// Recherche cadastrale automatique uniquement si la surface du terrain n'est pas déjà saisie.
+let cadRequestKey='',cadRequestBusy=false;
+async function fillTerrainFromCadastre(){
+ if(kind()!=='maison'&&kind()!=='terrain')return;
+ const el=host.querySelector('[data-check="terrain"]');if(!el||el.value||cadRequestBusy)return;
+ const commune=(q('#cadCommune')?.value||'').trim();let refs=[];
+ try{refs=JSON.parse(q('#cadParcelsJSON')?.value||'[]')}catch{}
+ if(!commune||!Array.isArray(refs)||!refs.length)return;
+ const key=commune+JSON.stringify(refs);if(key===cadRequestKey)return;
+ cadRequestKey=key;cadRequestBusy=true;
+ let note=q('#estCadSurfaceNote');if(!note){note=document.createElement('div');note.id='estCadSurfaceNote';note.className='small';host.append(note)}
+ note.textContent='Recherche de la contenance cadastrale des parcelles…';
+ try{
+  const r=await fetch('/api/cadastre/surfaces?'+new URLSearchParams({commune,refs:JSON.stringify(refs)}));
+  if(!r.ok)throw Error('Service cadastral indisponible');
+  const data=await r.json();
+  if(data.complet&&data.surface_totale_m2>0){
+   note.textContent='Surface cadastrale trouvée : '+data.surface_totale_m2+' m² ('+data.parcelles.map(p=>p.section+' '+p.numero+' : '+p.surface_m2+' m²').join(' ; ')+'). À confirmer : correspond-elle au terrain vendu ?';
+   const confirm=document.createElement('button');confirm.type='button';confirm.textContent='Confirmer cette surface pour le terrain vendu';confirm.className='miniBtn';
+   confirm.addEventListener('click',()=>{if(!el.value){el.value=data.surface_totale_m2;values.terrain=el.value;save();update()}confirm.remove();note.textContent+=' — Surface confirmée.'});note.append(' ',confirm);
+  }else note.textContent='Contenance cadastrale non disponible pour toutes les parcelles. Vérifier les références ou renseigner la surface manuellement.';
+ }catch(e){note.textContent='Recherche cadastrale indisponible. La surface peut être saisie manuellement.'}
+ finally{cadRequestBusy=false}
+}
+q('#cadParcelsJSON')?.addEventListener('change',()=>{cadRequestKey='';fillTerrainFromCadastre()});
+q('#cadCommune')?.addEventListener('change',()=>{cadRequestKey='';fillTerrainFromCadastre()});
 window.estimiaEstimationCheck={validate:()=>{render();const m=missing();if(m.length){q('#estCheckStatus')?.scrollIntoView({behavior:'smooth',block:'center'});return false;}return true;},refresh:render};
 for(const id of ['type','surfaceHab','cadCommune','address','estCondition','estPartyWall'])q('#'+id)?.addEventListener('change',render);
-setInterval(render,1800);render();
+setInterval(()=>{render();fillTerrainFromCadastre()},1800);render();fillTerrainFromCadastre();
 })();

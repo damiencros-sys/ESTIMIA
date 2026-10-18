@@ -172,6 +172,29 @@ def _geom_rings(g):
         return out
     return []
 
+@app.get("/api/cadastre/surfaces")
+def cadastre_surfaces(commune: str, refs: str):
+    """Surfaces cadastrales déclarées, sans supposer qu'elles sont entièrement vendues."""
+    try: items=json.loads(refs)
+    except Exception: raise HTTPException(400,"Références cadastrales invalides")
+    if not isinstance(items,list) or not 1<=len(items)<=20:raise HTTPException(400,"Indiquer entre 1 et 20 parcelles")
+    results=[];total=0;complete=True
+    for item in items:
+        sec=str(item.get('section',''));num=str(item.get('numero',''))
+        if not re.fullmatch(r'[A-Za-z0-9]{1,3}',sec) or not re.fullmatch(r'\d{1,5}',num):raise HTTPException(400,'Référence cadastrale invalide')
+        try:
+            feature,city,code,sec_api,no=_parcel_feature(commune,sec,num)
+            props=feature.get('properties',{}) if feature else {}
+            raw=props.get('contenance') or props.get('surface') or props.get('superficie')
+            area=float(str(raw).replace(',','.')) if raw is not None else None
+            if area is not None and (not 0<area<100000000):area=None
+            if area is None:complete=False
+            else:total+=area
+            results.append({'section':sec,'numero':num,'surface_m2':area,'trouvee':bool(feature)})
+        except Exception:
+            complete=False;results.append({'section':sec,'numero':num,'surface_m2':None,'trouvee':False})
+    return {'parcelles':results,'surface_totale_m2':round(total,2) if complete else None,'complet':complete,'note':'Surface cadastrale à confirmer : ne garantit pas la superficie du terrain vendu.'}
+
 @app.get("/api/cadastre/plan")
 def cadastre_plan(commune:str, section:str, numero:str):
     try:
@@ -916,7 +939,7 @@ MARKET_DOMAINS=('seloger.com','bienici.com','leboncoin.fr','logic-immo.com',
 'etreproprio.com','superimmo.com','paruvendu.fr','green-acres.fr',
 'roques-immobilier.com','lamalou-immobilier.fr','groupementimmo.fr','groupement-immobilier.fr',
 'immo-reseau.com','immoreseau.com','bskimmobilier.com','casagogo.fr','proprietes-privees.com',
-'3gimmobilier.com','efficity.com','megagence.com','agence-immobiliere-bed arieux.fr'.replace(' ','') )
+'3gimmobilier.com','efficity.com','megagence.com','figaroimmo.fr','immobilier.lefigaro.fr','avendrealouer.fr','pap.fr','ouestfrance-immo.com','nestenn.com','squarehabitat.fr','agence-immobiliere-bed arieux.fr'.replace(' ','') )
 
 def _market_clean(s):
     import html
@@ -958,9 +981,9 @@ def _market_parse_rss(xml, city, typ):
         url=(item.findtext('link') or '').strip();host=_market_host(url)
         if not host:stats['domaines_non_retenus']+=1;continue
         combined=title+' '+description
-        if not re.search(r'\b'+typ+r's?\b',combined,re.I):stats['sans_type']+=1;continue
+        if not re.search(r'\b(?:'+typ+r's?|villa|pavillon)\b',combined,re.I):stats['sans_type']+=1;continue
         normalized=re.sub(r'[^a-z0-9]','',__import__('unicodedata').normalize('NFKD',combined).encode('ascii','ignore').decode().lower())
-        # Require city or postal code in the indexed extract to prevent out-of-town listings.
+        # Commune ciblée ou code postal explicite; ne pas attribuer une autre ville par défaut.
         postal='34240' if citykey=='lamaloulesbains' else ''
         if citykey not in normalized and not (postal and postal in normalized):stats['sans_commune']+=1;continue
         from urllib.parse import urlsplit,urlunsplit
@@ -1013,6 +1036,8 @@ def annonces_marche(commune: str, type_bien: str, surface: float = 0):
                     seen.add(key);row['source_recherche']=name;all_rows.append(row)
         except urllib.error.HTTPError as e:diag.append({'source':name,'etat':'erreur_http','code':e.code})
         except Exception as e:diag.append({'source':name,'etat':'indisponible','detail':type(e).__name__})
+    # Classer les annonces réellement extraites par proximité de surface et présence de prix.
+    all_rows.sort(key=lambda x:(x.get('surface') is None,abs((x.get('surface') or surface or 80)-(surface or 80)),x.get('prix') is None))
     # Links are honest search entry points, not synthetic listing cards.
     source_links=[
       {'nom':name,'url':'https://www.google.com/search?'+urllib.parse.urlencode({'q':f'site:{domain} "{city}" {typ} vente'})}
