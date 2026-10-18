@@ -9,9 +9,9 @@ const uniq=a=>[...new Set(a.filter(Boolean))];
 function card(title,icon,rows){
  rows=rows.filter(r=>r[1]!==''&&r[1]!=null);
  if(!rows.length)return '';
- if(title==='Annexes'){
-  const items=rows.map(([designation,nombre,detail])=>`<div class="proRow annexRow"><span contenteditable="true" spellcheck="true">${E(designation)}</span><strong><span contenteditable="true" spellcheck="false">${E(nombre)}</span></strong><span contenteditable="true" spellcheck="true">${E(detail||'')}</span><button type="button" class="rowDelete" title="Supprimer">×</button></div>`).join('');
-  return `<section class="proGroup editableCard annexCard"><h3 contenteditable="true" spellcheck="true">${icon} ${title}</h3><div class="annexHeader"><span>Désignation</span><span>Nombre</span><span>Détails dictés</span></div>${items}<button type="button" class="addTextRow miniEditBtn">＋ Ajouter une ligne</button></section>`;
+ if(title==='Annexes'||title==='Extérieurs'){
+  const items=rows.map(([designation,nombre,detail])=>`<div class="proRow annexRow exteriorRow"><span contenteditable="true" spellcheck="true">${E(designation)}</span><strong><span contenteditable="true" spellcheck="false">${E(nombre)}</span></strong><span contenteditable="true" spellcheck="true">${E(detail||'')}</span><button type="button" class="rowDelete" title="Supprimer">×</button></div>`).join('');
+  return `<section class="proGroup editableCard annexCard exteriorCard"><h3 contenteditable="true" spellcheck="true">${icon} ${title}</h3><div class="annexHeader"><span>Désignation</span><span>Nombre</span><span>Détails dictés</span></div>${items}<button type="button" class="addTextRow miniEditBtn">＋ Ajouter une ligne</button></section>`;
  }
  if(title==='Sanitaires'){
   const items=rows.map(([k,v])=>{
@@ -650,17 +650,81 @@ function structure(t){
 }
 
 function exteriors(t){
- const r=[],cl=clauses(t);
- const garden=cl.find(c=>/\bjardin\b/i.test(c));
- if(garden){let v='Présent';if(/tr[eè]s bien entretenu|parfaitement entretenu/i.test(garden))v+=' — très bien entretenu';else if(/bien entretenu/i.test(garden))v+=' — bien entretenu';if(/arbres?|arbor[ée]/i.test(garden))v+=' — arboré';r.push(['Jardin',v]);}
- const pool=cl.find(c=>/\bpiscine\b/i.test(c));
- if(pool){let v='Présente';if(/haricot/i.test(pool))v+=' — forme haricot';if(/coque/i.test(pool))v+=' — coque';r.push(['Piscine',v]);}
- if(/terrain de p[ée]tanque|boulodrome/i.test(t))r.push(['Terrain de pétanque','Présent']);
- if(/cuisine d['’ ]?[ée]t[ée]/i.test(t))r.push(["Cuisine d’été",'Présente']);
- const terrace=cl.find(c=>/\bterrasse\b/i.test(c));if(terrace){let v='Présente';if(/arri[eè]re/i.test(terrace))v+=' — arrière';if(/salon/i.test(terrace))v+=' — liaison avec le salon';r.push(['Terrasse',v]);}
- return r;
+ const text=clean(t),rows=[];
+ const types=[
+ ['Piscine',/\bpiscines?\b/gi],['Bassin de baignade',/\bbassins?\s+de\s+baignade\b/gi],['Bassin',/\bbassins?\b/gi],
+ ['Jardin d’agrément',/\bjardins?\s+d[' ]agr[ée]ment\b/gi],['Jardin paysager',/\bjardins?\s+paysagers?\b/gi],['Jardin',/\bjardins?\b/gi],
+ ['Parc arboré',/\bparcs?\s+arbor[ée]s?(?![A-Za-zÀ-ÿ])/gi],['Parc',/\bparcs?\b/gi],['Potager',/\bpotagers?\b/gi],
+ ['Fontaine',/\bfontaines?\b/gi],['Barbecue',/\bbarbecues?\b/gi],['Plancha extérieure',/\bplanchas?\s+ext[ée]rieures?\b/gi],
+ ['Terrain de pétanque',/\bterrains?\s+de\s+p[ée]tanque\b|\bboulodromes?\b/gi],['Poulailler',/\bpoulaillers?\b/gi],
+ ['Verger',/\bvergers?\b/gi],['Oliveraie',/\boliveraies?\b/gi],['Vigne',/\bvignes?\b/gi],['Mare',/\bmares?\b/gi],
+ ['Étang',/(?<![A-Za-zÀ-ÿ])[ée]tangs?\b/gi],['Puits',/\bpuits\b/gi],['Forage',/\bforages?\b/gi],
+ ['Récupérateur d’eau',/\br[ée]cup[ée]rateurs?\s+d[' ]eau\b/gi],['Arrosage automatique',/\barrosage\s+automatique\b/gi],
+ ['Serre',/\bserres?\b/gi],['Carré potager',/\bcarr[ée]s?\s+potagers?\b/gi],
+ ['Terrasse couverte',/\bterrasses?\s+couvertes?\b/gi],['Terrasse',/\bterrasses?\b/gi],['Patio',/\bpatios?\b/gi],
+ ['Cour intérieure',/\bcours?\s+int[ée]rieures?\b/gi],['Cour',/\bcours?\b/gi],
+ ['Pergola bioclimatique',/\bpergolas?\s+bioclimatiques?\b/gi],['Pergola',/\bpergolas?\b/gi],
+ ['Cuisine d’été',/\bcuisines?\s+d[' ]été/gi],['Salon de jardin',/\bsalons?\s+de\s+jardin\b/gi],
+ ['Jacuzzi',/\bjacuzzis?\b/gi],['Spa',/\bspas?\b/gi],['Sauna extérieur',/\bsaunas?\s+ext[ée]rieurs?\b/gi],
+ ['Douche extérieure',/\bdouches?\s+ext[ée]rieures?\b/gi],['Solarium',/\bsolariums?\b/gi],
+ ['Terrain de tennis',/\bterrains?\s+de\s+tennis\b/gi],['Terrain multisports',/\bterrains?\s+multisports?\b/gi],
+ ['Aire de jeux',/\baires?\s+de\s+jeux\b/gi],['Balancoire',/\bbalan[çc]oires?\b/gi],
+ ['Portail motorisé',/\bportails?\s+motoris[ée]s?\b/gi],['Portail',/\bportails?\b/gi],
+ ['Clôture',/\bcl[ôo]tures?\b/gi],['Haie',/\bhaies?\b/gi],['Allée',/\ball[ée]es?\b/gi],
+ ['Parking extérieur',/\bparkings?\s+ext[ée]rieurs?\b/gi],['Abri de piscine',/\babris?\s+de\s+piscine\b/gi],
+ ['Local piscine',/\blocaux?\s+piscine\b|\blocal\s+(?:technique\s+)?piscine\b/gi],
+ ['Pool house',/\bpool[- ]houses?\b/gi],['Cascade',/\bcascades?\b/gi],['Ruisseau',/\bruisseaux?\b/gi]
+ ];
+ const hits=[];
+ for(const [name,rx] of types){for(const m of text.matchAll(rx)){
+   if(hits.some(h=>m.index>=h.pos&&m.index<h.end))continue;
+   hits.push({name,pos:m.index,end:m.index+m[0].length});
+ }}
+ hits.sort((a,b)=>a.pos-b.pos);
+ const nums={un:1,une:1,deux:2,trois:3,quatre:4,cinq:5,six:6,sept:7,huit:8,neuf:9,dix:10};
+ const poolDetails=(fragment)=>{
+   const d=[];
+   const dim=fragment.match(/(\d+(?:[.,]\d+)?)\s*(?:m[eè]tres?|m)?\s*(?:sur|x|×|par)\s*(\d+(?:[.,]\d+)?)\s*(?:m[eè]tres?|m)?/i);
+   if(dim)d.push('Dimensions '+dim[1].replace(',','.')+' × '+dim[2].replace(',','.')+' m');
+   const area=fragment.match(/(\d+(?:[.,]\d+)?)\s*m\s*(?:²|2)(?!\d)/i);
+   if(area)d.push('Surface '+area[1].replace(',','.')+' m²');
+   for(const [rx,label] of [
+    [/\bliner\b/i,'Liner'],[/\bcoque\b/i,'Coque'],[/\bb[ée]ton\b/i,'Béton'],[/\bcarrel[ée]e?\b/i,'Carrelage'],
+    [/\bforme\s+haricot\b|\ben\s+haricot\b/i,'Forme haricot'],[/\brectangulaire\b/i,'Rectangulaire'],
+    [/\bchauff[ée]e?\b/i,'Chauffée'],[/\bnon\s+chauff[ée]e?\b/i,'Non chauffée'],
+    [/\btraitement\s+au\s+sel\b|\b[ée]lectrolyseur\b/i,'Traitement au sel'],[/\btraitement\s+au\s+chlore\b/i,'Traitement au chlore'],
+    [/\bfiltration\s+à\s+sable\b/i,'Filtration à sable'],[/\bfiltration\s+à\s+cartouche\b/i,'Filtration à cartouche'],
+    [/\bvolet\s+(?:roulant\s+)?(?:de\s+)?s[ée]curit[ée]\b/i,'Volet de sécurité'],
+    [/\bb[âa]che\b/i,'Bâche'],[/\babri\s+de\s+piscine\b/i,'Abri de piscine'],
+    [/\bhors\s+sol\b/i,'Hors sol'],[/\benterr[ée]e?\b/i,'Enterrée'],[/\bsemi[- ]enterr[ée]e?\b/i,'Semi-enterrée']
+   ])if(rx.test(fragment)&&!(label==='Chauffée'&&/\bnon\s+chauff[ée]e?\b/i.test(fragment)))d.push(label);
+   const year=fragment.match(/\b(?:construit(?:e)?|construction|r[ée]alis[ée]e?|install[ée]e?|datant\s+de|mise\s+en\s+service)\s*(?:en|de|environ|vers)?\s*((?:19|20)\d{2})\b/i);
+   if(year)d.push('Année '+year[1]);
+   return d;
+ };
+ for(let i=0;i<hits.length;i++){
+  const h=hits[i],prev=text.slice(Math.max(0,h.pos-30),h.pos);
+  const m=prev.match(/(?:^|[\s,;:])(\d+|un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix)\s*$/i);
+  const count=m?(nums[m[1].toLowerCase()]||Number(m[1])):1;
+  let fragment=text.slice(h.pos,Math.min(text.length,h.pos+500));
+  if(i+1<hits.length)fragment=fragment.slice(0,Math.max(0,hits[i+1].pos-h.pos));
+  fragment=fragment.split(/(?<!\d)\.(?!\d)|[!?;\n]|,\s*(?=(?:un|une|des|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|\d+)\s+)|\b(?:taxe\s+fonci[eè]re|assainissement|fosse\s+septique|chauffage|cadastre|parcelle|maison\s+comprend|int[ée]rieur\s+de\s+la\s+maison)\b/i)[0];
+  let details=h.name==='Piscine'?poolDetails(fragment):[];
+  if(h.name!=='Piscine'){
+   const area=fragment.match(/(\d+(?:[.,]\d+)?)\s*m\s*(?:²|2)(?!\d)/i);
+   if(area)details.push(area[1].replace(',','.')+' m²');
+   for(const [rx,label] of [[/\b(?:tr[eè]s\s+)?bien\s+entretenu/i,'Bien entretenu'],[/\barbor[ée]/i,'Arboré'],[/(?<![A-Za-zÀ-ÿ])[ée]clair[ée]/i,'Éclairé'],[/\bcl[ôo]tur[ée]/i,'Clôturé'],[/\b[àa]\s+r[ée]nover\b/i,'À rénover'],[/\ben\s+bon\s+[ée]tat\b/i,'Bon état'],[/\bcouvert\b/i,'Couvert']])if(rx.test(fragment))details.push(label);
+  }
+  rows.push([h.name,String(count),[...new Set(details)].join(' — ')]);
+ }
+ const merged=new Map();
+ for(const [name,count,details] of rows){
+  const key=name.toLowerCase();if(!merged.has(key)){merged.set(key,[name,count,details]);continue;}
+  const row=merged.get(key);row[1]=String(Math.max(Number(row[1])||1,Number(count)||1));
+  row[2]=[...new Set([row[2],details].flatMap(v=>v.split(' — ').filter(Boolean)))].join(' — ');
+ }
+ return [...merged.values()];
 }
-
 function finance(t){
  const r=[];
  for(const m of clean(t).matchAll(/taxe fonci[eè]re[^.!?;]{0,120}/ig)){
