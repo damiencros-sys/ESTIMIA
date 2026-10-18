@@ -9,6 +9,10 @@ const uniq=a=>[...new Set(a.filter(Boolean))];
 function card(title,icon,rows){
  rows=rows.filter(r=>r[1]!==''&&r[1]!=null);
  if(!rows.length)return '';
+ if(title==='Annexes'){
+  const items=rows.map(([designation,nombre,detail])=>`<div class="proRow annexRow"><span contenteditable="true" spellcheck="true">${E(designation)}</span><strong><span contenteditable="true" spellcheck="false">${E(nombre)}</span></strong><span contenteditable="true" spellcheck="true">${E(detail||'')}</span><button type="button" class="rowDelete" title="Supprimer">×</button></div>`).join('');
+  return `<section class="proGroup editableCard annexCard"><h3 contenteditable="true" spellcheck="true">${icon} ${title}</h3><div class="annexHeader"><span>Désignation</span><span>Nombre</span><span>Détails dictés</span></div>${items}<button type="button" class="addTextRow miniEditBtn">＋ Ajouter une ligne</button></section>`;
+ }
  if(title==='Sanitaires'){
   const items=rows.map(([k,v])=>{
    const value=String(v||'');
@@ -488,11 +492,67 @@ function networks(t){
  return rows;
 }
 function annexes(t){
- const r=[],ss=surfaces(t),garage=ss.find(x=>x.cat==='Annexe'&&/\bgarage\b/i.test(x.name));
- if(/\bgarage\b/i.test(t)){let v='Garage';if(garage)v+=' — '+fmt(garage.val);if(/garage[^.!?]{0,130}mezzanine|mezzanine[^.!?]{0,130}garage/i.test(t))v+=' — avec mezzanine';r.push(['Garage',v]);}
- if(/\bbuanderie\b/i.test(t))r.push(['Buanderie','Présente']);if(/\bcellier\b/i.test(t))r.push(['Cellier','Présent']);if(/\bcave\b/i.test(t))r.push(['Cave','Présente']);if(/\batelier\b/i.test(t))r.push(['Atelier','Présent']);
- const cab=clean(t).match(/\b(?:cabanon|abri de jardin)\b[^.!?]{0,100}/i);if(cab){const m=cab[0].match(/(\d+(?:[.,]\d+)?)\s*(?:-|à|a)?\s*(\d+(?:[.,]\d+)?)?\s*m[²2]/i);let v=/fer|m[ée]tal/i.test(cab[0])?'Cabanon métallique':'Cabanon';if(m)v+=' — env. '+m[1]+(m[2]?' à '+m[2]:'')+' m²';if(/outil/i.test(cab[0]))v+=' — rangement outils';r.push(['Cabanon / abri',v]);}
- return r;
+ const text=clean(t),rows=[];
+ const types=[
+ ['Grange',/\bgranges?\b/gi],['Garage',/\bgarages?\b/gi],['Cave',/\bcaves?\b/gi],
+ ['Chalet en bois',/\bchalets?\s+(?:en\s+)?bois\b/gi],['Chalet',/\bchalets?\b/gi],
+ ['Mazet en pierre',/\bmazets?\s+(?:en\s+)?pierre\b/gi],['Mazet',/\bmazets?\b/gi],
+ ["Cuisine d'été",/\bcuisines?\s+d[' ]été/gi],['Loggia',/\blogg?ias?\b/gi],
+ ['Terrasse couverte',/\bterrasses?\s+couvertes?\b/gi],['Terrasse',/\bterrasses?\b/gi],
+ ['Buanderie',/\bbuanderies?\b/gi],['Cellier',/\bcelliers?\b/gi],
+ ['Atelier',/\bateliers?\b/gi],['Remise',/\bremises?\b/gi],
+ ['Dépendance',/\bdépendances?\b/gi],['Hangar',/\bhangars?\b/gi],
+ ['Abri de jardin',/\babris?\s+de\s+jardin\b/gi],['Cabanon',/\bcabanons?\b/gi],
+ ['Carport',/\bcarports?\b/gi],['Appentis',/\bappentis\b/gi],
+ ['Grenier',/\bgreniers?\b/gi],['Combles',/\bcombles?\b/gi],
+ ['Sous-sol',/\bsous[- ]sols?\b/gi],['Véranda',/\bvérandas?\b/gi],
+ ['Pergola',/\bpergolas?\b/gi],['Pool house',/\bpool[- ]houses?\b/gi],
+ ['Local technique',/\b(?:local|locaux)\s+techniques?\b/gi],
+ ['Écurie',/(?<![A-Za-zÀ-ÿ])écuries?\b/gi],['Étable',/(?<![A-Za-zÀ-ÿ])étables?\b/gi],['Bergerie',/\bbergeries?\b/gi],
+ ['Pigeonnier',/\bpigeonniers?\b/gi],['Grange agricole',/\bgranges?\s+agricoles?\b/gi],
+ ['Serre',/\bserres?\b/gi],['Orangerie',/\borangeries?\b/gi],
+ ['Abri voiture',/\babris?\s+(?:pour\s+)?voitures?\b/gi],
+ ['Bûcher',/(?<![A-Za-zÀ-ÿ])bûchers?\b/gi],['Local à vélos',/\b(?:local|locaux)\s+à\s+vélos\b/gi],
+ ['Débarras',/\bdébarras\b/gi],['Cour couverte',/\bcours?\s+couvertes?\b/gi]
+ ];
+ const hits=[];
+ for(const [name,rx] of types){
+  for(const m of text.matchAll(rx)){
+   if(hits.some(h=>m.index>=h.pos&&m.index<h.end))continue;
+   hits.push({name,pos:m.index,end:m.index+m[0].length,match:m[0]});
+  }
+ }
+ hits.sort((a,b)=>a.pos-b.pos);
+ // Conserver les descriptions locales sans emprunter les caractéristiques de l'annexe suivante.
+ const numWords={un:1,une:1,deux:2,trois:3,quatre:4,cinq:5,six:6,sept:7,huit:8,neuf:9,dix:10};
+ for(let i=0;i<hits.length;i++){
+  const h=hits[i],prev=text.slice(Math.max(0,h.pos-35),h.pos);
+  const countMatch=prev.match(/(?:^|[\s,;:])(\d+|un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix)\s*$/i);
+  const count=countMatch?(numWords[countMatch[1].toLowerCase()]||Number(countMatch[1])):1;
+  let tail=text.slice(h.end,Math.min(text.length,h.end+220));
+  if(i+1<hits.length)tail=tail.slice(0,Math.max(0,hits[i+1].pos-h.end));
+  tail=tail.split(/(?<!\d)\.(?!\d)|[!?;\n]/)[0];
+  // Les caractéristiques après « avec » et « à rénover » appartiennent à cette annexe.
+  const detail=[];
+  const area=tail.match(/(?:de|d[' ]environ|d[' ]une surface de|surface de|environ)?\s*(\d+(?:[.,]\d+)?)\s*m\s*(?:²|2|ètres?\s+carrés?)/i);
+  if(area)detail.push(area[1].replace(',','.')+' m²');
+  const states=[
+   [/toit(?:ure)?\s+à\s+reprendre/i,'Toiture à reprendre'],
+   [/à\s+r[ée]nover\s+enti[eè]rement/i,'À rénover entièrement'],
+   [/à\s+r[ée]nover/i,'À rénover'],
+   [/en\s+bon\s+[ée]tat/i,'Bon état'],
+   [/avec\s+(?:une?\s+)?cuve\s+à\s+vin/i,'Avec cuve à vin'],
+   [/avec\s+(?:une?\s+)?mezzanine/i,'Avec mezzanine']
+  ];
+  for(const [rx,label] of states)if(rx.test(tail)&&!(label==='À rénover'&&detail.includes('À rénover entièrement')))detail.push(label);
+  const remaining=clean(tail.replace(area?.[0]||'','')
+    .replace(/toit(?:ure)?\s+à\s+reprendre|à\s+r[ée]nover\s+enti[eè]rement|à\s+r[ée]nover|en\s+bon\s+[ée]tat|avec\s+(?:une?\s+)?cuve\s+à\s+vin|avec\s+(?:une?\s+)?mezzanine/gi,'')
+    .replace(/^[\s,:\-–—]*(?:de|d[' ]|avec|et|en)?\s*|[\s,:\-–—]+$/gi,''));
+  const cleanedRemaining=remaining.replace(/(?:^|[,\s])(?:un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|\d+)\s*$/i,'').replace(/[,\s]+$/,'');
+  if(cleanedRemaining&&cleanedRemaining.length>3&&!/^(?:de|et|avec|une?|des?|la|le|les)$/i.test(remaining))detail.push(cleanedRemaining);
+  rows.push([h.name,String(count),detail.join(' — ')]);
+ }
+ return rows;
 }
 function menu(t){
  const men=uniq([/pvc blanc/i.test(t)?'PVC blanc':'',/double vitrage/i.test(t)?'Double vitrage':'',/triple vitrage/i.test(t)?'Triple vitrage':'',/\baluminium\b|\balu\b/i.test(t)?'Aluminium':'']);
@@ -838,7 +898,7 @@ async function buildExportPayload(){
  const sections=[];
  document.querySelectorAll('#facts .levelBlock').forEach(b=>{const title=b.querySelector('.levelName')?.value||b.dataset.level||'Niveau';const rows=[...b.querySelectorAll('.editableSurface')].map(r=>[r.querySelector('.pieceName')?.value||'',(r.querySelector('.pieceVal')?.value||'')+(r.querySelector('.pieceVal')?.value?' m²':'')]);const total=b.querySelector('.surfaceTotal');if(total)rows.push([total.querySelector('span')?.innerText||'',total.querySelector('strong')?.innerText||'']);sections.push({title,rows})});
  document.querySelectorAll('#facts .otherSurface').forEach(b=>sections.push({title:b.querySelector('h4')?.innerText||'Surfaces annexes',rows:[...b.querySelectorAll('.surfaceRow')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('b')?.innerText||''])}));
- document.querySelectorAll('#facts .proGroup').forEach(b=>sections.push({title:b.querySelector('h3')?.innerText||'Informations',rows:[...b.querySelectorAll('.proRow')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('strong')?.innerText||''])}));
+ document.querySelectorAll('#facts .proGroup').forEach(b=>sections.push({title:b.querySelector('h3')?.innerText||'Informations',rows:[...b.querySelectorAll('.proRow')].map(r=>r.classList.contains('annexRow')?[r.children[0]?.innerText||'',(r.children[1]?.innerText||'')+' — '+(r.children[2]?.innerText||'')]:[r.querySelector('span')?.innerText||'',r.querySelector('strong')?.innerText||''])}));
  const photos=[];for(const p of currentPhotos()){try{photos.push({name:p.label||photoDisplayName(p.file),data:await optimizedPhotoDataURL(p.file)})}catch{}}
  return {owner:$('#owner')?.value||'',phone:$('#ownerPhone')?.value||'',owners:ownerCardsState,address:$('#address')?.value||'',commune:$('#cadCommune')?.value||'',section:$('#cadSection')?.value||'',parcel:$('#cadParcel')?.value||'',property_type:$('#type')?.value||'',surface:$('#surfaceHab')?.value||'',surface_carrez:$('#surfaceCarrez')?.value||'',sections,parcels:cadParcels.map(p=>({section:p.section,numero:p.numero})),facts:$('#facts')?.innerText||'',photos,generated_date:new Date().toLocaleDateString('fr-FR')};
 }
@@ -911,7 +971,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 document.addEventListener('click',e=>{
  const b=e.target.closest('button');if(!b)return;const row=b.closest('.proRow');
  if(b.classList.contains('rowDelete')&&row){row.remove();return}
- if(b.classList.contains('addTextRow')){const card=b.closest('.proGroup'),d=document.createElement('div');d.className='proRow';d.innerHTML=card.classList.contains('sanitaryCard')?'<span contenteditable="true" spellcheck="true">Nouvel équipement</span><strong><span contenteditable="true" spellcheck="false">—</span></strong><button type="button" class="rowDelete">×</button>':'<span contenteditable="true" spellcheck="true">Nouvelle information</span><strong contenteditable="true" spellcheck="true">À compléter</strong><button type="button" class="rowDelete">×</button>';if(card.classList.contains('sanitaryCard'))d.classList.add('sanitaryRow');card.insertBefore(d,b);return}
+ if(b.classList.contains('addTextRow')){const card=b.closest('.proGroup'),d=document.createElement('div');d.className='proRow';d.innerHTML=card.classList.contains('annexCard')?'<span contenteditable="true">Nouvelle annexe</span><strong><span contenteditable="true">1</span></strong><span contenteditable="true">Détails à compléter</span><button type="button" class="rowDelete">×</button>':card.classList.contains('sanitaryCard')?'<span contenteditable="true" spellcheck="true">Nouvel équipement</span><strong><span contenteditable="true" spellcheck="false">—</span></strong><button type="button" class="rowDelete">×</button>':'<span contenteditable="true" spellcheck="true">Nouvelle information</span><strong contenteditable="true" spellcheck="true">À compléter</strong><button type="button" class="rowDelete">×</button>';if(card.classList.contains('sanitaryCard'))d.classList.add('sanitaryRow');if(card.classList.contains('annexCard'))d.classList.add('annexRow');card.insertBefore(d,b);return}
  const act=b.dataset.act;if(!act)return;const level=b.closest('.levelBlock')?.dataset.level||'',sr=b.closest('.editableSurface'),id=sr?.dataset.id;
  if(act==='add-level'){let name=clean(prompt('Nom du nouveau niveau :','')||'');if(!name||manualLevels.includes(name))return;manualLevels.push(name);refreshSurfaceEditor();}
  else if(act==='delete-level')deleteLevel(level);

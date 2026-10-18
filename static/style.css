@@ -120,3 +120,10 @@ textarea{resize:vertical}.cols{display:grid;grid-template-columns:1fr 1fr;gap:10
 #facts .sanitaryCard .sanitaryRow>span{min-width:0}
 #facts .sanitaryCard .sanitaryRow>strong{text-align:center;min-width:0}
 #facts .sanitaryCard .sanitaryRow>button{justify-self:end}
+
+#facts .annexCard .annexHeader,#facts .annexCard .annexRow{display:grid;grid-template-columns:minmax(105px,1fr) 65px minmax(155px,2fr) 36px;gap:10px;align-items:start}
+#facts .annexCard .annexHeader{font-weight:700;font-size:12px;color:#59677b;border-bottom:1px solid #dbe2ea;padding:8px 0}
+#facts .annexCard .annexRow>strong{text-align:center}
+#facts .annexCard .annexRow>span:nth-of-type(2){grid-column:3;grid-row:1}
+#facts .annexCard .annexRow .rowDelete{grid-column:4;grid-row:1}
+@media(max-width:600px){#facts .annexCard .annexHeader,#facts .annexCard .annexRow{grid-template-columns:minmax(80px,1fr) 45px minmax(100px,1.5fr) 30px;gap:5px}}
