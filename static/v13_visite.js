@@ -531,8 +531,8 @@ function annexes(t){
   const count=countMatch?(numWords[countMatch[1].toLowerCase()]||Number(countMatch[1])):1;
   let tail=text.slice(h.end,Math.min(text.length,h.end+220));
   if(i+1<hits.length)tail=tail.slice(0,Math.max(0,hits[i+1].pos-h.end));
-  tail=tail.split(/(?<!\d)\.(?!\d)|[!?;\n]/)[0];
-  // Les caractéristiques après « avec » et « à rénover » appartiennent à cette annexe.
+  // Une description ne doit pas absorber la suite de la dictée (piscine, réseaux, etc.).
+  tail=tail.split(/(?<!\d)\.(?!\d)|[!?;\n]|,\s*(?=(?:un|une|des|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|\d+)\s+)|\b(?:avec\s+(?:un|une)\s+local\s+piscine|assainissement|fosse\s+septique|chauffage|piscine|toiture\s+de\s+la\s+maison|terrain|parcelle|taxe\s+fonci[eè]re)\b/i)[0];
   const detail=[];
   const area=tail.match(/(?:de|d[' ]environ|d[' ]une surface de|surface de|environ)?\s*(\d+(?:[.,]\d+)?)\s*m\s*(?:²|2|ètres?\s+carrés?)/i);
   if(area)detail.push(area[1].replace(',','.')+' m²');
@@ -545,14 +545,23 @@ function annexes(t){
    [/avec\s+(?:une?\s+)?mezzanine/i,'Avec mezzanine']
   ];
   for(const [rx,label] of states)if(rx.test(tail)&&!(label==='À rénover'&&detail.includes('À rénover entièrement')))detail.push(label);
-  const remaining=clean(tail.replace(area?.[0]||'','')
-    .replace(/toit(?:ure)?\s+à\s+reprendre|à\s+r[ée]nover\s+enti[eè]rement|à\s+r[ée]nover|en\s+bon\s+[ée]tat|avec\s+(?:une?\s+)?cuve\s+à\s+vin|avec\s+(?:une?\s+)?mezzanine/gi,'')
-    .replace(/^[\s,:\-–—]*(?:de|d[' ]|avec|et|en)?\s*|[\s,:\-–—]+$/gi,''));
-  const cleanedRemaining=remaining.replace(/(?:^|[,\s])(?:un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|\d+)\s*$/i,'').replace(/[,\s]+$/,'');
-  if(cleanedRemaining&&cleanedRemaining.length>3&&!/^(?:de|et|avec|une?|des?|la|le|les)$/i.test(remaining))detail.push(cleanedRemaining);
+  // Conserver les détails complémentaires formulés explicitement « avec ... », sans phrase hors sujet.
+  const withDetail=tail.match(/\bavec\s+(?!une?\s+(?:cuve\s+à\s+vin|mezzanine)\b)([^,.;!?]{3,75})/i);
+  if(withDetail && !/\b(?:piscine|fosse|assainissement|maison|chauffage|toiture)\b/i.test(withDetail[1])){
+    const val=clean(withDetail[1]);if(val&&!/^(?:toit(?:ure)?\s+à\s+reprendre|une?\s+cuve\s+à\s+vin|une?\s+mezzanine)$/i.test(val)&&!detail.some(d=>d.toLowerCase().includes(val.toLowerCase())))detail.push('Avec '+val);
+  }
   rows.push([h.name,String(count),detail.join(' — ')]);
  }
- return rows;
+ const merged=new Map();
+ for(const [name,count,details] of rows){
+  const key=name.toLocaleLowerCase('fr');
+  if(!merged.has(key)){merged.set(key,[name,count,details]);continue;}
+  const previous=merged.get(key);
+  previous[1]=String(Math.max(Number(previous[1])||1,Number(count)||1));
+  const fragments=[...new Set([previous[2],details].flatMap(x=>x.split(' — ').map(y=>y.trim()).filter(Boolean)))];
+  previous[2]=fragments.join(' — ');
+ }
+ return [...merged.values()];
 }
 function menu(t){
  const men=uniq([/pvc blanc/i.test(t)?'PVC blanc':'',/double vitrage/i.test(t)?'Double vitrage':'',/triple vitrage/i.test(t)?'Triple vitrage':'',/\baluminium\b|\balu\b/i.test(t)?'Aluminium':'']);
