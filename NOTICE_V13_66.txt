@@ -1,0 +1,1 @@
+V13.66 : recherche urbanisme automatique par parcelle, sans listes manuelles, rendu français, schéma SVG géométrique des couches renvoyées, contrôles non accessibles explicitement non vérifiés. Attention : le règlement écrit et les 10 catégories de risques ne sont pas automatiquement vérifiés ; aucun impact financier calculé.

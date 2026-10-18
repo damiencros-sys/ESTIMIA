@@ -86,3 +86,11 @@ textarea{resize:vertical}.cols{display:grid;grid-template-columns:1fr 1fr;gap:10
   header,.toolbar,.actions,#save,#printVisit,#downloadVisit,#mic,#analyse,#undo,#clear,#photos,.cadastreBox,#addressSuggestions,#addressStatus,form>label,.cols,.identityGrid{display:none!important}
   #facts{display:block!important}
 }
+
+/* V13.66 — urbanisme par parcelle, réponses automatiques sans listes déroulantes */
+.urbanParcel{border:1px solid #c8d9d6;border-radius:12px;padding:14px;margin:14px 0}
+.urbanMap{max-width:100%;border:1px solid #d3e2e0;border-radius:9px;padding:8px;margin:12px 0;background:#f9fcfb}
+.urbanMap svg{display:block;width:100%;max-height:340px}
+.urbanAutoRow{display:grid;grid-template-columns:minmax(165px,38%) minmax(0,1fr);gap:14px;padding:11px 4px;border-bottom:1px solid #e0e9e7;overflow-wrap:anywhere}
+.urbanAutoRow strong{color:#143f39}.urbanAutoRow span{line-height:1.5}
+@media(max-width:600px){.urbanAutoRow{grid-template-columns:1fr;gap:4px}}

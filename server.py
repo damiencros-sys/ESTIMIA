@@ -198,12 +198,12 @@ def urbanisme_parcelles(commune: str, refs: str):
                 url="https://apicarto.ign.fr/api/gpu/"+endpoint+"?"+urllib.parse.urlencode({"geom":json.dumps(geom,separators=(',',':'))})
                 payload=get_json(url,timeout=12)
                 features=payload.get('features',[]) if isinstance(payload,dict) else []
-                layers[key]={"etat":"ok","nombre":len(features),"elements":[{"proprietes":x.get('properties',{})} for x in features[:25]],"tronque":len(features)>25}
+                layers[key]={"etat":"ok","nombre":len(features),"elements":[{"proprietes":x.get('properties',{}),"geometry":x.get("geometry")} for x in features[:25]],"tronque":len(features)>25}
             except Exception:
                 layers[key]={"etat":"indisponible","nombre":None,"elements":[]}
         rings=_geom_rings(geom);points=[pt for ring in rings for pt in ring if isinstance(pt,list) and len(pt)>=2]
         center=[sum(pt[0] for pt in points)/len(points),sum(pt[1] for pt in points)/len(points)] if points else None
-        result.append({"section":sec,"numero":num,"code_insee":code,"commune":city,"centre":center,"couches":layers})
+        result.append({"section":sec,"numero":num,"code_insee":code,"commune":city,"centre":center,"geometry":geom,"couches":layers})
     return {"parcelles":result,"source":"API Carto IGN / Géoportail de l'urbanisme","avertissement":"Résultats cartographiques indicatifs : vérifier règlement écrit, annexes, risques et version opposable. Une absence de résultat ne prouve pas l'absence de contrainte.","date_consultation":datetime.now().strftime('%d/%m/%Y %H:%M')}
 
 @app.get("/api/cadastre/surfaces")

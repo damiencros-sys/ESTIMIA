@@ -693,7 +693,7 @@ async function render(){
  out+=card('Sanitaires','🚿',sanitary(t))+card('Chauffage & eau chaude','🔥',heating(t))+card('Réseaux & compteurs','⚡',networks(t))+card('Construction / structure','🏗️',structure(t))+card('Annexes','🏚️',annexes(t))+card('Extérieurs','🌳',exteriors(t))+card('Menuiseries & fermetures','🪟',menu(t))+card('État / désordres','⚠️',state(t))+card('Fiscalité','💶',finance(t));
  out+='</div>';
  const extras=[];
- if(/couloir de distribution/i.test(t))extras.push(['Circulation','Couloir de distribution — surface non renseignée']);
+ // Le couloir est traité dans Pièces et surfaces, jamais dans les observations complémentaires.
  const cuisineInfos=[];
  if(/cuisine ouverte/i.test(t))cuisineInfos.push('Ouverte');
  if(/cuisine[^.!?]{0,50}[ée]quip[ée]e/i.test(t))cuisineInfos.push('Équipée');
@@ -701,6 +701,7 @@ async function render(){
  if(extras.length)out+=card('Informations complémentaires conservées','📌',extras);
  out+='<details class="rawNotes"><summary>📝 Voir la dictée originale complète</summary><div>'+E(raw)+'</div></details>';
  $('#facts').innerHTML=out;
+ cleanObsoleteCorridorFact();
  fillConstructionExtras(t);
 }
 
@@ -1114,4 +1115,27 @@ ownLoad();
  window.addEventListener('load',refresh);
  window.addEventListener('resize',refresh);
  window.estimiaRefreshEquipmentHeights=refresh;
+
+// V13.65 : retirer uniquement l'ancienne observation inutile de circulation.
+// Ne jamais toucher aux surfaces, aux autres observations ou à la dictée originale.
+function cleanObsoleteCorridorFact(){
+ const root=document.querySelector('#facts');if(!root)return;
+ for(const group of root.querySelectorAll('.proGroup')){
+  const title=group.querySelector('h3')?.textContent||'';
+  if(!/Informations compl[ée]mentaires conserv[ée]es|Points importants et observations particuli[eè]res/i.test(title))continue;
+  for(const row of group.querySelectorAll('.proRow')){
+   const key=row.querySelector('span')?.textContent?.trim()||'';
+   const value=row.querySelector('strong')?.textContent?.trim()||'';
+   if(/^Circulation$/i.test(key)&&/^Couloir de distribution\s*[—–-]\s*surface non renseign[ée]e$/i.test(value))row.remove();
+  }
+  if(!group.querySelector('.proRow'))group.remove();
+ }
+}
+const obsoleteCorridorRoot=document.getElementById('facts');
+if(obsoleteCorridorRoot){
+ let cleaning=false;
+ new MutationObserver(()=>{if(cleaning)return;cleaning=true;try{cleanObsoleteCorridorFact()}finally{cleaning=false}})
+ .observe(obsoleteCorridorRoot,{childList:true,subtree:true});
+ cleanObsoleteCorridorFact();
+}
 })();
