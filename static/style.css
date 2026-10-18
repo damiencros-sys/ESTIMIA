@@ -97,3 +97,25 @@ textarea{resize:vertical}.cols{display:grid;grid-template-columns:1fr 1fr;gap:10
 .estimationRange strong{display:block;font-size:13px}
 .estimationRangeAmount{font-size:22px;font-weight:800;margin-top:6px}
 @media(max-width:520px){.estimationRange{grid-template-columns:1fr}}
+
+/* V13.60 : fiche IA lisible, aucune colonne étriquée */
+#facts .proGrid{grid-template-columns:minmax(0,1fr)!important}
+#facts .proGroup{width:100%;min-width:0;box-sizing:border-box}
+#facts .proRow{grid-template-columns:minmax(125px,32%) minmax(0,1fr) 36px;gap:14px;align-items:start}
+#facts .proRow>span,#facts .proRow>strong{min-width:0;overflow-wrap:anywhere;word-break:normal}
+#facts .proRow>strong{line-height:1.5}
+#facts .proRow .rowDelete{grid-column:3;justify-self:end}
+@media(max-width:520px){
+ #facts .proRow{grid-template-columns:minmax(0,1fr) 36px;gap:6px 10px}
+ #facts .proRow>span{grid-column:1;grid-row:1}
+ #facts .proRow>strong{grid-column:1;grid-row:2;margin-top:0}
+ #facts .proRow .rowDelete{grid-column:2;grid-row:1 / span 2}
+}
+@media print{#facts .proGrid{grid-template-columns:minmax(0,1fr)!important}}
+
+.estCheck{border:1px solid #c9dcd5;border-radius:12px;padding:15px;margin:12px 0;background:#f7fbf9}
+.estCheck h3{margin:0 0 8px}.estCheckGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.estCheckGrid label{display:flex;flex-direction:column;gap:5px;font-weight:700;min-width:0}
+.estCheckGrid input,.estCheckGrid select{width:100%;min-width:0;box-sizing:border-box}
+.estCheckGrid .estFieldHelp{font-size:12px;font-weight:400;color:#5d6c6b}
+@media(max-width:600px){.estCheckGrid{grid-template-columns:1fr}}

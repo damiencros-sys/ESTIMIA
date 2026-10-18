@@ -1,0 +1,1 @@
+V13.60 : agrandissement des fiches IA (une colonne pleine largeur), colonnes libellés/valeurs lisibles, boutons suppression conservés, responsive mobile. Aucune modification aux calculs, données ou dictée.\n

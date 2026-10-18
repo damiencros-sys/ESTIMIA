@@ -4,6 +4,7 @@ const fmt=n=>Number(n).toLocaleString('fr-FR',{style:'currency',currency:'EUR',m
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const btn=q('#launchEstimation');if(!btn)return;
 btn.addEventListener('click',async()=>{
+ if(!window.estimiaEstimationCheck?.validate())return;
  const commune=(q('#cadCommune')?.value||'').trim();
  const addr=(q('#address')?.value||'').trim();
  const typ=(q('#type')?.value||'').toLowerCase();
