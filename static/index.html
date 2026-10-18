@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#15324a">
 <title>ESTIM’IA</title>
 <link rel="manifest" href="/static/manifest.json">
-<link rel="stylesheet" href="/static/style.css?v=13.60-annex2">
+<link rel="stylesheet" href="/static/style.css?v=13.60-layout3">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -224,12 +224,6 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
   <h2>Estimation — ventes DVF et annonces du marché</h2>
   <p>Le logiciel lit le type, la commune et la surface de la fiche, puis recherche des ventes publiques comparables. Aucun prix n'est inventé si le service est indisponible.</p>
   <button id="launchEstimation" type="button" class="bigbtn">📊 Rechercher les ventes et calculer</button>
-  <details id="dvfOfflineBox" open style="margin-top:12px;padding:12px;border:2px solid #0a705b;border-radius:10px"><summary><b>📁 Importer les ventes DVF officielles — solution sans API (ouvrir / fermer)</b></summary>
-<p class="small">Le logiciel tente désormais de télécharger automatiquement les données DVF départementales. En cas de panne réseau, tu peux aussi importer une archive officielle. L'import conserve uniquement les mutations simples de la commune du dossier. Les données importées sont stockées sur le serveur Render et peuvent disparaître lors d'un redéploiement sans disque persistant.</p>
-<label>Archive annuelle officielle DGFiP (.zip) <input type="file" id="dvfZip" accept=".zip"></label>
-<button type="button" id="dvfImport">Importer les ventes de la commune</button>
-<div id="dvfImportStatus" role="status" class="status"></div>
-<p class="small"><a href="https://www.data.gouv.fr/datasets/demandes-de-valeurs-foncieres" target="_blank" rel="noopener">Télécharger les archives officielles DGFiP</a></p></details>
 <div id="estimationStatus" class="status" role="status"></div>
 <p class="small">Version interface DVF : 13.60 — Si cette ligne est absente après installation, actualiser la page avec Ctrl + F5.</p>
   <div id="estimationResults"></div>
@@ -246,6 +240,13 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
   <button id="addAnnonce" type="button">Ajouter au tableau</button>
   </details>
   <p class="small">Les annonces et les ventes DVF sont présentées séparément : aucun prix affiché n’est assimilé à un prix vendu.</p>
+  <details id="dvfOfflineBox" style="margin-top:12px;padding:12px;border:2px solid #0a705b;border-radius:10px"><summary><b>📁 Import DVF manuel (en cas de besoin)</b></summary>
+<p class="small">Le logiciel tente désormais de télécharger automatiquement les données DVF départementales. En cas de panne réseau, tu peux aussi importer une archive officielle. L'import conserve uniquement les mutations simples de la commune du dossier. Les données importées sont stockées sur le serveur Render et peuvent disparaître lors d'un redéploiement sans disque persistant.</p>
+<label>Archive annuelle officielle DGFiP (.zip) <input type="file" id="dvfZip" accept=".zip"></label>
+<button type="button" id="dvfImport">Importer les ventes de la commune</button>
+<div id="dvfImportStatus" role="status" class="status"></div>
+<p class="small"><a href="https://www.data.gouv.fr/datasets/demandes-de-valeurs-foncieres" target="_blank" rel="noopener">Télécharger les archives officielles DGFiP</a></p></details>
+
   <p class="small">Première version : maisons et appartements. Valeur statistique indicative, à valider selon l'état, le terrain, les annexes et les travaux. Source : DVF via un service public tiers expérimental, disponibilité non garantie.</p>
 </section>
 
@@ -263,7 +264,7 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 <script src="/static/app.js?v=13.60"></script>
 <script src="/static/v7_pro.js"></script>
 <script src="/static/v8_fiche_pro.js"></script>
-<script src="/static/v13_visite.js?v=13.60-annex2"></script>
+<script src="/static/v13_visite.js?v=13.60-layout3"></script>
 <script src="/static/v13_dossiers_pro.js?v=13.60"></script>
 
 

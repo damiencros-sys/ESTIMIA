@@ -157,3 +157,40 @@ textarea{resize:vertical}.cols{display:grid;grid-template-columns:1fr 1fr;gap:10
  #facts .proGroup.annexCard .proRow.annexRow,
  #facts .proGroup.annexCard .annexHeader{grid-template-columns:minmax(90px,1fr) 54px minmax(130px,1.8fr) 34px!important;gap:7px!important}
 }
+
+
+/* V13.60 : annexes sur deux lignes pour préserver intégralement les descriptions.
+   La largeur de la fiche n'est pas celle de la fenêtre : ne pas dépendre des media queries. */
+#facts .proGroup.annexCard .annexHeader{
+ display:grid!important;grid-template-columns:minmax(0,1fr) 75px 40px!important;
+ gap:12px!important;width:100%!important;box-sizing:border-box!important;
+}
+#facts .proGroup.annexCard .annexHeader>span:nth-child(3){display:none!important}
+#facts .proGroup.annexCard .proRow.annexRow{
+ display:grid!important;grid-template-columns:minmax(0,1fr) 75px 40px!important;
+ grid-template-rows:auto auto!important;gap:5px 12px!important;
+ width:100%!important;min-width:0!important;height:auto!important;min-height:0!important;
+ box-sizing:border-box!important;align-items:start!important;padding:12px 0!important;
+}
+#facts .proGroup.annexCard .proRow.annexRow>span:first-child{
+ grid-column:1!important;grid-row:1!important;min-width:0!important;overflow-wrap:anywhere!important;
+}
+#facts .proGroup.annexCard .proRow.annexRow>strong{
+ grid-column:2!important;grid-row:1!important;min-width:0!important;text-align:center!important;
+}
+#facts .proGroup.annexCard .proRow.annexRow>span:nth-of-type(2){
+ grid-column:1 / 4!important;grid-row:2!important;display:block!important;
+ min-width:0!important;max-width:100%!important;width:auto!important;
+ height:auto!important;min-height:0!important;max-height:none!important;
+ white-space:pre-wrap!important;overflow:visible!important;
+ overflow-wrap:break-word!important;word-break:normal!important;line-height:1.5!important;
+ padding:3px 8px!important;background:#f7faf9!important;border-radius:5px!important;
+}
+#facts .proGroup.annexCard .proRow.annexRow>span:nth-of-type(2):not(:empty)::before{
+ content:'Détails : ';font-weight:700;color:#345d52;
+}
+#facts .proGroup.annexCard .proRow.annexRow>.rowDelete{
+ grid-column:3!important;grid-row:1!important;justify-self:end!important;position:static!important;
+}
+#dvfOfflineBox{margin-top:24px!important;border:1px solid #cbd5d1!important;background:#f8faf9!important}
+#dvfOfflineBox>summary{cursor:pointer;color:#53665e;font-size:13px}
