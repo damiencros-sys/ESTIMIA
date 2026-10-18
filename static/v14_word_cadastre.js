@@ -172,7 +172,7 @@ async function normalizeCommune(q){
   if(j.result){$('#cadCommune').value=j.result.name;return j.result} 
  }catch(e){} return null;
 }
-async let currentParcelGeometry=null;
+let currentParcelGeometry=null;
 function parcelSvg(geom){
  if(!geom)return '';const polys=geom.type==='Polygon'?[geom.coordinates]:(geom.type==='MultiPolygon'?geom.coordinates:[]),pts=[];
  polys.forEach(p=>p.forEach(r=>r.forEach(x=>pts.push(x))));if(!pts.length)return '';

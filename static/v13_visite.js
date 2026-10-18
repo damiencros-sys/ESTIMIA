@@ -12,16 +12,36 @@ function card(title,icon,rows){
  return `<section class="proGroup editableCard"><h3 contenteditable="true" spellcheck="true">${icon} ${title}</h3>${rows.map(([k,v])=>{const announced=k==='Surface annoncée / dictée',num=announced?String(v).replace(/\s*m²\s*$/i,''):v;return `<div class="proRow"><span contenteditable="true" spellcheck="true">${E(k)}</span><strong${announced?' class="fixedM2"':''}>${announced?`<span contenteditable="true" spellcheck="true">${E(num)}</span><em> m²</em>`:`<span contenteditable="true" spellcheck="true">${E(v)}</span>`}</strong><button type="button" class="rowDelete" title="Supprimer">×</button></div>`}).join('')}<button type="button" class="addTextRow miniEditBtn">＋ Ajouter une ligne</button></section>`;
 }
 function owner(t){
- const x=clean(t);
- const m=x.match(/\b(?:chez|propri[ée]taire(?:s)?\s*(?:est|:)?|au nom de)\s+(?:monsieur|madame|m\.|mme)?\s*([\p{L}'’-]+)\s+([\p{L}'’-]+)/iu)
- ||x.match(/\b(?:monsieur|madame|m\.|mme)\s+([\p{L}'’-]+)\s+([\p{L}'’-]+)(?=\s*(?:[,.;]|au |adresse|t[ée]l[ée]phone|$))/iu);
- return m?m[1]+' '+m[2]:'';
+ let m=t.match(/\b(?:les\s+)?consorts?\s+([\p{L}'’-]+)/iu);
+ if(m)return 'Consorts '+m[1].replace(/^./,c=>c.toUpperCase());
+ m=t.match(/\bfamille\s+([\p{L}'’-]+)/iu); if(m)return 'Famille '+m[1].replace(/^./,c=>c.toUpperCase());
+ m=t.match(/(?:propri[ée]taire(?:s)?|chez)\s+(monsieur et madame|monsieur|madame|m\. et mme|m\.|mme)\s+([\p{L}'’-]+)(?:\s+([\p{L}'’-]+))?/iu);
+ if(m)return [m[1],m[2],m[3]].filter(Boolean).join(' ');
+ m=t.match(/\bpropri[ée]taire(?:s)?\s+(?:est|sont|:)?\s*([\p{L}'’-]+(?:\s+[\p{L}'’-]+){0,3}?)(?=\s*(?:,|\.|;|t[ée]l[ée]phone|son\s+t[ée]l[ée]phone|adresse|maison|appartement|villa|immeuble)\b)/iu);
+ if(m)return clean(m[1]);
+ return '';
 }
 function ownerNameParts(value){
- const parts=clean(value).replace(/^(?:(?:monsieur|madame|m\.|mme)\s+)+/iu,'').split(/\s+/).filter(Boolean);
- if(parts.length<2)return {nom:parts[0]||'',prenom:''};
- if(/^[A-ZÀ-ÖØ-Þ'’-]+$/.test(parts[0])&&!/^[A-ZÀ-ÖØ-Þ'’-]+$/.test(parts[1]))return {nom:parts[0],prenom:parts.slice(1).join(' ')};
+ const t=clean(value).replace(/^(?:monsieur et madame|monsieur|madame|m\. et mme|m\.|mme)\s+/iu,'').trim();
+ const parts=t.split(/\s+/).filter(Boolean);
+ if(parts.length<2)return {nom:t,prenom:''};
+ if(/^[A-ZÀ-ÖØ-Þ'’-]+$/.test(parts[0]) && !/^[A-ZÀ-ÖØ-Þ'’-]+$/.test(parts[1]))return {nom:parts[0],prenom:parts.slice(1).join(' ')};
  return {nom:parts.slice(0,-1).join(' '),prenom:parts.at(-1)};
+}
+function phone(t){
+ // Numéro français même sans le mot « téléphone ». On exige 10 chiffres et un préfixe 0[1-9].
+ // Accepte 06 82 81 31 64, 0682813164, 06.82.81.31.64, 06-82-81-31-64.
+ const rx=/(?<!\d)(0[1-9])(?:[ .-]*)(\d{2})(?:[ .-]*)(\d{2})(?:[ .-]*)(\d{2})(?:[ .-]*)(\d{2})(?!\d)/g;
+ for(const m of t.matchAll(rx)){
+  const digits=m.slice(1).join('');
+  if(/^0[1-9]\d{8}$/.test(digits)) return digits.replace(/(\d{2})(?=\d)/g,'$1 ').trim();
+ }
+ return '';
+}
+function emailFromDictation(t){
+ // Conserve les adresses déjà correctement transcrites par le navigateur.
+ const m=String(t||'').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+ return m?m[0].replace(/[.,;]+$/,''):'';
 }
 function commune(t){
  const tidy=v=>clean(v).replace(/\s+(?:section|parcelle|cadastre|cadastrale|code postal)\b.*$/iu,'').replace(/[,:;.\s]+$/,'');
@@ -607,8 +627,7 @@ async function render(){
  const typ=typeOf(t);if(typ&&!$('#type').value)$('#type').value=typ;applyPropertyTheme();
  const ss=surfaces(t), habRows=habitableRows(ss,t), total=habRows.reduce((a,x)=>a+x.val,0);
  const habDeclared=explicitHabitable(t), announced=declaredPropertySurface(t), carrez=explicitCarrez(t);
- if(habDeclared!=null && total && Math.abs(habDeclared-total)>0.01)$('#surfaceHab').value=total.toFixed(2);
- else if(habDeclared!=null)$('#surfaceHab').value=habDeclared.toFixed(2);
+ if(habDeclared!=null)$('#surfaceHab').value=habDeclared.toFixed(2);
  else if(total)$('#surfaceHab').value=total.toFixed(2);
  else $('#surfaceHab').value='';
  if(carrez!=null)$('#surfaceCarrez').value=carrez.toFixed(2);
@@ -618,7 +637,6 @@ async function render(){
  out+=surfaceEditorHTML(ss);
  if(total){
    let msg=`<div class="calculatedTop">📏 <span>Surface habitable calculée sur les pièces admissibles chiffrées</span><strong>${fmt(total)}</strong></div>`;
-   if(habDeclared!=null && Math.abs(habDeclared-total)>.01)msg+=`<div class="status">⚠ Surface habitable dictée : ${fmt(habDeclared)} — somme des pièces : ${fmt(total)}. Écart à vérifier avant estimation.</div>`;
    if(announced!=null && Math.abs(announced-total)>.01)msg+=`<div class="status">⚠ Surface annoncée : ${fmt(announced)} — total des pièces chiffrées : ${fmt(total)}. Écart conservé à contrôler ; aucune valeur n’est supprimée.</div>`;
    out+=msg;
  }

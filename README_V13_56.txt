@@ -1,0 +1,1 @@
+V13.56 : retour à la base stable V13.54. Restauration des fonctions téléphone et e-mail accidentellement supprimées dans V13.55. Correction limitée de la séparation nom/prénom. Surfaces inchangées pour éviter une nouvelle régression.
