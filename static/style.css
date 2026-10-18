@@ -86,3 +86,14 @@ textarea{resize:vertical}.cols{display:grid;grid-template-columns:1fr 1fr;gap:10
   header,.toolbar,.actions,#save,#printVisit,#downloadVisit,#mic,#analyse,#undo,#clear,#photos,.cadastreBox,#addressSuggestions,#addressStatus,form>label,.cols,.identityGrid{display:none!important}
   #facts{display:block!important}
 }
+
+.estExtrasSections textarea.estAutoGrow{width:100%;min-height:64px;line-height:1.45;resize:vertical;overflow-y:hidden;overflow-wrap:anywhere;box-sizing:border-box}
+.estExtrasSections label{min-width:0}
+.estimationValueMain{border:2px solid #08745e;border-radius:16px;padding:22px 16px;margin:14px 0;text-align:center;background:#eff8f4}
+.estimationValueLabel{font-weight:800;color:#0b5b4b}
+.estimationValueAmount{font-size:clamp(30px,5vw,42px);font-weight:900;color:#083f35;margin:7px 0}
+.estimationRange{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.estimationRange>div{border:1px solid #d7e3e1;border-radius:12px;padding:14px}
+.estimationRange strong{display:block;font-size:13px}
+.estimationRangeAmount{font-size:22px;font-weight:800;margin-top:6px}
+@media(max-width:520px){.estimationRange{grid-template-columns:1fr}}

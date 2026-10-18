@@ -656,6 +656,7 @@ function fillConstructionExtras(t){
  if(/fosse septique[^.!?]{0,100}vidange|vidange[^.!?]{0,100}fosse septique/i.test(norm))nets.push('Vidange signalée — date à vérifier');
  if(/tout[- ]à[- ]l['’ ]?[ée]gout/i.test(norm))nets.push('Tout-à-l’égout');
  set('#estNetworks',uniq(nets).join(' · '));
+ requestAnimationFrame(()=>window.estimiaRefreshEquipmentHeights?.());
 }
 async function render(){
  const raw=$('#notes').value||'',corr=$('#correction').value||'',t=clean(raw+' '+corr);
@@ -1103,4 +1104,14 @@ document.addEventListener('input',e=>{
 });
 ownLoad();
 
+})();
+(function(){
+ function grow(el){if(!el?.classList?.contains('estAutoGrow'))return;el.style.height='auto';el.style.height=Math.max(64,el.scrollHeight+3)+'px';}
+ function refresh(){document.querySelectorAll('textarea.estAutoGrow').forEach(grow);}
+ document.addEventListener('input',e=>grow(e.target));
+ document.addEventListener('change',e=>grow(e.target));
+ document.addEventListener('click',()=>requestAnimationFrame(refresh));
+ window.addEventListener('load',refresh);
+ window.addEventListener('resize',refresh);
+ window.estimiaRefreshEquipmentHeights=refresh;
 })();
