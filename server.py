@@ -172,6 +172,40 @@ def _geom_rings(g):
         return out
     return []
 
+
+# V13.64 — interrogation parcellaire des couches GPU via API Carto IGN.
+# Les résultats sont des intersections cartographiques indicatives, non des certificats d'urbanisme.
+@app.get("/api/urbanisme/parcelles")
+def urbanisme_parcelles(commune: str, refs: str):
+    try: items=json.loads(refs)
+    except Exception: raise HTTPException(400,"Références cadastrales invalides")
+    if not isinstance(items,list) or not 1<=len(items)<=12:raise HTTPException(400,"Entre 1 et 12 parcelles sont nécessaires")
+    categories={"zonages":"zone-urba","prescriptions":"prescription-surf","servitudes":"sup-s"}
+    result=[]
+    for item in items:
+        sec=str(item.get("section", "")).strip().upper();num=str(item.get("numero", "")).strip()
+        if not re.fullmatch(r"[A-Z0-9]{1,3}",sec) or not re.fullmatch(r"[0-9]{1,5}",num):raise HTTPException(400,"Parcelle invalide")
+        try:
+            f,city,code,section,number=_parcel_feature(commune,sec,num)
+        except Exception as exc:
+            result.append({"section":sec,"numero":num,"erreur":"Service cadastral indisponible","couches":{}});continue
+        if not f or not f.get('geometry'):
+            result.append({"section":sec,"numero":num,"erreur":"Parcelle introuvable","couches":{}});continue
+        geom=f['geometry'];layers={}
+        for key,endpoint in categories.items():
+            try:
+                # API Carto GPU accepte le paramètre geom au format GeoJSON.
+                url="https://apicarto.ign.fr/api/gpu/"+endpoint+"?"+urllib.parse.urlencode({"geom":json.dumps(geom,separators=(',',':'))})
+                payload=get_json(url,timeout=12)
+                features=payload.get('features',[]) if isinstance(payload,dict) else []
+                layers[key]={"etat":"ok","nombre":len(features),"elements":[{"proprietes":x.get('properties',{})} for x in features[:25]],"tronque":len(features)>25}
+            except Exception:
+                layers[key]={"etat":"indisponible","nombre":None,"elements":[]}
+        rings=_geom_rings(geom);points=[pt for ring in rings for pt in ring if isinstance(pt,list) and len(pt)>=2]
+        center=[sum(pt[0] for pt in points)/len(points),sum(pt[1] for pt in points)/len(points)] if points else None
+        result.append({"section":sec,"numero":num,"code_insee":code,"commune":city,"centre":center,"couches":layers})
+    return {"parcelles":result,"source":"API Carto IGN / Géoportail de l'urbanisme","avertissement":"Résultats cartographiques indicatifs : vérifier règlement écrit, annexes, risques et version opposable. Une absence de résultat ne prouve pas l'absence de contrainte.","date_consultation":datetime.now().strftime('%d/%m/%Y %H:%M')}
+
 @app.get("/api/cadastre/surfaces")
 def cadastre_surfaces(commune: str, refs: str):
     """Surfaces cadastrales déclarées, sans supposer qu'elles sont entièrement vendues."""

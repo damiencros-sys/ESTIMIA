@@ -1,0 +1,1 @@
+V13.64 : interrogation parcellaire automatique API Carto IGN pour zonages, prescriptions et servitudes, avec consultation des plans officiels. Vérification de l’opposabilité et risques non automatisée ; aucune décote automatique.
