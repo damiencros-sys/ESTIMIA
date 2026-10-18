@@ -646,6 +646,7 @@ async function parcelSearch(){
 
 // Remplissage prudent des compléments, à partir de la dictée complète.
 // Ne remplace jamais une valeur renseignée manuellement.
+window.estimiaFillConstructionExtras = fillConstructionExtras;
 function fillConstructionExtras(t){
  const set=(id,value)=>{const el=$(id);if(el&&value&&!String(el.value||'').trim()){el.value=value;el.dispatchEvent(new Event('change',{bubbles:true}));}};
  const norm=clean(t);
@@ -1163,7 +1164,7 @@ function restoreConstructionFromDictation(){
  const notes=document.querySelector('#notes')?.value||'';
  const correction=document.querySelector('#correction')?.value||'';
  if(!(notes+' '+correction).trim())return;
- fillConstructionExtras(clean(notes+' '+correction));
+ window.estimiaFillConstructionExtras?.(notes+' '+correction);
 }
 document.addEventListener('estimia:dossier-restored',()=>{
  requestAnimationFrame(()=>{restoreConstructionFromDictation();window.estimiaRefreshEquipmentHeights?.();});
