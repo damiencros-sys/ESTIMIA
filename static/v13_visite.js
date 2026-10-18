@@ -266,7 +266,17 @@ function surfaces(text){
   // A correction is applied only by the named-room correction pass below.
   // This prevents a later correction (e.g. corridor) being stolen by mezzanine/garage/entry.
   let sm=chunk.match(/(?:\bde\b|\bmesurant\b|\bfait\b|\b:)?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/i);
-  if(sm)push(m.name,n(sm[1]),m.i);
+  if(sm){
+   let area=n(sm[1]);
+   // Plusieurs segments du même couloir : « 3,84 m² + 2,5 m² ».
+   // Ne pas additionner une autre pièce ni une date.
+   if(/^couloir$/i.test(m.name)){
+    const rest=chunk.slice(sm.index+sm[0].length);
+    const extra=rest.match(/^\s*\+\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/i);
+    if(extra)area=Math.round((area+n(extra[1]))*100)/100;
+   }
+   push(m.name,area,m.i);
+  }
  }
  // Last explicit correction for named room replaces previous candidates.
  const corrections=/\b(?:tu\s+prends|je\s+corrige|rectification|finalement)\b[^.!?]{0,90}?\b(s[ée]jour|salon|cuisine|chambre|bureau|salle d[' ]eau|salle de bains?|wc|d[ée]gagement|couloir|entr[ée]e|cellier|buanderie|garage)\b[^.!?]{0,60}?\b(?:fait|de|à|a)\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/ig;
@@ -545,8 +555,14 @@ function exteriors(t){
 
 function finance(t){
  const r=[];
- const m=t.match(/taxe fonci[eè]re[^.!?]{0,90}?(\d[\d\s]*(?:[.,]\d+)?)\s*(?:€|euros?)/i);
- if(m){let v=m[1].replace(/\s/g,'')+' €';const frag=(factClause(t,/taxe fonci[eè]re/i)[0]||'');if(/ordures m[ée]nag[eè]res|tom/i.test(frag))v+=' — montant indiqué comme correspondant uniquement aux ordures ménagères';r.push(['Taxe foncière / fiscalité',v]);}
+ for(const m of clean(t).matchAll(/taxe fonci[eè]re[^.!?;]{0,120}/ig)){
+  // Écarter d'abord l'année (2026), avant d'extraire la somme (990 €).
+  const fragment=m[0].replace(/\b(?:19|20)\d{2}\b/g,' ');
+  const money=fragment.match(/(\d{1,3}(?:[ \u00a0\u202f]\d{3})*|\d{1,5})(?:[.,](\d{1,2}))?\s*(?:€|euros?)/i);
+  if(!money)continue;
+  const value=Number(money[1].replace(/[ \u00a0\u202f]/g,'')+(money[2]?'.'+money[2]:''));
+  if(value>0&&value<100000){r.push(['Taxe foncière / fiscalité',value.toLocaleString('fr-FR')+' €']);break;}
+ }
  return r;
 }
 function state(t){
@@ -612,6 +628,35 @@ async function parcelSearch(){
  }catch(e){$('#cadStatus').textContent='Recherche impossible : '+e.message}
 }
 
+// Remplissage prudent des compléments, à partir de la dictée complète.
+// Ne remplace jamais une valeur renseignée manuellement.
+function fillConstructionExtras(t){
+ const set=(id,value)=>{const el=$(id);if(el&&value&&!String(el.value||'').trim()){el.value=value;el.dispatchEvent(new Event('change',{bubbles:true}));}};
+ const norm=clean(t);
+ const roof=[];
+ if(/toiture[^.!?]{0,65}(?:isol[ée]e?|isolation)|isolation[^.!?]{0,65}toiture/i.test(norm))roof.push('Isolation de toiture mentionnée — caractéristiques à vérifier');
+ if(/toiture[^.!?]{0,40}tuiles?\s+canal|tuiles?\s+canal/i.test(norm))roof.push('Tuiles canal');
+ if(/charpente[^.!?]{0,35}bois/i.test(norm))roof.push('Charpente bois');
+ set('#estRoof',uniq(roof).join(' · '));
+ if(/(?:fa[çc]ade|cr[ée]pi|enduit)[^.!?]{0,55}(?:fissur|retrait|d[ée]coll)/i.test(norm))set('#estFacade','Défaut de façade/enduit signalé — à vérifier');
+ const windows=[];
+ if(/simple vitrage/i.test(norm))windows.push('Simple vitrage');
+ if(/survitrage/i.test(norm))windows.push('Survitrage');
+ if(/double vitrage/i.test(norm))windows.push('Double vitrage');
+ if(/menuiseries?[^.!?]{0,30}pvc/i.test(norm))windows.push('PVC');
+ set('#estWindows',uniq(windows).join(' · '));
+ const heat=[];
+ if(/radiateurs?[^.!?]{0,35}[ée]lectriques?[^.!?]{0,30}(?:inertie|inertiels?)|radiateurs?[^.!?]{0,30}(?:inertie|inertiels?)[^.!?]{0,30}[ée]lectriques?/i.test(norm))heat.push('Radiateurs électriques à inertie');
+ else if(/radiateurs?[^.!?]{0,35}[ée]lectriques?/i.test(norm))heat.push('Radiateurs électriques');
+ if(/chaudi[eè]re[^.!?]{0,35}gaz/i.test(norm))heat.push('Chaudière gaz');
+ set('#estHeating',uniq(heat).join(' · '));
+ const hot=heating(norm)[1][1];set('#estHotWater',hot);
+ const nets=[];
+ if(/fosse septique/i.test(norm))nets.push('Assainissement individuel — fosse septique');
+ if(/fosse septique[^.!?]{0,100}vidange|vidange[^.!?]{0,100}fosse septique/i.test(norm))nets.push('Vidange signalée — date à vérifier');
+ if(/tout[- ]à[- ]l['’ ]?[ée]gout/i.test(norm))nets.push('Tout-à-l’égout');
+ set('#estNetworks',uniq(nets).join(' · '));
+}
 async function render(){
  const raw=$('#notes').value||'',corr=$('#correction').value||'',t=clean(raw+' '+corr);
  const o=owner(t);if(o&&!$('#owner').value)$('#owner').value=o;
@@ -655,6 +700,7 @@ async function render(){
  if(extras.length)out+=card('Informations complémentaires conservées','📌',extras);
  out+='<details class="rawNotes"><summary>📝 Voir la dictée originale complète</summary><div>'+E(raw)+'</div></details>';
  $('#facts').innerHTML=out;
+ fillConstructionExtras(t);
 }
 
 function propertyTheme(){

@@ -1,0 +1,1 @@
+ESTIM’IA V13.58 — correctif basé sur V13.57. Addition couloir 3,84 + 2,5 = 6,34 m²; taxe foncière 2026 990 € -> 990 €; remplissage prudent construction et équipements depuis la dictée. Les champs manuels existants ne sont pas écrasés. Aucune modification DVF, annonces, cadastre, microphone.
