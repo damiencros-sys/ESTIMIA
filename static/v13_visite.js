@@ -9,6 +9,17 @@ const uniq=a=>[...new Set(a.filter(Boolean))];
 function card(title,icon,rows){
  rows=rows.filter(r=>r[1]!==''&&r[1]!=null);
  if(!rows.length)return '';
+ if(title==='Sanitaires'){
+  const items=rows.map(([k,v])=>{
+   const value=String(v||'');
+   const explicit=value.match(/^\s*(\d+)\b/);
+   const quantity=explicit?explicit[1]:'—';
+   const details=value.replace(/^\s*\d+\s*(?:salles?\s+de\s+bains?|salles?\s+d[’']eau|wc|toilettes?)?\s*(?:[—–-]\s*)?/i,'').replace(/^Présent(?:e|s|es)?\s*$/i,'').trim();
+   const designation=k+(details?' — '+details:'');
+   return `<div class="proRow sanitaryRow"><span contenteditable="true" spellcheck="true">${E(designation)}</span><strong><span contenteditable="true" spellcheck="false">${E(quantity)}</span></strong><button type="button" class="rowDelete" title="Supprimer">×</button></div>`;
+  }).join('');
+  return `<section class="proGroup editableCard sanitaryCard"><h3 contenteditable="true" spellcheck="true">${icon} ${title}</h3><div class="sanitaryHeader"><span>Désignation</span><span>Nombre</span></div>${items}<button type="button" class="addTextRow miniEditBtn">＋ Ajouter une ligne</button></section>`;
+ }
  return `<section class="proGroup editableCard"><h3 contenteditable="true" spellcheck="true">${icon} ${title}</h3>${rows.map(([k,v])=>{const announced=k==='Surface annoncée / dictée',num=announced?String(v).replace(/\s*m²\s*$/i,''):v;return `<div class="proRow"><span contenteditable="true" spellcheck="true">${E(k)}</span><strong${announced?' class="fixedM2"':''}>${announced?`<span contenteditable="true" spellcheck="true">${E(num)}</span><em> m²</em>`:`<span contenteditable="true" spellcheck="true">${E(v)}</span>`}</strong><button type="button" class="rowDelete" title="Supprimer">×</button></div>`}).join('')}<button type="button" class="addTextRow miniEditBtn">＋ Ajouter une ligne</button></section>`;
 }
 function owner(t){
@@ -406,7 +417,14 @@ function locAfter(c,rx){
  return clean(m[1]||'').replace(/\s+(?:pour|avec|et|mais|qui|la maison|le bien)\b.*$/i,'').replace(/[,. ]+$/,'');
 }
 function countExplicit(t,nounRx){
- const m=t.match(new RegExp('\\b(\\d+)\\s+(?:'+nounRx+')','i'));return m?parseInt(m[1],10):null;
+ const words={un:1,une:1,deux:2,trois:3,quatre:4,cinq:5,six:6,sept:7,huit:8,neuf:9,dix:10};
+ const rx=new RegExp('\\b(\\d+|un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix)\\s+(?:'+nounRx+')\\b','gi');
+ const matches=[...t.matchAll(rx)];
+ if(!matches.length)return null;
+ const values=matches.map(m=>words[m[1].toLowerCase()]||Number(m[1]));
+ // Des mentions distinctes « un WC ... un WC » correspondent à deux sanitaires.
+ if(matches.length>1 && values.every(v=>v===1))return matches.length;
+ return Math.max(...values);
 }
 function sanitary(t){
  const rows=[],s=clean(t);
@@ -415,7 +433,7 @@ function sanitary(t){
  const e=s.match(/\bsalle d[' ]eau\b([\s\S]{0,120}?)(?=\b(?:couloir|d[ée]gagement|garage|chambre|cuisine|salon|s[ée]jour|piscine|jardin|terrasse|parcelles?|$)\b)/i);
  if(e){let v="1 salle d’eau";const sm=e[0].match(/(\d+(?:[.,]\d+)?)\s*(?:m2|m²)/i);if(sm)v+=' — '+fmt(n(sm[1]));if(/douche\s+pmr/i.test(e[0]))v+=" — douche PMR";else if(/douche à l[' ]italienne/i.test(e[0]))v+=" — douche à l’italienne";if(/\bsans\s+wc\b/i.test(e[0]))v+=" — sans WC";rows.push(["Salle d’eau",v]);}
  const positive=s.replace(/\b(?:sans|pas\s+de)\s+(?:wc|toilettes?)\b/gi,'');
- const wc=countExplicit(positive,'wc|toilettes?');if(wc)rows.push(['WC',String(wc)]);else if(/\b(?:wc|toilettes?)\b/i.test(positive))rows.push(['WC','Présent']);
+ const wc=countExplicit(positive,'wc|toilettes?');if(wc)rows.push(['WC',String(wc)]);else if(/\b(?:wc|toilettes?)\b/i.test(positive))rows.push(['WC','Nombre non précisé']);
  return rows;
 }
 function heating(t){
@@ -872,7 +890,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 document.addEventListener('click',e=>{
  const b=e.target.closest('button');if(!b)return;const row=b.closest('.proRow');
  if(b.classList.contains('rowDelete')&&row){row.remove();return}
- if(b.classList.contains('addTextRow')){const card=b.closest('.proGroup'),d=document.createElement('div');d.className='proRow';d.innerHTML='<span contenteditable="true" spellcheck="true">Nouvelle information</span><strong contenteditable="true" spellcheck="true">À compléter</strong><button type="button" class="rowDelete">×</button>';card.insertBefore(d,b);return}
+ if(b.classList.contains('addTextRow')){const card=b.closest('.proGroup'),d=document.createElement('div');d.className='proRow';d.innerHTML=card.classList.contains('sanitaryCard')?'<span contenteditable="true" spellcheck="true">Nouvel équipement</span><strong><span contenteditable="true" spellcheck="false">—</span></strong><button type="button" class="rowDelete">×</button>':'<span contenteditable="true" spellcheck="true">Nouvelle information</span><strong contenteditable="true" spellcheck="true">À compléter</strong><button type="button" class="rowDelete">×</button>';if(card.classList.contains('sanitaryCard'))d.classList.add('sanitaryRow');card.insertBefore(d,b);return}
  const act=b.dataset.act;if(!act)return;const level=b.closest('.levelBlock')?.dataset.level||'',sr=b.closest('.editableSurface'),id=sr?.dataset.id;
  if(act==='add-level'){let name=clean(prompt('Nom du nouveau niveau :','')||'');if(!name||manualLevels.includes(name))return;manualLevels.push(name);refreshSurfaceEditor();}
  else if(act==='delete-level')deleteLevel(level);

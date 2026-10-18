@@ -1,0 +1,1 @@
+Base V13.60. Rubrique Sanitaires : colonnes Désignation et Nombre, détails conservés dans Désignation, nombre inconnu indiqué — (non inventé), édition et ajout de lignes conservés. Aucun module Urbanisme ajouté.
