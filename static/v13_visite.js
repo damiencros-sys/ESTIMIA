@@ -437,15 +437,36 @@ function sanitary(t){
  return rows;
 }
 function heating(t){
+ const text=clean(t).replace(/[’]/g,"'");
  const heat=[];
- if(/chaudi[eè]re[^.!?]{0,70}condensation[^.!?]{0,40}gaz|chaudi[eè]re[^.!?]{0,40}gaz[^.!?]{0,40}condensation/i.test(t))heat.push('Chaudière gaz à condensation');
- else if(/chaudi[eè]re[^.!?]{0,40}gaz/i.test(t))heat.push('Chaudière gaz');
- if(/po[eê]le[^.!?]{0,25}bois/i.test(t))heat.push('Poêle à bois');if(/po[eê]le[^.!?]{0,25}granul/i.test(t))heat.push('Poêle à granulés');
- if(/radiateurs?[^.!?]{0,30}[ée]lectriques?/i.test(t))heat.push('Radiateurs électriques');
+ const add=(rx,label)=>{if(rx.test(text))heat.push(label);};
+ // Chaque mode est indépendant : un chauffage secondaire ne remplace jamais le principal.
+ add(/\b(?:insert|foyer ferm[ée])\s*(?:à|au|de|en)?\s*(?:bois|b[uû]ches?)\b/i,'Insert à bois');
+ add(/\b(?:insert|foyer ferm[ée])\s*(?:à|au|de|en)?\s*(?:pellets?|granul[ée]s?)\b/i,'Insert à granulés (pellets)');
+ add(/\b(?:chemin[ée]e|foyer)\s*(?:à\s*)?(?:foyer\s*)?ouvert(?:e)?\b|\bfoyer ouvert\b/i,'Cheminée à foyer ouvert');
+ if(/\bchemin[ée]e\b/i.test(text)&&!/\b(?:chemin[ée]e|foyer)\s*(?:à\s*)?(?:foyer\s*)?ouvert(?:e)?\b/i.test(text)
+   && !/\bchemin[ée]e[^.!?]{0,30}(?:condamn[ée]e|d[ée]corative|hors service)\b/i.test(text)
+   && !/\bchemin[ée]e[^.!?]{0,35}insert\b/i.test(text))heat.push('Cheminée (type non précisé)');
+ add(/\bpo[eê]le\s*(?:à|au|de)?\s*bois\b/i,'Poêle à bois');
+ add(/\bpo[eê]le\s*(?:à|au|de)?\s*(?:pellets?|granul[ée]s?)\b/i,'Poêle à granulés');
+ add(/\b(?:radiateurs?|convecteurs?)\s*(?:[ée]lectriques?)?[^.!?]{0,40}(?:à\s+inertie|inertiels?)\b|\b(?:radiateurs?|convecteurs?)\s+[ée]lectriques?\s+à\s+inertie\b/i,'Radiateurs électriques à inertie');
+ if(/\b(?:radiateurs?|convecteurs?)\b[^.!?]{0,35}[ée]lectriques?/i.test(text)
+   && !heat.includes('Radiateurs électriques à inertie'))heat.push('Radiateurs électriques');
+ add(/\b(?:clim(?:atisation)?|pompe\s+à\s+chaleur|pac)\s*(?:air\s*[/\-]\s*air)?\s*r[ée]versible\b|\bclimatisation\s+r[ée]versible\b/i,'Climatisation réversible');
+ add(/\b(?:pompe\s+à\s+chaleur|pac)\s+air\s*[/\-]\s*eau\b/i,'Pompe à chaleur air/eau');
+ add(/\b(?:pompe\s+à\s+chaleur|pac)\s+air\s*[/\-]\s*air\b/i,'Pompe à chaleur air/air');
+ add(/\bchauffage\s+au\s+sol\b|\bplancher\s+chauffant\b/i,'Plancher chauffant');
+ if(/\bchaudi[eè]re[^.!?]{0,70}condensation[^.!?]{0,40}gaz\b|\bchaudi[eè]re[^.!?]{0,40}gaz[^.!?]{0,40}condensation\b/i.test(text))heat.push('Chaudière gaz à condensation');
+ else if(/\bchaudi[eè]re[^.!?]{0,40}gaz\b/i.test(text))heat.push('Chaudière gaz');
+ if(/\bchaudi[eè]re[^.!?]{0,40}(?:fioul|fuel)\b/i.test(text))heat.push('Chaudière fioul');
+ if(/\bchaudi[eè]re[^.!?]{0,40}bois\b/i.test(text))heat.push('Chaudière bois');
+ if(/\bchaudi[eè]re[^.!?]{0,40}(?:pellets?|granul[ée]s?)\b/i.test(text))heat.push('Chaudière granulés');
  let ecs='';
- if(/(?:eau chaude|ecs|production d[' ]eau chaude)[^.!?]{0,100}chaudi[eè]re|chaudi[eè]re[^.!?]{0,100}(?:eau chaude|ecs|production d[' ]eau chaude)/i.test(t)) ecs=/condensation/i.test(t)&&/gaz/i.test(t)?'Chaudière gaz à condensation':'Chaudière';
- else if(/ballon thermodynamique/i.test(t))ecs='Ballon thermodynamique';else if(/cumulus|ballon[^.!?]{0,30}[ée]lectrique/i.test(t))ecs='Ballon électrique';
- return [['Mode(s) de chauffage',uniq(heat).join(' + ')],["Production d'eau chaude",ecs]];
+ if(/\bballon\s+thermodynamique\b|\bchauffe.eau\s+thermodynamique\b/i.test(text))ecs='Ballon thermodynamique';
+ else if(/\b(?:cumulus|ballon\s+(?:d[' ]eau\s+chaude\s+)?[ée]lectrique|chauffe.eau\s+[ée]lectrique)\b/i.test(text))ecs='Ballon électrique';
+ else if(/\b(?:eau chaude|ecs|production d[' ]eau chaude)[^.!?]{0,100}chaudi[eè]re\b|\bchaudi[eè]re[^.!?]{0,100}(?:eau chaude|ecs|production d[' ]eau chaude)\b/i.test(text))
+   ecs=/condensation/i.test(text)&&/gaz/i.test(text)?'Chaudière gaz à condensation':'Chaudière';
+ return [['Mode(s) de chauffage',uniq(heat.filter(Boolean)).join(' + ')],["Production d'eau chaude",ecs]];
 }
 function networks(t){
  const rows=[],cl=clauses(t);
