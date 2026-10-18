@@ -913,7 +913,10 @@ def estimation_dvf(commune: str, type_bien: str, surface: float):
 MARKET_DOMAINS=('seloger.com','bienici.com','leboncoin.fr','logic-immo.com',
 'orpi.com','century21.fr','laforet.com','iadfrance.fr','safti.fr',
 'optimhome.com','capifrance.fr','foncia.com','guy-hoquet.com',
-'etreproprio.com','superimmo.com','paruvendu.fr','green-acres.fr')
+'etreproprio.com','superimmo.com','paruvendu.fr','green-acres.fr',
+'roques-immobilier.com','lamalou-immobilier.fr','groupementimmo.fr','groupement-immobilier.fr',
+'immo-reseau.com','immoreseau.com','bskimmobilier.com','casagogo.fr','proprietes-privees.com',
+'3gimmobilier.com','efficity.com','megagence.com','agence-immobiliere-bed arieux.fr'.replace(' ','') )
 
 def _market_clean(s):
     import html
@@ -977,24 +980,47 @@ def annonces_marche(commune: str, type_bien: str, surface: float = 0):
     if typ not in ('maison','appartement'):raise HTTPException(400,'Type de bien non pris en charge')
     if not 0<=surface<=20000:raise HTTPException(400,'Surface non valide')
     # RSS only indexes snippets. Never claim these are active listings.
-    searches=[f'{typ} vente {city} 34240 immobilier',f'{typ} à vendre {city} prix m²']
+    # Recherche multi-agences. Les résultats sont des extraits indexés, jamais
+    # une confirmation de disponibilité. Les domaines locaux ne sont pas exclus.
+    domains=[
+      ('Roques Immobilier','roques-immobilier.com'),
+      ('Lamalou Immobilier','lamalou-immobilier.fr'),
+      ('IAD','iadfrance.fr'),
+      ('SAFTI','safti.fr'),
+      ('Groupement Immobilier','groupementimmo.fr'),
+      ('Immo Réseau','immo-reseau.com'),
+      ('BSK Immobilier','bskimmobilier.com'),
+      ('SeLoger','seloger.com'),
+      ('Leboncoin','leboncoin.fr'),
+      ('Bien’ici','bienici.com'),
+      ('Agences de Bédarieux','superimmo.com'),
+    ]
+    searches=[(name,f'site:{domain} "{city}" {typ} vente prix m2') for name,domain in domains]
+    searches.extend([('Recherche générale',f'{typ} vente "{city}" immobilier prix surface'),
+                     ('Agences locales',f'{typ} vente "{city}" agence Bédarieux Hérépian')])
     all_rows=[];diag=[];seen=set();success=False
-    for query in searches:
+    for name,query in searches:
         url='https://www.bing.com/search?'+urllib.parse.urlencode({'q':query,'format':'rss','count':30})
         try:
             req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0','Accept':'application/rss+xml, application/xml'})
-            with urllib.request.urlopen(req,timeout=9) as response:
-                content=response.read(400000)
+            with urllib.request.urlopen(req,timeout=6) as response:content=response.read(400000)
             rows,stats=_market_parse_rss(content,city,typ)
-            success=True;diag.append({'source':'Bing RSS','etat':'accessible',**stats,'retenus':len(rows)})
+            success=True;diag.append({'source':name,'etat':'accessible',**stats,'retenus':len(rows)})
             for row in rows:
-                key=urllib.parse.urlsplit(row['url']).path.rstrip('/').lower()
-                if key not in seen:seen.add(key);all_rows.append(row)
-        except urllib.error.HTTPError as e:diag.append({'source':'Bing RSS','etat':'erreur_http','code':e.code})
-        except Exception as e:diag.append({'source':'Bing RSS','etat':'indisponible','detail':type(e).__name__})
+                parts=urllib.parse.urlsplit(row['url'])
+                key=(parts.hostname or '')+parts.path.rstrip('/').lower()
+                if key not in seen:
+                    seen.add(key);row['source_recherche']=name;all_rows.append(row)
+        except urllib.error.HTTPError as e:diag.append({'source':name,'etat':'erreur_http','code':e.code})
+        except Exception as e:diag.append({'source':name,'etat':'indisponible','detail':type(e).__name__})
+    # Links are honest search entry points, not synthetic listing cards.
+    source_links=[
+      {'nom':name,'url':'https://www.google.com/search?'+urllib.parse.urlencode({'q':f'site:{domain} "{city}" {typ} vente'})}
+      for name,domain in domains
+    ]
     return {'status':'resultats' if all_rows else ('aucun_resultat' if success else 'indisponible'),
-       'annonces':all_rows[:30],
-       'message':(f'{len(all_rows)} extrait(s) d’annonces repéré(s), non vérifiés.' if all_rows else
+       'annonces':all_rows[:60],'recherches_agences':source_links,
+       'message':(f'{len(all_rows)} extrait(s) d’annonces repéré(s) sur {len(domains)} sources ciblées, non vérifiés.' if all_rows else
          'Aucune annonce exploitable dans les résultats indexés. Les portails peuvent bloquer leur indexation.' if success else
          'Recherche automatisée inaccessible depuis le serveur. Utiliser les recherches directes ci-dessous.'),
        'diagnostics':diag,'limites':'Résultats non exhaustifs. Les annonces ne sont pas confirmées disponibles et ne sont jamais assimilées à des ventes DVF.'}

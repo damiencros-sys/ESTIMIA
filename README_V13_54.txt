@@ -1,0 +1,1 @@
+V13.54 : recherches ciblées Roques, Lamalou Immobilier, IAD, SAFTI, Groupement Immobilier, Immo Réseau, BSK, SeLoger, Leboncoin, Bien’ici et agences de Bédarieux. Liens de recherche par réseau, aucun faux bien inventé. Bing RSS demeure une dépendance non garantie.\n
