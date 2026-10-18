@@ -424,7 +424,6 @@ function heating(t){
  else if(/chaudi[eè]re[^.!?]{0,40}gaz/i.test(t))heat.push('Chaudière gaz');
  if(/po[eê]le[^.!?]{0,25}bois/i.test(t))heat.push('Poêle à bois');if(/po[eê]le[^.!?]{0,25}granul/i.test(t))heat.push('Poêle à granulés');
  if(/radiateurs?[^.!?]{0,30}[ée]lectriques?/i.test(t))heat.push('Radiateurs électriques');
- if(/\bchemin[ée]e\b/i.test(t)&&!/chemin[ée]e[^.!?]{0,45}(?:condamn[ée]e|d[ée]corative|hors service)/i.test(t))heat.push('Cheminée');
  let ecs='';
  if(/(?:eau chaude|ecs|production d[' ]eau chaude)[^.!?]{0,100}chaudi[eè]re|chaudi[eè]re[^.!?]{0,100}(?:eau chaude|ecs|production d[' ]eau chaude)/i.test(t)) ecs=/condensation/i.test(t)&&/gaz/i.test(t)?'Chaudière gaz à condensation':'Chaudière';
  else if(/ballon thermodynamique/i.test(t))ecs='Ballon thermodynamique';else if(/cumulus|ballon[^.!?]{0,30}[ée]lectrique/i.test(t))ecs='Ballon électrique';
@@ -546,23 +545,8 @@ function exteriors(t){
  const r=[],cl=clauses(t);
  const garden=cl.find(c=>/\bjardin\b/i.test(c));
  if(garden){let v='Présent';if(/tr[eè]s bien entretenu|parfaitement entretenu/i.test(garden))v+=' — très bien entretenu';else if(/bien entretenu/i.test(garden))v+=' — bien entretenu';if(/arbres?|arbor[ée]/i.test(garden))v+=' — arboré';r.push(['Jardin',v]);}
- const poolMatch=t.match(/\bpiscine\b/i);
- if(poolMatch){
-  // Ne pas tronquer à la première phrase : les détails peuvent être dictés plus loin.
-  const context=t.slice(poolMatch.index,Math.min(t.length,poolMatch.index+650))
-    .split(/\b(?:taxe fonci[eè]re|chauffage|assainissement|chambre|salle de bains|salle d[' ]eau|cuisine|garage|toiture|fa[çc]ade)\b/i)[0];
-  const details=[];
-  if(/haricot/i.test(context))details.push('Forme haricot');
-  if(/\bcoque\b/i.test(context))details.push('Coque');
-  if(/\bliner\b/i.test(context))details.push('Liner');
-  const dim=context.match(/(\d+(?:[.,]\d+)?)\s*(?:m[eè]tres?|m)?\s*(?:sur|x|×|par)\s*(\d+(?:[.,]\d+)?)\s*(?:m[eè]tres?|m)?/i);
-  if(dim)details.push('Dimensions '+dim[1].replace(',','.')+' × '+dim[2].replace(',','.')+' m');
-  const year=context.match(/(?:piscine[^.!?]{0,90}(?:construite?|construction|datant de)|(?:construite?|construction|datant de)[^.!?]{0,60}piscine)[^.!?]{0,60}?\b((?:19|20)\d{2})\b/i)
-   ||context.match(/\b(?:construite?|construction|datant de|r[ée]alis[ée]e?)\s+(?:en\s+)?((?:19|20)\d{2})\b/i);
-  if(year)details.push('Construction '+year[1]);
-  if(/filtration[^.!?]{0,35}(?:sel|sable)/i.test(context))details.push((context.match(/filtration[^.!?]{0,35}(?:sel|sable)/i)||[])[0]);
-  r.push(['Piscine','Présente'+(details.length?' — '+uniq(details).join(' · '):'')]);
- }
+ const pool=cl.find(c=>/\bpiscine\b/i.test(c));
+ if(pool){let v='Présente';if(/haricot/i.test(pool))v+=' — forme haricot';if(/coque/i.test(pool))v+=' — coque';r.push(['Piscine',v]);}
  if(/terrain de p[ée]tanque|boulodrome/i.test(t))r.push(['Terrain de pétanque','Présent']);
  if(/cuisine d['’ ]?[ée]t[ée]/i.test(t))r.push(["Cuisine d’été",'Présente']);
  const terrace=cl.find(c=>/\bterrasse\b/i.test(c));if(terrace){let v='Présente';if(/arri[eè]re/i.test(terrace))v+=' — arrière';if(/salon/i.test(terrace))v+=' — liaison avec le salon';r.push(['Terrasse',v]);}
@@ -646,7 +630,6 @@ async function parcelSearch(){
 
 // Remplissage prudent des compléments, à partir de la dictée complète.
 // Ne remplace jamais une valeur renseignée manuellement.
-window.estimiaFillConstructionExtras = fillConstructionExtras;
 function fillConstructionExtras(t){
  const set=(id,value)=>{const el=$(id);if(el&&value&&!String(el.value||'').trim()){el.value=value;el.dispatchEvent(new Event('change',{bubbles:true}));}};
  const norm=clean(t);
@@ -666,7 +649,6 @@ function fillConstructionExtras(t){
  if(/radiateurs?[^.!?]{0,35}[ée]lectriques?[^.!?]{0,30}(?:inertie|inertiels?)|radiateurs?[^.!?]{0,30}(?:inertie|inertiels?)[^.!?]{0,30}[ée]lectriques?/i.test(norm))heat.push('Radiateurs électriques à inertie');
  else if(/radiateurs?[^.!?]{0,35}[ée]lectriques?/i.test(norm))heat.push('Radiateurs électriques');
  if(/chaudi[eè]re[^.!?]{0,35}gaz/i.test(norm))heat.push('Chaudière gaz');
- if(/\bchemin[ée]e\b/i.test(norm)&&!/chemin[ée]e[^.!?]{0,45}(?:condamn[ée]e|d[ée]corative|hors service)/i.test(norm))heat.push('Cheminée');
  set('#estHeating',uniq(heat).join(' · '));
  const hot=heating(norm)[1][1];set('#estHotWater',hot);
  const nets=[];
@@ -711,7 +693,7 @@ async function render(){
  out+=card('Sanitaires','🚿',sanitary(t))+card('Chauffage & eau chaude','🔥',heating(t))+card('Réseaux & compteurs','⚡',networks(t))+card('Construction / structure','🏗️',structure(t))+card('Annexes','🏚️',annexes(t))+card('Extérieurs','🌳',exteriors(t))+card('Menuiseries & fermetures','🪟',menu(t))+card('État / désordres','⚠️',state(t))+card('Fiscalité','💶',finance(t));
  out+='</div>';
  const extras=[];
- // Le couloir est traité dans Pièces et surfaces, jamais dans les observations complémentaires.
+ if(/couloir de distribution/i.test(t))extras.push(['Circulation','Couloir de distribution — surface non renseignée']);
  const cuisineInfos=[];
  if(/cuisine ouverte/i.test(t))cuisineInfos.push('Ouverte');
  if(/cuisine[^.!?]{0,50}[ée]quip[ée]e/i.test(t))cuisineInfos.push('Équipée');
@@ -719,7 +701,6 @@ async function render(){
  if(extras.length)out+=card('Informations complémentaires conservées','📌',extras);
  out+='<details class="rawNotes"><summary>📝 Voir la dictée originale complète</summary><div>'+E(raw)+'</div></details>';
  $('#facts').innerHTML=out;
- cleanObsoleteCorridorFact();
  fillConstructionExtras(t);
 }
 
@@ -1133,40 +1114,4 @@ ownLoad();
  window.addEventListener('load',refresh);
  window.addEventListener('resize',refresh);
  window.estimiaRefreshEquipmentHeights=refresh;
-
-// V13.65 : retirer uniquement l'ancienne observation inutile de circulation.
-// Ne jamais toucher aux surfaces, aux autres observations ou à la dictée originale.
-function cleanObsoleteCorridorFact(){
- const root=document.querySelector('#facts');if(!root)return;
- for(const group of root.querySelectorAll('.proGroup')){
-  const title=group.querySelector('h3')?.textContent||'';
-  if(!/Informations compl[ée]mentaires conserv[ée]es|Points importants et observations particuli[eè]res/i.test(title))continue;
-  for(const row of group.querySelectorAll('.proRow')){
-   const key=row.querySelector('span')?.textContent?.trim()||'';
-   const value=row.querySelector('strong')?.textContent?.trim()||'';
-   if(/^Circulation$/i.test(key)&&/^Couloir de distribution\s*[—–-]\s*surface non renseign[ée]e$/i.test(value))row.remove();
-  }
-  if(!group.querySelector('.proRow'))group.remove();
- }
-}
-const obsoleteCorridorRoot=document.getElementById('facts');
-if(obsoleteCorridorRoot){
- let cleaning=false;
- new MutationObserver(()=>{if(cleaning)return;cleaning=true;try{cleanObsoleteCorridorFact()}finally{cleaning=false}})
- .observe(obsoleteCorridorRoot,{childList:true,subtree:true});
- cleanObsoleteCorridorFact();
-}
 })();
-
-// V13.67 — restaurer les équipements extraits lorsque le dossier est rouvert.
-// Les valeurs déjà présentes (saisie manuelle ou sauvegarde) ne sont jamais écrasées.
-function restoreConstructionFromDictation(){
- const notes=document.querySelector('#notes')?.value||'';
- const correction=document.querySelector('#correction')?.value||'';
- if(!(notes+' '+correction).trim())return;
- window.estimiaFillConstructionExtras?.(notes+' '+correction);
-}
-document.addEventListener('estimia:dossier-restored',()=>{
- requestAnimationFrame(()=>{restoreConstructionFromDictation();window.estimiaRefreshEquipmentHeights?.();});
- setTimeout(restoreConstructionFromDictation,120);
-});

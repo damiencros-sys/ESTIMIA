@@ -4,7 +4,6 @@ const fmt=n=>Number(n).toLocaleString('fr-FR',{style:'currency',currency:'EUR',m
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const btn=q('#launchEstimation');if(!btn)return;
 btn.addEventListener('click',async()=>{
- if(!window.estimiaEstimationCheck?.validate())return;
  const commune=(q('#cadCommune')?.value||'').trim();
  const addr=(q('#address')?.value||'').trim();
  const typ=(q('#type')?.value||'').toLowerCase();
@@ -46,15 +45,10 @@ q('#dvfImport')?.addEventListener('click',async()=>{
 const annoncesBtn=q('#launchAnnonces');
 const manual=[];let found=[];
 function displayAnnonces(){
- const target=q('#annoncesResults');const surface=Number(q('#surfaceHab')?.value||0);
- const rows=[...found,...manual].filter(a=>a.prix>0&&a.surface>0&&/^https?:\/\//.test(a.url||''));
- if(!rows.length){target.textContent='Aucune annonce avec prix, surface et lien exploitable trouvée automatiquement. Les liens de recherche ci-dessous permettent de poursuivre la vérification.';return;}
- const seen=new Set();const unique=rows.filter(a=>{const key=new URL(a.url).hostname+new URL(a.url).pathname.replace(/\/$/,'');if(seen.has(key))return false;seen.add(key);return true;});
- const byArea=[...unique].sort((a,b)=>Math.abs(a.surface-surface)-Math.abs(b.surface-surface)).slice(0,6);
- const base=Number(q('#estimationResults .estimationValueAmount')?.textContent?.replace(/[^\d]/g,'')||0);
- const byPrice=base?[...unique].filter(a=>!byArea.includes(a)).sort((a,b)=>Math.abs(a.prix-base)-Math.abs(b.prix-base)).slice(0,6):[];
- const section=(name,list)=>{if(!list.length)return '';const trs=list.map(a=>`<tr><td>${esc(a.site||'Ajout manuel')}</td><td>${esc(a.titre||'Annonce')}</td><td>${fmt(a.prix)}</td><td>${esc(a.surface)} m²</td><td>${fmt(a.prix/a.surface)}/m²</td><td><a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">Annonce</a></td></tr>`).join('');return `<h4>${esc(name)} (${list.length})</h4><div style="overflow-x:auto"><table><thead><tr><th>Site</th><th>Bien</th><th>Prix demandé</th><th>Surface</th><th>Prix/m²</th><th>Lien</th></tr></thead><tbody>${trs}</tbody></table></div>`};
- target.innerHTML=section('Biens proches par surface',byArea)+section('Biens proches par prix',byPrice)+'<p class="small">Annonces indexées non certifiées actives. Vérifier la commune, la mitoyenneté et la disponibilité. Ces prix ne sont pas des ventes DVF.</p>';
+ const rows=[...found,...manual];const target=q('#annoncesResults');
+ if(!rows.length){target.textContent='Aucun comparable affichable.';return;}
+ const table=rows.map((a,i)=>`<tr><td>${esc(a.site||'Ajout manuel')}</td><td>${esc(a.titre||'Annonce vérifiée par utilisateur')}</td><td>${a.prix?fmt(a.prix):'Non communiqué'}</td><td>${a.surface?esc(a.surface)+' m²':'Non communiquée'}</td><td>${a.prix_m2?fmt(a.prix_m2)+'/m²':'—'}</td><td><a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">Voir</a></td></tr>`).join('');
+ target.innerHTML=`<div style="overflow-x:auto"><table><thead><tr><th>Site</th><th>Annonce</th><th>Prix affiché</th><th>Surface</th><th>Prix/m² demandé</th><th>Source</th></tr></thead><tbody>${table}</tbody></table></div><p class="small">${rows.length} annonce(s) — sources à vérifier. Doublons éventuels entre sites non certifiés. Ces prix ne sont pas intégrés automatiquement au calcul DVF.</p>`;
 }
 annoncesBtn?.addEventListener('click',async()=>{
  const raw=(q('#cadCommune')?.value||'').trim();const addr=(q('#address')?.value||'').trim();
@@ -79,7 +73,7 @@ annoncesBtn?.addEventListener('click',async()=>{
    const a=document.createElement('a');a.href=item.url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=item.nom;a.style.marginRight='12px';links.append(a);
   }
  }
- status.textContent=d.message+(d.limites?' '+d.limites:'');displayAnnonces();}
+ status.textContent=d.message+(d.limites?' '+d.limites:'')+(d.diagnostics?.length?' Diagnostic : '+d.diagnostics.map(x=>x.etat+' ('+(x.extraits??x.code??x.detail??'?')+')').join(' ; '):'');displayAnnonces();}
  catch(e){status.textContent='Recherche indisponible : '+e.message;found=[];displayAnnonces();}
  finally{annoncesBtn.disabled=false;}
 });

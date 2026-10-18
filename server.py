@@ -172,63 +172,6 @@ def _geom_rings(g):
         return out
     return []
 
-
-# V13.64 — interrogation parcellaire des couches GPU via API Carto IGN.
-# Les résultats sont des intersections cartographiques indicatives, non des certificats d'urbanisme.
-@app.get("/api/urbanisme/parcelles")
-def urbanisme_parcelles(commune: str, refs: str):
-    try: items=json.loads(refs)
-    except Exception: raise HTTPException(400,"Références cadastrales invalides")
-    if not isinstance(items,list) or not 1<=len(items)<=12:raise HTTPException(400,"Entre 1 et 12 parcelles sont nécessaires")
-    categories={"zonages":"zone-urba","prescriptions":"prescription-surf","servitudes":"sup-s"}
-    result=[]
-    for item in items:
-        sec=str(item.get("section", "")).strip().upper();num=str(item.get("numero", "")).strip()
-        if not re.fullmatch(r"[A-Z0-9]{1,3}",sec) or not re.fullmatch(r"[0-9]{1,5}",num):raise HTTPException(400,"Parcelle invalide")
-        try:
-            f,city,code,section,number=_parcel_feature(commune,sec,num)
-        except Exception as exc:
-            result.append({"section":sec,"numero":num,"erreur":"Service cadastral indisponible","couches":{}});continue
-        if not f or not f.get('geometry'):
-            result.append({"section":sec,"numero":num,"erreur":"Parcelle introuvable","couches":{}});continue
-        geom=f['geometry'];layers={}
-        for key,endpoint in categories.items():
-            try:
-                # API Carto GPU accepte le paramètre geom au format GeoJSON.
-                url="https://apicarto.ign.fr/api/gpu/"+endpoint+"?"+urllib.parse.urlencode({"geom":json.dumps(geom,separators=(',',':'))})
-                payload=get_json(url,timeout=12)
-                features=payload.get('features',[]) if isinstance(payload,dict) else []
-                layers[key]={"etat":"ok","nombre":len(features),"elements":[{"proprietes":x.get('properties',{}),"geometry":x.get("geometry")} for x in features[:25]],"tronque":len(features)>25}
-            except Exception:
-                layers[key]={"etat":"indisponible","nombre":None,"elements":[]}
-        rings=_geom_rings(geom);points=[pt for ring in rings for pt in ring if isinstance(pt,list) and len(pt)>=2]
-        center=[sum(pt[0] for pt in points)/len(points),sum(pt[1] for pt in points)/len(points)] if points else None
-        result.append({"section":sec,"numero":num,"code_insee":code,"commune":city,"centre":center,"geometry":geom,"couches":layers})
-    return {"parcelles":result,"source":"API Carto IGN / Géoportail de l'urbanisme","avertissement":"Résultats cartographiques indicatifs : vérifier règlement écrit, annexes, risques et version opposable. Une absence de résultat ne prouve pas l'absence de contrainte.","date_consultation":datetime.now().strftime('%d/%m/%Y %H:%M')}
-
-@app.get("/api/cadastre/surfaces")
-def cadastre_surfaces(commune: str, refs: str):
-    """Surfaces cadastrales déclarées, sans supposer qu'elles sont entièrement vendues."""
-    try: items=json.loads(refs)
-    except Exception: raise HTTPException(400,"Références cadastrales invalides")
-    if not isinstance(items,list) or not 1<=len(items)<=20:raise HTTPException(400,"Indiquer entre 1 et 20 parcelles")
-    results=[];total=0;complete=True
-    for item in items:
-        sec=str(item.get('section',''));num=str(item.get('numero',''))
-        if not re.fullmatch(r'[A-Za-z0-9]{1,3}',sec) or not re.fullmatch(r'\d{1,5}',num):raise HTTPException(400,'Référence cadastrale invalide')
-        try:
-            feature,city,code,sec_api,no=_parcel_feature(commune,sec,num)
-            props=feature.get('properties',{}) if feature else {}
-            raw=props.get('contenance') or props.get('surface') or props.get('superficie')
-            area=float(str(raw).replace(',','.')) if raw is not None else None
-            if area is not None and (not 0<area<100000000):area=None
-            if area is None:complete=False
-            else:total+=area
-            results.append({'section':sec,'numero':num,'surface_m2':area,'trouvee':bool(feature)})
-        except Exception:
-            complete=False;results.append({'section':sec,'numero':num,'surface_m2':None,'trouvee':False})
-    return {'parcelles':results,'surface_totale_m2':round(total,2) if complete else None,'complet':complete,'note':'Surface cadastrale à confirmer : ne garantit pas la superficie du terrain vendu.'}
-
 @app.get("/api/cadastre/plan")
 def cadastre_plan(commune:str, section:str, numero:str):
     try:
@@ -973,7 +916,7 @@ MARKET_DOMAINS=('seloger.com','bienici.com','leboncoin.fr','logic-immo.com',
 'etreproprio.com','superimmo.com','paruvendu.fr','green-acres.fr',
 'roques-immobilier.com','lamalou-immobilier.fr','groupementimmo.fr','groupement-immobilier.fr',
 'immo-reseau.com','immoreseau.com','bskimmobilier.com','casagogo.fr','proprietes-privees.com',
-'3gimmobilier.com','efficity.com','megagence.com','figaroimmo.fr','immobilier.lefigaro.fr','avendrealouer.fr','pap.fr','ouestfrance-immo.com','nestenn.com','squarehabitat.fr','agence-immobiliere-bed arieux.fr'.replace(' ','') )
+'3gimmobilier.com','efficity.com','megagence.com','agence-immobiliere-bed arieux.fr'.replace(' ','') )
 
 def _market_clean(s):
     import html
@@ -1013,19 +956,11 @@ def _market_parse_rss(xml, city, typ):
         title=_market_clean(item.findtext('title'))
         description=_market_clean(item.findtext('description'))
         url=(item.findtext('link') or '').strip();host=_market_host(url)
-        if not host:
-            # Bing peut retourner une URL de redirection; seules les URL finales
-            # appartenant aux portails autorisés peuvent être présentées.
-            from urllib.parse import parse_qs,urlsplit,unquote
-            parts=urlsplit(url)
-            for candidate in parse_qs(parts.query).get('url',[])+parse_qs(parts.query).get('u',[]):
-                decoded=unquote(candidate)
-                if _market_host(decoded):url=decoded;host=_market_host(url);break
         if not host:stats['domaines_non_retenus']+=1;continue
         combined=title+' '+description
-        if not re.search(r'\b(?:'+typ+r's?|villa|pavillon)\b',combined,re.I):stats['sans_type']+=1;continue
+        if not re.search(r'\b'+typ+r's?\b',combined,re.I):stats['sans_type']+=1;continue
         normalized=re.sub(r'[^a-z0-9]','',__import__('unicodedata').normalize('NFKD',combined).encode('ascii','ignore').decode().lower())
-        # Commune ciblée ou code postal explicite; ne pas attribuer une autre ville par défaut.
+        # Require city or postal code in the indexed extract to prevent out-of-town listings.
         postal='34240' if citykey=='lamaloulesbains' else ''
         if citykey not in normalized and not (postal and postal in normalized):stats['sans_commune']+=1;continue
         from urllib.parse import urlsplit,urlunsplit
@@ -1078,8 +1013,6 @@ def annonces_marche(commune: str, type_bien: str, surface: float = 0):
                     seen.add(key);row['source_recherche']=name;all_rows.append(row)
         except urllib.error.HTTPError as e:diag.append({'source':name,'etat':'erreur_http','code':e.code})
         except Exception as e:diag.append({'source':name,'etat':'indisponible','detail':type(e).__name__})
-    # Classer les annonces réellement extraites par proximité de surface et présence de prix.
-    all_rows.sort(key=lambda x:(x.get('prix') is None or x.get('surface') is None,abs((x.get('surface') or surface or 80)-(surface or 80))))
     # Links are honest search entry points, not synthetic listing cards.
     source_links=[
       {'nom':name,'url':'https://www.google.com/search?'+urllib.parse.urlencode({'q':f'site:{domain} "{city}" {typ} vente'})}
