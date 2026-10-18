@@ -1139,3 +1139,15 @@ if(obsoleteCorridorRoot){
  cleanObsoleteCorridorFact();
 }
 })();
+
+// V13.67 — restaurer les équipements extraits lorsque le dossier est rouvert.
+// Les valeurs déjà présentes (saisie manuelle ou sauvegarde) ne sont jamais écrasées.
+function restoreConstructionFromDictation(){
+ const notes=document.querySelector('#notes')?.value||'';
+ const correction=document.querySelector('#correction')?.value||'';
+ if(!(notes+' '+correction).trim())return;
+ fillConstructionExtras(clean(notes+' '+correction));
+}
+document.addEventListener('estimia:dossier-restored',()=>{
+ requestAnimationFrame(()=>{restoreConstructionFromDictation();window.estimiaRefreshEquipmentHeights?.();});
+});

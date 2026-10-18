@@ -1,0 +1,1 @@
+V13.65 : retrait de la mention redondante « Circulation — Couloir de distribution — surface non renseignée » lors de l’analyse et des dossiers déjà enregistrés. Le couloir et sa surface restent dans les pièces et surfaces. Aucune autre rubrique modifiée.\n
