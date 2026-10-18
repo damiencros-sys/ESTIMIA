@@ -15,8 +15,8 @@ function owner(t){
  let m=t.match(/\b(?:les\s+)?consorts?\s+([\p{L}'’-]+)/iu);
  if(m)return 'Consorts '+m[1].replace(/^./,c=>c.toUpperCase());
  m=t.match(/\bfamille\s+([\p{L}'’-]+)/iu); if(m)return 'Famille '+m[1].replace(/^./,c=>c.toUpperCase());
- m=t.match(/(?:propri[ée]taire(?:s)?|chez)\s+(monsieur et madame|monsieur|madame|m\. et mme|m\.|mme)\s+([\p{L}'’-]+)(?:\s+([\p{L}'’-]+))?/iu);
- if(m)return [m[1],m[2],m[3]].filter(Boolean).join(' ');
+ m=t.match(/(?:propri[ée]taire(?:s)?|chez|pour|au\s+nom\s+de)\s+(monsieur et madame|monsieur|madame|m\. et mme|m\.|mme)\s+([\p{L}'’-]+)(?:\s+([\p{L}'’-]+))?/iu);
+ if(m)return [m[1],m[2],(/^(?:au|à|de|dans|une|un|la|le|maison|adresse|téléphone)$/i.test(m[3]||'')?'':m[3])].filter(Boolean).join(' ');
  m=t.match(/\bpropri[ée]taire(?:s)?\s+(?:est|sont|:)?\s*([\p{L}'’-]+(?:\s+[\p{L}'’-]+){0,3}?)(?=\s*(?:,|\.|;|t[ée]l[ée]phone|son\s+t[ée]l[ée]phone|adresse|maison|appartement|villa|immeuble)\b)/iu);
  if(m)return clean(m[1]);
  return '';
@@ -150,6 +150,9 @@ function addressV1310(t){
 
 function address(t){
  const s=clean(t);
+ // Ex: "une maison 2 impasse de la Fontette 34240 à Lamalou-les-Bains".
+ const spoken=s.match(/\b(\d{1,4}(?:\s*(?:bis|ter))?\s+(?:rue|avenue|boulevard|route|chemin|impasse|place|all[ée]e|lotissement|quai|cours|traverse|mont[ée]e)\s+[^,.;!?]{3,85}?)\s*,?\s*(\d{5})\s+(?:à\s+|a\s+|sur\s+)?([\p{L}][\p{L}'’ -]{1,55}?)(?=\s+(?:section|parcelle|cadastr[ée]e?|maison|sur\s+deux|avec|un\s+s[ée]jour|une\s+cuisine)\b|[,.;!?]|$)/iu);
+ if(spoken)return {street:clean(spoken[1]),postcode:spoken[2],city:clean(spoken[3])};
  // Adresse annoncée dans une visite : « chez Mme X, au 18 avenue ..., 34240 Ville ».
  // La capture ne doit pas avaler le nom du propriétaire ou la description suivante.
  const direct=/\b(?:au|à|situ[ée]e?\s+au|situ[ée]e?\s+à)\s+(\d{1,4}(?:\s*(?:bis|ter))?\s+(?:rue|avenue|boulevard|route|chemin|impasse|place|all[ée]e|lotissement|quai|cours|traverse|mont[ée]e)\s+[^,.;!?]{3,85}?)\s*,?\s*(\d{5})\s+([\p{L}][\p{L}'’ -]{1,45}?)(?=\s*[.,;!?]|\s+(?:le\s+num[ée]ro|la\s+propri[ée]t[ée]|il\s+s['’]agit|la\s+maison|le\s+bien|le\s+terrain|section|cadastr[ée]e?)\b|$)/iu;
