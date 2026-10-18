@@ -1,0 +1,2 @@
+ESTIMIA V13.63 - version allegee pour GitHub (<100 fichiers). Les anciens historiques README et fichiers caches Python ont ete exclus. Les fichiers applicatifs sont conserves.
+Decompresser le ZIP et deposer son contenu (pas le dossier englobant) a la racine du depot GitHub.

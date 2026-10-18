@@ -119,3 +119,6 @@ textarea{resize:vertical}.cols{display:grid;grid-template-columns:1fr 1fr;gap:10
 .estCheckGrid input,.estCheckGrid select{width:100%;min-width:0;box-sizing:border-box}
 .estCheckGrid .estFieldHelp{font-size:12px;font-weight:400;color:#5d6c6b}
 @media(max-width:600px){.estCheckGrid{grid-template-columns:1fr}}
+
+/* V13.63 */
+.urbanRisks{margin:12px 0}.urbanRisk{display:grid;grid-template-columns:minmax(0,1fr) minmax(135px,210px);gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid #e3e9ed;font-weight:normal}.urbanRisk select{width:100%;min-width:0}#urbanNotes{width:100%;box-sizing:border-box;min-height:110px}#urbanSources ul{padding-left:20px}@media(max-width:550px){.urbanRisk{grid-template-columns:1fr;gap:5px}}

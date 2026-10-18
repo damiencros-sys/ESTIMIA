@@ -979,6 +979,14 @@ def _market_parse_rss(xml, city, typ):
         title=_market_clean(item.findtext('title'))
         description=_market_clean(item.findtext('description'))
         url=(item.findtext('link') or '').strip();host=_market_host(url)
+        if not host:
+            # Bing peut retourner une URL de redirection; seules les URL finales
+            # appartenant aux portails autorisés peuvent être présentées.
+            from urllib.parse import parse_qs,urlsplit,unquote
+            parts=urlsplit(url)
+            for candidate in parse_qs(parts.query).get('url',[])+parse_qs(parts.query).get('u',[]):
+                decoded=unquote(candidate)
+                if _market_host(decoded):url=decoded;host=_market_host(url);break
         if not host:stats['domaines_non_retenus']+=1;continue
         combined=title+' '+description
         if not re.search(r'\b(?:'+typ+r's?|villa|pavillon)\b',combined,re.I):stats['sans_type']+=1;continue
@@ -1037,7 +1045,7 @@ def annonces_marche(commune: str, type_bien: str, surface: float = 0):
         except urllib.error.HTTPError as e:diag.append({'source':name,'etat':'erreur_http','code':e.code})
         except Exception as e:diag.append({'source':name,'etat':'indisponible','detail':type(e).__name__})
     # Classer les annonces réellement extraites par proximité de surface et présence de prix.
-    all_rows.sort(key=lambda x:(x.get('surface') is None,abs((x.get('surface') or surface or 80)-(surface or 80)),x.get('prix') is None))
+    all_rows.sort(key=lambda x:(x.get('prix') is None or x.get('surface') is None,abs((x.get('surface') or surface or 80)-(surface or 80))))
     # Links are honest search entry points, not synthetic listing cards.
     source_links=[
       {'nom':name,'url':'https://www.google.com/search?'+urllib.parse.urlencode({'q':f'site:{domain} "{city}" {typ} vente'})}
