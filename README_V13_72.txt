@@ -1,0 +1,4 @@
+V13.72 — Préparation du dossier Word ou PDF pour la messagerie. Partage natif de fichier si pris en charge par le navigateur. Alternative .eml MIME avec pièce jointe intégrée, en-tête de brouillon X-Unsent et identifiant unique : ouvrir le téléchargement avec la messagerie associée. Aucun envoi automatique, compte SMTP ou abonnement. Compatibilité de lecture/modification du .eml selon le logiciel ; téléchargement du document conservé. Fonctions V13.70 conservées.
+
+V13.72 — Ouverture explicite de la messagerie
+Après préparation, bouton Ouvrir ma messagerie : ouverture MAILTO au clic, objet et texte préremplis, téléchargement du document à joindre manuellement. Nécessite une application MAILTO configurée sur le poste. Le navigateur ne permet pas d’imposer un logiciel ni d’ajouter une pièce jointe locale via MAILTO. Partage natif avec fichier conservé, et EML alternatif.

@@ -1083,7 +1083,7 @@ function downloadEmailBlob(blob,name){
 }
 async function prepareEmailDocument(kind){
  const status=$('#emailStatus'),actions=$('#emailActions');actions.hidden=false;preparedEmail=null;
- $('#emailShare').hidden=true;$('#emailEml').hidden=true;$('#emailAttachment').hidden=true;
+ $('#emailOpen').hidden=true;$('#emailShare').hidden=true;$('#emailEml').hidden=true;$('#emailAttachment').hidden=true;
  $('#emailWord').disabled=true;$('#emailPdf').disabled=true;
  status.textContent='Création du dossier '+(kind==='word'?'Word':'PDF')+' avec les photos et l’estimation…';
  try{
@@ -1096,13 +1096,24 @@ async function prepareEmailDocument(kind){
   const file=new File([blob],name,{type:mime});
   preparedEmail={file,kind,subject:'Dossier d’estimation immobilière'+(payload.address?' — '+payload.address:''),body:'Bonjour,\n\nVous trouverez en pièce jointe le dossier d’estimation immobilière'+(payload.address?' du bien situé '+payload.address:'')+'.\n\nCordialement.'};
   let shareable=false;try{shareable=!!(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]}))}catch{}
-  $('#emailShare').hidden=!shareable;$('#emailEml').hidden=false;$('#emailAttachment').hidden=false;
-  status.textContent='Document prêt ('+(blob.size/1024/1024).toFixed(1)+' Mo). '+(shareable?'Choisissez « Partager avec la messagerie », puis votre application de mail.':'Préparez le fichier .eml, puis ouvrez-le dans votre logiciel de messagerie.');
+  $('#emailOpen').hidden=false;$('#emailShare').hidden=!shareable;$('#emailEml').hidden=false;$('#emailAttachment').hidden=false;
+  status.textContent='Document prêt ('+(blob.size/1024/1024).toFixed(1)+' Mo). '+(shareable?'Choisissez « Partager avec la messagerie », puis votre application de mail.':'Cliquez sur « Ouvrir ma messagerie ». Le dossier sera téléchargé : ajoutez-le ensuite en pièce jointe au message.');
  }catch(error){status.textContent='Préparation impossible : '+error.message;}
  finally{$('#emailWord').disabled=false;$('#emailPdf').disabled=false;}
 }
 $('#emailWord')?.addEventListener('click',()=>prepareEmailDocument('word'));
 $('#emailPdf')?.addEventListener('click',()=>prepareEmailDocument('pdf'));
+function emailComposeURL(email){
+ return 'mailto:?subject='+encodeURIComponent(email.subject)+'&body='+encodeURIComponent(email.body+'\n\nDocument à joindre : '+email.file.name);
+}
+$('#emailOpen')?.addEventListener('click',()=>{
+ const email=preparedEmail;if(!email)return;
+ downloadEmailBlob(email.file,email.file.name);
+ // Appel immédiat dans le clic utilisateur, sans attente réseau.
+ const link=document.createElement('a');link.href=emailComposeURL(email);
+ document.body.appendChild(link);link.click();link.remove();
+ $('#emailStatus').textContent='Demande d’ouverture envoyée à votre messagerie par défaut. Ajoutez le document téléchargé « '+email.file.name+' » en pièce jointe. Si rien ne s’ouvre, configurez une application pour les liens MAILTO dans les paramètres de votre appareil ou navigateur, puis cliquez à nouveau. Vous pouvez aussi utiliser le partage ou le fichier .eml.';
+});
 $('#emailShare')?.addEventListener('click',async()=>{
  const email=preparedEmail;if(!email)return;
  try{await navigator.share({files:[email.file],title:email.subject,text:email.body});$('#emailStatus').textContent='Document transmis à l’application choisie. Complétez et envoyez votre message dans la messagerie.';}
