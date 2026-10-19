@@ -26,11 +26,17 @@ function hasData(){
  return [...document.querySelectorAll('main input[id],main textarea[id],main select[id]')].some(el=>el.type!=='file'&&String(el.value||'').trim()) ||
    ($('#facts')?.innerText||'').trim().length>20;
 }
+function captureFactsHTML(){
+ const facts=$('#facts');if(!facts)return '';
+ const clone=facts.cloneNode(true),original=[...facts.querySelectorAll('input,textarea,select')];
+ clone.querySelectorAll('input,textarea,select').forEach((el,i)=>{const from=original[i];if(el.tagName==='SELECT'){[...el.options].forEach(o=>{if(o.value===from.value)o.setAttribute('selected','');else o.removeAttribute('selected')})}else if(el.tagName==='TEXTAREA')el.textContent=from.value;else el.setAttribute('value',from.value)});
+ return clone.innerHTML;
+}
 function capture(){
  return {
   id:currentId||makeId(),updated:new Date().toISOString(),values:allValues(),
   html:{
-   facts:$('#facts')?.innerHTML||'',dictationHistory:$('#dictationHistory')?.innerHTML||'',
+   facts:captureFactsHTML(),dictationHistory:$('#dictationHistory')?.innerHTML||'',
    cadPlan:document.getElementById('cadPlanBox')?.outerHTML||'',gallery:$('#gallery')?.innerHTML||''
   },
   text:{
@@ -67,14 +73,14 @@ function restore(d){
  if($('#photoStatus'))$('#photoStatus').textContent=d.text?.photoStatus||'';
  removePlan();const plan=d.html?.cadPlan||d.cadPlanHTML||'';
  if(plan){const host=$('.cadastreBox');if(host)host.insertAdjacentHTML('beforeend',plan)}
- document.dispatchEvent(new Event('estimia:dictations-restored'));document.dispatchEvent(new Event('estimia:emails-restored'));document.dispatchEvent(new Event('estimia:contacts-restored'));document.querySelector('#type')?.dispatchEvent(new Event('input',{bubbles:true}));restoring=false;document.dispatchEvent(new Event('estimia:parcels-restored'));renderList();closeDrawer();window.scrollTo({top:0,behavior:'smooth'});
+ document.dispatchEvent(new Event('estimia:surfaces-restored'));document.dispatchEvent(new Event('estimia:dictations-restored'));document.dispatchEvent(new Event('estimia:emails-restored'));document.dispatchEvent(new Event('estimia:contacts-restored'));document.querySelector('#type')?.dispatchEvent(new Event('input',{bubbles:true}));restoring=false;document.dispatchEvent(new Event('estimia:parcels-restored'));renderList();closeDrawer();window.scrollTo({top:0,behavior:'smooth'});
 }
 function clearForm(){
  restoring=true;currentId=null;
  document.querySelectorAll('main input[id],main textarea[id],main select[id]').forEach(el=>{if(el.type!=='file'){el.value='';if(el.type==='checkbox'||el.type==='radio')el.checked=false}});
  ['facts','dictationHistory','gallery'].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML=id==='facts'?'<div class="empty">Dicte ta visite puis touche « Transformer en fiche ».</div>':''});
  ['cadStatus','addressStatus','recordStatus','photoStatus','saveStatus'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=''});
- removePlan();restoring=false;document.dispatchEvent(new Event('estimia:dictations-restored'));document.dispatchEvent(new Event('estimia:contacts-restored'));document.dispatchEvent(new Event('estimia:parcels-restored'));renderList();closeDrawer();window.scrollTo({top:0,behavior:'smooth'});
+ removePlan();restoring=false;document.dispatchEvent(new Event('estimia:surfaces-restored'));document.dispatchEvent(new Event('estimia:dictations-restored'));document.dispatchEvent(new Event('estimia:contacts-restored'));document.dispatchEvent(new Event('estimia:parcels-restored'));renderList();closeDrawer();window.scrollTo({top:0,behavior:'smooth'});
 }
 function newCase(){if(hasData())saveNow(false);if(hasData()&&!confirm('Créer un nouveau dossier ? La fiche actuelle est enregistrée.'))return;clearForm()}
 function deleteCase(id){const d=readCases().find(x=>x.id===id);if(!confirm('Supprimer définitivement le dossier « '+(d?label(d):'')+' » de cet appareil ?'))return;writeCases(readCases().filter(x=>x.id!==id));if(currentId===id)clearForm();else renderList()}
