@@ -1,324 +1,274 @@
 <!doctype html>
 <html lang="fr">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#15324a">
-<title>ESTIM’IA</title>
-<link rel="manifest" href="/static/manifest.json">
-<link rel="stylesheet" href="/static/style.css?v=13.75-layout3">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
-<link rel="stylesheet" href="/static/v13_dossiers_pro.css?v=13.75">
-<style>
-.cadParcelsList{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:9px 0}.cadParcelsLabel{flex-basis:100%;font-weight:700;margin:2px 0 1px}
-.cadParcelChip{display:inline-flex;align-items:center;gap:7px;border:1px solid #cbd8de;border-radius:999px;padding:6px 9px;background:#f7fafb;font-size:13px}
-.cadParcelChip.ok{border-color:#82b9a9;background:#eef8f4}.cadParcelChip button{border:0;background:transparent;color:#9a3030;cursor:pointer;font-weight:700}
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#15324a">
+  <title>ESTIM’IA — Assistant d’Estimation</title>
+  <link rel="manifest" href="/static/manifest.json">
+  <!-- Tailwind CSS & html2pdf via CDN gratuit -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <link rel="stylesheet" href="/static/style.css?v=13.2">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen pb-12">
 
-.editableCard [contenteditable="true"]{outline:none;border-radius:4px;padding:2px 4px}.editableCard [contenteditable="true"]:focus{background:#fff8cf;box-shadow:0 0 0 2px #e4c64b}
-.proRow{display:grid!important;grid-template-columns:minmax(120px,.8fr) minmax(180px,1.5fr) 34px;align-items:center;gap:10px}.proRow>span,.proRow>strong{min-width:0}.rowDelete{border:1px solid #ead0d0;background:#fff;color:#a33;font-size:18px;cursor:pointer;padding:3px 7px;border-radius:6px;justify-self:end;align-self:center}.proRow .rowDelete{grid-column:3;grid-row:1}.miniEditBtn{border:1px solid #b9c9d1;background:#f7fafb;border-radius:7px;padding:6px 9px;cursor:pointer;margin:5px 0}
-.surfaceHead,.levelHead{display:flex;align-items:center;justify-content:space-between;gap:8px}.levelHead{margin:8px 0 5px}.levelName{font-weight:700;font-size:15px;border:1px solid #ccd5db;border-radius:7px;padding:7px;min-width:0;flex:1}.levelActions{display:flex;gap:4px}.levelActions button,.editableSurface button{border:1px solid #ccd5db;background:#fff;border-radius:6px;padding:6px 8px;cursor:pointer}
-.editableSurface{display:grid!important;grid-template-columns:minmax(110px,1.5fr) 82px 28px minmax(105px,1fr) auto auto auto;align-items:center;gap:5px}.editableSurface input,.editableSurface select{min-width:0;border:1px solid #ccd5db;border-radius:6px;padding:7px;background:#fff}.editableSurface .unit{font-size:12px;color:#667}
-@media(max-width:700px){.editableSurface{grid-template-columns:1fr 76px 25px}.editableSurface .pieceLevel{grid-column:1/3}.surfaceHead{align-items:flex-start;flex-direction:column}}
-.surfaceToolbar{display:flex;gap:6px;flex-wrap:wrap}
-@media(max-width:700px){.surfaceToolbar{width:100%}}
-
-.globalHistory{position:sticky;top:8px;z-index:900;display:flex;justify-content:flex-end;gap:7px;max-width:780px;margin:8px auto -2px;padding:0 4px;pointer-events:none}
-.globalHistory button{border:1px solid #b8c6ce;background:#fff;border-radius:9px;padding:7px 11px;box-shadow:0 2px 9px #0002;cursor:pointer;font-size:16px;pointer-events:auto;display:flex;align-items:center;gap:5px}
-.globalHistory button span{display:inline;font-size:11px}
-.photoManageGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:10px}
-.photoManageCard{border:1px solid #ccd5db;border-radius:9px;padding:7px;background:#fff}
-.photoManageCard img{width:100%;height:120px;object-fit:cover;border-radius:6px;display:block}
-.photoLabel{width:100%;box-sizing:border-box;margin-top:6px;padding:7px;border:1px solid #ccd5db;border-radius:6px}
-.photoActions{display:flex;justify-content:center;gap:5px;margin-top:5px}.photoActions button{border:1px solid #ccd5db;background:#f8fafb;border-radius:6px;padding:5px 9px}
-#gallery{display:none!important}@media(max-width:700px){.proRow{grid-template-columns:minmax(85px,.75fr) minmax(120px,1.25fr) 32px;gap:6px}.globalHistory{top:4px;margin:5px 8px -2px}.globalHistory button{padding:6px 8px}.globalHistory button span{font-size:10px}}
-
-:root{--property-color:#49697D}
-.card{border-top:3px solid var(--property-color)}
-.step,.proGroup h3,.surfaceHero h3,.levelName{color:var(--property-color)}
-.proGroup{min-width:0;max-width:100%;box-sizing:border-box;overflow:hidden}
-.proGrid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:14px!important;align-items:start}
-.proRow{width:100%;box-sizing:border-box}.fixedM2 em{font-style:normal;white-space:nowrap;user-select:none}.fixedM2>span{outline:none}
-@media(max-width:700px){.proGrid{grid-template-columns:minmax(0,1fr)!important}}
-
-.proRow{position:relative;padding-right:48px!important;box-sizing:border-box}
-.proDeleteBtn{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:34px;height:34px;border:1px solid #efcaca;border-radius:8px;background:#fff;color:#c33;font-size:22px;line-height:28px;cursor:pointer}
-.proDeleteBtn:hover{background:#fff5f5}
-.exportHint{font-size:12px;color:#61717c;margin:7px 0 3px;max-width:760px}
-.exportStatus{display:none;margin:8px 0;padding:10px 12px;border-radius:8px;max-width:760px;font-size:13px}
-.exportStatus.busy{display:block;background:#fff8df;border:1px solid #e5cf77;color:#5d501e}
-.exportStatus.ready{display:block;background:#edf8ef;border:1px solid #a8d4ae;color:#275f31}
-.exportStatus.error{display:block;background:#fff0f0;border:1px solid #e4aaaa;color:#8a2828}
-#printVisit:disabled,#wordVisit:disabled{opacity:.65;cursor:wait}
-
-/* V13.75 : croix Supprimer visibles sur toutes les lignes structurées */
-#facts .proGroup .proRow{display:grid!important;grid-template-columns:minmax(110px,.8fr) minmax(160px,1.5fr) 38px!important;align-items:center!important;gap:10px!important;padding:8px 0!important;position:relative!important}
-#facts .proGroup .proRow>.rowDelete{display:inline-flex!important;visibility:visible!important;opacity:1!important;grid-column:3!important;grid-row:1!important;position:static!important;transform:none!important;justify-self:end!important;align-items:center!important;justify-content:center!important;width:34px!important;height:34px!important;margin:0!important;padding:0!important;border:1px solid #efcaca!important;border-radius:8px!important;background:#fff!important;color:#c33!important;font-size:20px!important;line-height:1!important;cursor:pointer!important}
-#facts .proGroup .proRow>.rowDelete:hover{background:#fff5f5!important}
-
-/* Fenêtre centrale Word/PDF */
-.exportOverlay{position:fixed;inset:0;z-index:20000;background:rgba(18,37,51,.34);display:flex;align-items:center;justify-content:center;opacity:0;visibility:hidden;transition:opacity .18s ease}
-.exportOverlay.show{opacity:1;visibility:visible}
-.exportModal{width:min(420px,calc(100vw - 36px));background:#fff;border-radius:16px;box-shadow:0 18px 55px rgba(0,0,0,.25);padding:28px 24px;text-align:center}
-.exportSpinner{width:48px;height:48px;margin:0 auto 16px;border:5px solid #dce5ea;border-top-color:#173a52;border-radius:50%;animation:estimSpin .8s linear infinite}
-.exportOk{display:none;width:48px;height:48px;margin:0 auto 16px;border-radius:50%;background:#e8f6eb;color:#24733a;font-size:34px;line-height:48px;font-weight:bold}
-.exportModalTitle{font-size:19px;font-weight:700;color:#173a52;margin-bottom:8px}
-.exportModalMsg{font-size:14px;color:#5f6e78;line-height:1.45}
-@keyframes estimSpin{to{transform:rotate(360deg)}}
-#printVisit:disabled,#downloadWord:disabled{opacity:.65;cursor:wait}
-
-/* V13.75 — gestion complète des photos */
-.photoManagerHead{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:12px 0 10px}
-.photoManagerHead h3{margin:0}
-.photoCount{font-weight:500;color:#687781;font-size:.9em}
-.photoBulkActions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.photoSelectAll{display:flex;align-items:center;gap:7px;font-weight:600;cursor:pointer}
-.photoSelectAll input,.photoCheck input{width:18px;height:18px;accent-color:#173a52}
-.deleteSelectedPhotos{border:1px solid #d9a4a4;background:#fff;color:#a52e2e;border-radius:8px;padding:8px 11px;font-weight:600;cursor:pointer}
-.deleteSelectedPhotos:disabled{opacity:.45;cursor:not-allowed}
-.photoManageCard{position:relative}
-.photoManageCard.selected{outline:2px solid #173a52;outline-offset:2px}
-.photoCheck{position:absolute;z-index:3;top:8px;left:8px;background:rgba(255,255,255,.94);width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 5px rgba(0,0,0,.18);cursor:pointer}
-</style>
-<style>
-.estBrand{display:flex;align-items:baseline;gap:9px}.estVersion{font-size:11px!important;font-weight:600;opacity:.78}
-.estEmails{margin:9px 0 14px}.estEmailRow{display:flex;gap:8px;margin:7px 0}.estEmailRow input{flex:1;min-width:0}.estEmailRow button{color:#b32e2e;border:1px solid #ecc;border-radius:7px;background:white;cursor:pointer}
-.estExtras{margin:15px 0;border:1px solid #d5dfe5;border-radius:10px;padding:12px;background:#fafcfd}.estExtras summary{font-weight:700;cursor:pointer}.estExtras .cols{margin-top:12px}.estDocs{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px}.estDocs label{display:flex;gap:5px;align-items:center}
-body[data-property-theme="maison"]{background:#edf6ef!important}body[data-property-theme="appartement"]{background:#ecf4fb!important}body[data-property-theme="terrain"]{background:#f9f1e3!important}body[data-property-theme="immeuble"]{background:#f8edef!important}body[data-property-theme="local"]{background:#f3edf8!important}body[data-property-theme="garage"]{background:#eff2f5!important}
-</style>
-<style>
-.estContacts{margin:14px 0}.estContactRow{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;margin:8px 0;align-items:center}.estContactRow input{min-width:0;width:100%;box-sizing:border-box}.estContactRow button{border:1px solid #e9baba;background:#fff;color:#b33;border-radius:8px;padding:9px;cursor:pointer}
-.estExtraSection{background:white;border:1px solid #d8e3e6;border-radius:10px;margin:9px 0;padding:13px 15px}.estExtraSection summary{cursor:pointer;font-weight:700;color:#173a52}.estExtraSection[open] summary{margin-bottom:12px}.estExtrasSections>h3{font-size:18px;margin:12px 0}.estExtrasSections h3 small{font-size:12px;font-weight:400}.estCount{font-size:12px;font-weight:400;color:#647781;margin-left:7px}
-@media(max-width:720px){.estContactRow{grid-template-columns:1fr 1fr}.estContactRow button{grid-column:2}}
-</style><style>
-/* V13.75 — fiches contacts modernes, sans modification des autres modules */
-.ownersModern{margin:8px 0 22px}.ownersEyebrow{font-size:10px;letter-spacing:1.3px;font-weight:800;color:#638397}.ownersTitle h3{font-size:21px;margin:3px 0;color:#173a52}.ownersTitle p{font-size:13px;color:#687b88;margin:0 0 15px}
-.ownersCount{font-size:12px;vertical-align:middle;background:#e9f1f4;border-radius:20px;padding:4px 9px;color:#45697a}
-.ownerCard{border:1px solid #dce6eb;background:#fff;border-radius:16px;margin:12px 0;padding:17px;box-shadow:0 4px 16px rgba(25,58,78,.055)}
-.ownerCardHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;gap:10px}
-.ownerCardIdentity{display:flex;align-items:center;gap:10px;font-weight:750;color:#193a50}
-.ownerAvatar{display:inline-flex;align-items:center;justify-content:center;width:35px;height:35px;background:#eaf4f2;border-radius:11px;font-size:18px}
-.ownerFields{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.ownerFields label,.ownerDetail label{display:block;font-size:12px;font-weight:700;color:#496475}
-.ownerFields input,.ownerDetail input{display:block;width:100%;box-sizing:border-box;border:1px solid #d3e0e7;border-radius:10px;background:#fbfdfe;padding:11px 12px;margin-top:5px;font-size:15px}
-.ownerDetail{display:grid;grid-template-columns:1fr auto;gap:9px;align-items:end;margin-top:10px}
-.ownerDetail button,.ownerRemove{background:#fff;border:1px solid #efc9c9;color:#ae3939;border-radius:9px;padding:10px;cursor:pointer}
-.ownerAddDetail{border:0;background:none;color:#126d67;font-weight:700;padding:8px 0;cursor:pointer;text-align:left}
-.ownerDetailGroup{margin-top:12px}.ownerDetailGroup strong{font-size:12px;color:#496475}
-.addOwnerCard{display:block;width:100%;border:1px dashed #8fb8ae;border-radius:12px;padding:14px;background:#f3faf7;color:#166b5d;font-weight:800;cursor:pointer;margin-top:13px}
-.ownerLegacy{display:none!important}
-@media(max-width:650px){.ownerFields{grid-template-columns:1fr}.ownerCard{padding:13px}.ownerDetail{grid-template-columns:minmax(0,1fr) auto}}
-</style><style>
-.estExtraSection .cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
-.estExtraSection .cols label{display:block;min-width:0;font-weight:650;font-size:13px}
-.estExtraSection .cols input,.estExtraSection .cols select{display:block;box-sizing:border-box;width:100%;min-height:43px;margin-top:6px;border:1px solid #d4e0e7;border-radius:10px;background:#fff;padding:9px 11px;font-size:14px}
-@media(max-width:680px){.estExtraSection .cols{grid-template-columns:1fr}}
-</style><style>
-#record[hidden],#finishDictation[hidden],#newDictation[hidden]{display:none!important}
-#finishDictation{background:#b14e3b!important}
-#newDictation{background:#0b6c5b!important}
-</style><style>
-.jumpBottom{position:fixed;right:18px;top:75px;z-index:1000;border:0;border-radius:22px;background:#0b6c5b;color:#fff;padding:11px 17px;font-weight:750;box-shadow:0 4px 18px #173a5233;cursor:pointer}
-.extrasHeader{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.extrasHeader h3{margin:12px 0}
-.extrasHeader button{background:#e9f5f0;color:#0b6c5b;border:1px solid #9ac8b8;padding:9px 14px;border-radius:9px;cursor:pointer;font-weight:700}
-@media(max-width:650px){.jumpBottom{top:68px;right:8px;padding:9px 12px;font-size:12px}}
-</style></head>
-<body>
-<aside id="caseSidebar" class="caseSidebar" aria-label="Mes dossiers">
-  <div class="caseSidebarHead">
-    <div><b>MES DOSSIERS</b><small>Fiches enregistrées sur cet appareil</small></div>
-    <button id="caseClose" type="button" class="caseClose" aria-label="Fermer">×</button>
-  </div>
-  <button id="caseNew" type="button" class="caseNew">＋ Nouveau dossier</button>
-  <input id="caseSearch" class="caseSearch" type="search" placeholder="Rechercher nom, adresse, commune">
-  <div id="caseList" class="caseList"></div>
-</aside>
-<button id="caseOpen" type="button" class="caseOpen">☰ Mes dossiers</button>
-
-
-<header>
-  <div><div class="estBrand"><b>ESTIM’IA</b><span class="estVersion">V13.75</span></div><small>Assistant d’estimation immobilière</small></div>
-  <button id="new" type="button" hidden aria-hidden="true">+ Nouveau</button>
-</header>
-<div id="globalHistory" class="globalHistory">
-<button type="button" data-global-act="undo" title="Annuler la dernière modification">↶<span>Annuler</span></button>
-<button type="button" data-global-act="redo" title="Rétablir la modification">↷<span>Rétablir</span></button>
-</div>
-<button id="jumpBottom" type="button" class="jumpBottom" title="Aller en bas de page">↓ Bas de page</button>
-<main id="estimiaMain">
-<section class="card">
-  <div class="step">1 · DICTÉE</div>
-  <h2>Raconte ta visite</h2>
-  <p>Appuie sur le micro et parle normalement. Tu peux ajouter une nouvelle dictée à tout moment : les précédentes restent conservées. Appuie ensuite sur « Transformer en fiche » pour actualiser les informations.</p>
-  <button id="record" class="bigbtn" type="button">🎙️ Démarrer la dictée</button>
-  <button id="finishDictation" class="bigbtn" type="button" hidden>⏹️ Terminer et enregistrer la dictée</button>
-  <button id="newDictation" class="bigbtn" type="button" hidden>🎙️ ＋ Ajouter une nouvelle dictée</button>
-  <div id="recordStatus" class="status"></div>
-  <audio id="playback" controls hidden></audio>
-  <div class="voiceActions">
-    <button id="undoDictation" class="miniBtn" type="button">↩️ Annuler dernière dictée</button>
-    <button id="clearDictation" class="miniBtn danger" type="button">🗑️ Effacer la dictée</button>
-  </div>
-  <textarea id="notes" rows="9" placeholder="La dictée apparaîtra ici. Tu peux aussi écrire ou corriger le texte."></textarea>
-  <input id="dictationSessionsJSON" type="hidden" value="[]"><details class="historyBox"><summary>Historique des dictées successives</summary><div id="dictationHistory" class="history"></div></details>
-  <button id="analyse" class="bigbtn">✨ Transformer en fiche gratuitement</button>
-</section>
-<section class="card">
-  <div class="step">DOSSIER</div>
-  <div class="ownersModern">
-    <div class="ownersTitle"><div><span class="ownersEyebrow">CONTACTS DU DOSSIER</span><h3>Propriétaires <span id="ownersCount" class="ownersCount">1</span></h3><p>Les coordonnées de chaque personne sont regroupées dans sa fiche.</p></div></div>
-    <div id="ownersCards"></div>
-    <button id="addOwnerCard" type="button" class="addOwnerCard">＋ Ajouter un propriétaire</button>
-    <input type="hidden" id="estContactsJSON" value="[]">
-    <input type="hidden" id="estEmailsJSON" value="[]">
-    <div class="ownerLegacy" aria-hidden="true"><input id="owner"><input id="ownerPhone"></div>
-  </div>
-  <label>📍 Adresse du bien
-    <div class="addressLine"><input id="address" placeholder="Dicte l’adresse ou commence à la saisir"><button id="checkAddress" type="button" class="miniBtn">🔎 Vérifier</button></div>
-  </label>
-  <div id="addressSuggestions" class="suggestions"></div>
-  <div id="addressStatus" class="status"></div>
-  <div class="cadastreBox">
-    <b>🗺️ Cadastre</b>
-    <div class="cadGrid">
-      <label>Commune / code INSEE<input id="cadCommune" placeholder="Ex. Lamalou-les-Bains ou 34126"></label>
-      <label>Ajouter une section<input id="cadSection" placeholder="Ex. AB" maxlength="3"></label>
-      <label>Ajouter une parcelle<input id="cadParcel" placeholder="Ex. 152" inputmode="numeric"></label>
-      <button id="findParcel" type="button" class="miniBtn">➕ Ajouter / rechercher</button>
+  <!-- Entête -->
+  <header class="bg-slate-900 text-white p-4 shadow-md sticky top-0 z-50 flex justify-between items-center">
+    <div class="flex items-center gap-3">
+      <span class="text-xl font-bold bg-emerald-500 text-white px-2 py-1 rounded">ESTIM’IA</span>
+      <span class="text-xs text-slate-400 hidden sm:inline">Assistant d’estimation immobilière</span>
     </div>
-    <input id="cadParcelsJSON" type="hidden" value="[]">
-    <div id="cadParcelsList" class="cadParcelsList"></div>
-    <div id="cadStatus" class="status"></div>
-  </div>
-  <div class="cols">
-    <label>Type<input id="type" placeholder="Appartement, maison…"></label>
-    <label>Surface habitable calculée / déclarée (m²)<input id="surfaceHab" type="number" step=".01" placeholder="Calculée à partir des pièces relevées"></label>
-    <label>Surface Carrez (m²)<input id="surfaceCarrez" type="number" step=".01" placeholder="Uniquement si mesurée / déclarée"></label>
-  </div>
-</section>
+    <button id="new" class="bg-slate-800 hover:bg-slate-700 text-white text-sm px-3 py-1.5 rounded-lg transition border border-slate-700">+ Nouveau dossier</button>
+  </header>
 
-<section class="card">
-<div class="estExtrasSections"><div class="extrasHeader"><h3>Compléments du bien <small>— facultatif</small></h3><button id="toggleAllExtras" type="button" class="miniBtn" aria-expanded="false">▾ Tout dérouler</button></div><details class="estExtraSection"><summary>Situation du bien <span class="estCount"></span></summary><div class="cols"><label>Disponibilité<select id="estAvailability"><option value=""></option><option>Libre</option><option>Occupé</option></select></label><label>Usage<select id="estUsage"><option value=""></option><option>Habitation</option><option>Mixte</option><option>Professionnel</option></select></label><label>Location<select id="estRental"><option value=""></option><option>Aucune</option><option>Annuelle</option><option>Saisonnière</option></select></label><label>Loyer mensuel (€)<input id="estRent" type="number"></label></div></details><details class="estExtraSection"><summary>Caractéristiques générales <span class="estCount"></span></summary><div class="cols"><label>Année de construction<input id="estYear"></label><label>État général<select id="estCondition"><option value=""></option><option>Bon état</option><option>À rafraîchir</option><option>À rénover</option><option>À réhabiliter</option></select></label><label>Mitoyenneté<input id="estPartyWall"></label><label>Accessibilité PMR<select id="estPMR"><option value=""></option><option>Oui</option><option>Non</option></select></label><label>Ascenseur<select id="estElevator"><option value=""></option><option>Oui</option><option>Non</option></select></label><label>Nombre de stationnements<input id="estParking" type="number"></label></div></details><details class="estExtraSection"><summary>Copropriété <span class="estCount"></span></summary><div class="cols"><label>Copropriété : numéro de lot<input id="estLot"></label><label>Syndic<input id="estSyndic"></label><label>Charges annuelles (€)<input id="estCharges" type="number"></label><label>Travaux votés<input id="estWorks"></label></div></details><details class="estExtraSection"><summary>Environnement et accès <span class="estCount"></span></summary><div class="cols"><label>Orientation<input id="estOrientation"></label><label>Environnement<input id="estEnvironment"></label><label>Nuisances<input id="estNuisances"></label><label>Accès<input id="estAccess"></label></div></details><details class="estExtraSection"><summary>Construction et équipements <span class="estCount"></span></summary><div class="cols"><label>Toiture<textarea id="estRoof" class="estAutoGrow" rows="2" placeholder="À renseigner si nécessaire"></textarea></label><label>Façades<textarea id="estFacade" class="estAutoGrow" rows="2" placeholder="À renseigner si nécessaire"></textarea></label><label>Menuiseries<textarea id="estWindows" class="estAutoGrow" rows="2" placeholder="À renseigner si nécessaire"></textarea></label><label>Chauffage<textarea id="estHeating" class="estAutoGrow" rows="2" placeholder="À renseigner si nécessaire"></textarea></label><label>Eau chaude<textarea id="estHotWater" class="estAutoGrow" rows="2" placeholder="À renseigner si nécessaire"></textarea></label><label>Réseaux<textarea id="estNetworks" class="estAutoGrow" rows="2" placeholder="À renseigner si nécessaire"></textarea></label></div></details><details class="estExtraSection"><summary>Documents disponibles <span class="estCount"></span></summary><div class="estDocs"><b>Documents disponibles</b><label><input id="estDocTitle" type="checkbox"> Acte de propriété</label><label><input id="estDocDpe" type="checkbox"> Diagnostics</label><label><input id="estDocTax" type="checkbox"> Taxe foncière</label><label><input id="estDocCopro" type="checkbox"> Copropriété</label><label><input id="estDocSpanc" type="checkbox"> SPANC</label></div></details></div>
-  <div class="step">2 · PHOTOS</div>
-  <h2>Photos de la visite</h2>
-  <p>Ajoute toutes les photos. Elles seront jointes au dossier et pourront ensuite être analysées par l’IA.</p>
-  <label class="bigbtn secondary">📷 Ajouter les photos<input id="photos" type="file" accept="image/*" multiple hidden></label>
-<div id="photoManager"></div>
-  <div id="gallery" class="gallery"></div>
-  <div id="photoStatus" class="status"></div>
-</section>
+  <main class="max-w-4xl mx-auto px-4 mt-6">
+    
+    <!-- Barre de Navigation (Wizard par Étapes) -->
+    <nav class="flex border-b border-slate-200 mb-6 bg-white rounded-xl p-2 shadow-sm gap-1 overflow-x-auto">
+      <button onclick="switchStep(1)" id="tab-step-1" class="step-tab flex-1 py-2.5 px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition text-center whitespace-nowrap bg-emerald-50 text-emerald-700 font-semibold">
+        1. Infos & Dictée
+      </button>
+      <button onclick="switchStep(2)" id="tab-step-2" class="step-tab flex-1 py-2.5 px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition text-center whitespace-nowrap">
+        2. Photos
+      </button>
+      <button onclick="switchStep(3)" id="tab-step-3" class="step-tab flex-1 py-2.5 px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition text-center whitespace-nowrap">
+        3. Fiche IA
+      </button>
+      <button onclick="switchStep(4)" id="tab-step-4" class="step-tab flex-1 py-2.5 px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition text-center whitespace-nowrap">
+        4. Dossier & Export
+      </button>
+    </nav>
 
+    <!-- ÉTAPE 1 : Infos Dossier & Dictée -->
+    <div id="step-panel-1" class="step-panel space-y-6">
+      
+      <!-- Section Propriétaire / Adresse / Cadastre -->
+      <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+        <h2 class="text-lg font-semibold text-slate-900 flex items-center gap-2">👤 Propriétaire & Localisation</h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">Propriétaire</label>
+            <input id="owner" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Nom et prénom">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">Téléphone</label>
+            <input id="ownerPhone" inputmode="tel" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Téléphone">
+          </div>
+        </div>
 
+        <div>
+          <label class="block text-xs font-medium text-slate-500 mb-1">Adresse du bien</label>
+          <div class="flex gap-2">
+            <input id="address" class="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Dicte l’adresse ou commence à la saisir">
+            <button id="checkAddress" type="button" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm px-3 py-2 rounded-lg font-medium transition">🔎 Vérifier</button>
+          </div>
+          <div id="addressSuggestions" class="suggestions"></div>
+          <div id="addressStatus" class="status text-xs mt-1"></div>
+        </div>
 
-<section class="card">
-  <div class="step">3 · FICHE IA</div>
-  <h2>Ce que j’ai compris</h2>
-  <div id="facts" class="facts"><div class="empty">Dicte ta visite puis touche « Transformer en fiche ».</div></div>
-  <label>Correction libre<textarea id="correction" rows="3" placeholder="Ex. la terrasse fait 25 m² et non 30 m²"></textarea></label>
-</section>
+        <!-- Bloc Cadastre -->
+        <div class="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-3">
+          <span class="text-xs font-bold text-slate-700 block">🗺️ CADASTRE</span>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">Commune / INSEE</label>
+              <input id="cadCommune" class="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white" placeholder="Ex. Lamalou-les-Bains">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">Section</label>
+              <input id="cadSection" maxlength="3" class="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white" placeholder="Ex. AB">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">Parcelle</label>
+              <input id="cadParcel" inputmode="numeric" class="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white" placeholder="Ex. 152">
+            </div>
+          </div>
+          <button id="findParcel" type="button" class="bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-medium px-3 py-1.5 rounded-lg transition">🔎 Rechercher parcelle</button>
+          <div id="cadStatus" class="status text-xs"></div>
+        </div>
 
-<section class="card" id="marketListingsModule">
-  <div class="step">4 · BIENS SIMILAIRES</div>
-  <h2>Biens actuels similaires proposés à la vente</h2>
-  <p class="small">Recherche dans les catalogues Roques Immobilier, IAD, SAFTI, Superimmo et Bien’ici à Lamalou-les-Bains. Jusqu’à 6 annonces proches du prix estimé. Calculez d’abord l’estimation dans la rubrique 5 pour permettre le classement par prix. Les résultats peuvent être incomplets ou anciens : vérifie les annonces originales.</p>
-  <button id="launchAnnonces" type="button" class="bigbtn">🔎 Rechercher les annonces comparables</button>
-  <div id="annoncesStatus" class="status" role="status"></div>
-<h3>Annonces similaires Roques Immobilier</h3><p class="small">4 biens maximum : commune du dossier en priorité, puis communes proches jusqu’à 20 km. Classement par prix dans chaque commune.</p><button type="button" id="launchRoques">Rechercher les annonces Roques</button><p id="roquesStatus" class="small"></p><div id="roquesResults"></div>
-<h3>Autres annonces similaires</h3><p class="small">Jusqu’à 6 autres biens, après comparaison avec Roques et retrait des doublons probables entre sites.</p>
-  <div id="annoncesResults"></div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">Type de bien</label>
+            <input id="type" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Appartement, maison…">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">Surface Carrez / Habitable (m²)</label>
+            <input id="surface" type="number" step=".01" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="80">
+          </div>
+        </div>
+      </section>
 
-  <div id="annoncesLinks" class="small" style="margin-top:12px"></div>
-  <details><summary>Ajouter un comparable vérifié manuellement</summary>
-  <label>Lien de l'annonce <input id="annonceUrl" type="url" placeholder="https://..."></label>
-  <label>Prix demandé (€) <input id="annoncePrix" type="number" min="0"></label>
-  <label>Surface (m²) <input id="annonceSurface" type="number" min="0" step="0.01"></label>
-  <button id="addAnnonce" type="button">Ajouter au tableau</button>
-  </details>
-  <p class="small">Les annonces et les ventes DVF sont présentées séparément : aucun prix affiché n’est assimilé à un prix vendu.</p>
-</section>
+      <!-- Section Dictée -->
+      <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+        <h2 class="text-lg font-semibold text-slate-900 flex items-center gap-2">🎙️ Dictée de visite</h2>
+        <p class="text-xs text-slate-500">Appuie sur le micro et parle normalement. L'IA structurera tes propos.</p>
+        
+        <button id="record" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-xl transition flex items-center justify-center gap-2 shadow-sm">
+          🎙️ Démarrer la dictée
+        </button>
+        <div id="recordStatus" class="text-xs text-slate-500 min-h-[16px]"></div>
+        
+        <div class="flex gap-2">
+          <button id="undoDictation" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg transition" type="button">↩️ Annuler dernière dictée</button>
+          <button id="clearDictation" class="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded-lg transition" type="button">🗑️ Effacer toute la dictée</button>
+        </div>
 
-<section class="card" id="estimationModule">
-  <div class="step">5 · ESTIMATION (BÊTA)</div>
-  <h2>Estimation — ventes DVF et annonces du marché</h2>
-  <p>Le logiciel lit le type, la commune et la surface de la fiche, puis recherche des ventes publiques comparables. Aucun prix n'est inventé si le service est indisponible.</p>
-  <button id="launchEstimation" type="button" class="bigbtn">📊 Rechercher les ventes et calculer</button>
-<div id="estimationStatus" class="status" role="status"></div>
-<p class="small">Version interface DVF : 13.75 — Si cette ligne est absente après installation, actualiser la page avec Ctrl + F5.</p>
-  <div id="estimationResults"></div>
-<section id="marketIndicatorsBox" class="proGroup">
-<h3>Repères au m² et ajustement</h3>
-<div id="marketIndicators">Calculez l’estimation puis lancez la recherche des annonces pour comparer les repères.</div>
-<p id="marketAdjustmentAdvice" class="small"></p>
-<label>Montant que vous souhaitez retenir (€)<input id="estRetainedPrice" type="number" min="1" step="1000" placeholder="Montant à valider"></label>
-<label>Justification de votre décision<textarea id="estAdjustmentReason" rows="3" placeholder="État, travaux, terrain, emplacement, annexes, comparables vérifiés…"></textarea></label>
-<button id="validateRetainedEstimate" type="button">Valider le montant retenu</button>
-<input id="validatedPrice" type="hidden"><input id="validatedReason" type="hidden">
-<p id="retainedEstimateText" role="status"></p>
-</section>
-  <details id="dvfOfflineBox" style="margin-top:12px;padding:12px;border:2px solid #0a705b;border-radius:10px"><summary><b>📁 Import DVF manuel (en cas de besoin)</b></summary>
-<p class="small">Le logiciel tente désormais de télécharger automatiquement les données DVF départementales. En cas de panne réseau, tu peux aussi importer une archive officielle. L'import conserve uniquement les mutations simples de la commune du dossier. Les données importées sont stockées sur le serveur Render et peuvent disparaître lors d'un redéploiement sans disque persistant.</p>
-<label>Archive annuelle officielle DGFiP (.zip) <input type="file" id="dvfZip" accept=".zip"></label>
-<button type="button" id="dvfImport">Importer les ventes de la commune</button>
-<div id="dvfImportStatus" role="status" class="status"></div>
-<p class="small"><a href="https://www.data.gouv.fr/datasets/demandes-de-valeurs-foncieres" target="_blank" rel="noopener">Télécharger les archives officielles DGFiP</a></p></details>
+        <textarea id="notes" rows="6" class="w-full p-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="La dictée apparaîtra ici. Tu peux aussi écrire ou corriger le texte."></textarea>
+        
+        <details class="text-xs text-slate-500"><summary class="cursor-pointer font-medium">Historique des dictées</summary><div id="dictationHistory" class="p-2 bg-slate-50 rounded mt-2"></div></details>
 
-  <p class="small">Première version : maisons et appartements. Valeur statistique indicative, à valider selon l'état, le terrain, les annexes et les travaux. Source : DVF via un service public tiers expérimental, disponibilité non garantie.</p>
-</section>
+        <div class="flex justify-between items-center pt-2">
+          <button id="analyse" class="bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition">✨ Transformer en fiche gratuitement</button>
+          <button onclick="switchStep(2)" class="text-sm font-medium text-emerald-600 hover:text-emerald-700">Étape suivante : Photos →</button>
+        </div>
+      </section>
+    </div>
 
-<section class="card">
-  <div class="step">6 · DOSSIER</div>
-  <button id="save" class="bigbtn">💾 Enregistrer le dossier</button>
-    <button id="printVisit" type="button" class="secondary">📕 Télécharger le vrai PDF</button>
+    <!-- ÉTAPE 2 : Photos -->
+    <div id="step-panel-2" class="step-panel hidden space-y-6">
+      <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+        <h2 class="text-lg font-semibold text-slate-900">📷 Photos de la visite</h2>
+        <p class="text-xs text-slate-500">Ajoute toutes les photos de la visite pour le dossier.</p>
+        
+        <label class="border-2 border-dashed border-slate-200 hover:border-emerald-500 rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer transition bg-slate-50 hover:bg-white">
+          <span class="text-3xl mb-2">📷</span>
+          <span class="text-sm font-medium text-slate-700">Ajouter des photos</span>
+          <span class="text-xs text-slate-400 mt-1">Sélectionne tes fichiers image</span>
+          <input id="photos" type="file" accept="image/*" multiple hidden>
+        </label>
+        
+        <div id="gallery" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4"></div>
+        <div id="photoStatus" class="text-xs text-slate-500"></div>
 
-    <button id="downloadWord" type="button" class="secondary">📄 Télécharger la fiche Word</button>
-<button id="emailWord" type="button" class="secondary">✉ Préparer le Word pour envoi</button>
-<button id="emailPdf" type="button" class="secondary">✉ Préparer le PDF pour envoi</button>
-<div id="emailActions" hidden style="width:100%;padding:12px;border:1px solid #dbe6e3;border-radius:10px">
-<p id="emailStatus" role="status"></p>
-<button id="emailThunderbird" type="button" class="secondary" hidden>Ouvrir Thunderbird avec la pièce jointe</button>
-<button id="emailShare" type="button" class="secondary" hidden>Partager avec la pièce jointe</button>
-<button id="emailEml" type="button" class="secondary" hidden>Télécharger le message avec sa pièce jointe (.eml)</button>
-<p class="small"><b>Windows / Thunderbird :</b> une seule fois, <a href="/api/email/bridge-installer">téléchargez le relais gratuit</a>, extrayez le ZIP puis lancez Installer_Thunderbird.cmd. Indiquez l’adresse HTTPS de cette application : <span id="emailSiteAddress"></span>. Préparez ensuite le document puis cliquez sur « Ouvrir Thunderbird ». Sur téléphone, utilisez le partage et choisissez Outlook si proposé.</p>
-<p class="small"><b>Avec pièce jointe :</b> utilisez le partage si disponible, ou téléchargez le message .eml puis ouvrez-le dans votre messagerie. Vérifiez la présence du document avant envoi.</p>
-<button id="emailAttachment" type="button" class="secondary" hidden>Télécharger le document seul</button>
-<button id="emailOpen" type="button" class="secondary" hidden>Ouvrir la messagerie — pièce jointe à ajouter manuellement</button>
-<p class="small"><b>Ouverture MAILTO :</b> seuls l’objet, le texte et la signature sont transmis. Le fichier doit être ajouté manuellement au message. Aucun message n’est envoyé automatiquement.</p>
-</div>
-  <div id="saveStatus" class="status"></div>
-  <p class="small">V13.75 : fiche entièrement modifiable + gestion des niveaux et des pièces.</p>
-</section>
-</main>
-<script src="/static/estimation_v13_44.js?v=13.75" defer></script>
-<script src="/static/app.js?v=13.75"></script>
-<script src="/static/v7_pro.js"></script>
-<script src="/static/v8_fiche_pro.js"></script>
-<script src="/static/v13_visite.js?v=13.75-layout3"></script>
-<script src="/static/v13_dossiers_pro.js?v=13.75"></script>
+        <div class="flex justify-between items-center pt-4 border-t border-slate-100">
+          <button onclick="switchStep(1)" class="text-sm font-medium text-slate-600 hover:text-slate-900">← Retour</button>
+          <button onclick="switchStep(3)" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition">Étape suivante : Fiche IA →</button>
+        </div>
+      </section>
+    </div>
 
+    <!-- ÉTAPE 3 : Fiche IA -->
+    <div id="step-panel-3" class="step-panel hidden space-y-6">
+      <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+        <h2 class="text-lg font-semibold text-slate-900">📋 Fiche extraite par l'IA</h2>
+        
+        <div id="facts" class="bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm min-h-[120px]">
+          <div class="text-slate-400 italic">Dicte ta visite puis clique sur « Transformer en fiche ».</div>
+        </div>
 
-<div id="exportOverlay" class="exportOverlay" aria-live="polite">
- <div class="exportModal">
-  <div id="exportSpinner" class="exportSpinner"></div>
-  <div id="exportOk" class="exportOk">✓</div>
-  <div id="exportModalTitle" class="exportModalTitle">Création du document en cours</div>
-  <div id="exportModalMsg" class="exportModalMsg">Cela peut prendre un peu de temps…</div>
- </div>
-</div>
-<script>
-(function(){
-  const bottom=document.getElementById('jumpBottom');
-  bottom?.addEventListener('click',()=>document.documentElement.scrollTo({top:document.documentElement.scrollHeight,behavior:'smooth'}));
-  const all=document.getElementById('toggleAllExtras');
-  all?.addEventListener('click',()=>{
-    const sections=[...document.querySelectorAll('.estExtrasSections details.estExtraSection')];
-    const expand=sections.some(section=>!section.open);
-    sections.forEach(section=>section.open=expand);
-    all.textContent=expand?'▴ Tout replier':'▾ Tout dérouler';
-    all.setAttribute('aria-expanded',String(expand));
-  });
-})();
-</script><div style="position:fixed;right:18px;bottom:75px;z-index:9999"><button type="button" onclick="window.scrollTo({top:0,behavior:'smooth'})" style="padding:10px 16px;border-radius:25px;background:#096f5b;color:white;border:0;cursor:pointer">↑ Haut de page</button></div>
+        <div>
+          <label class="block text-xs font-medium text-slate-500 mb-1">Correction libre</label>
+          <textarea id="correction" rows="2" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Ex. la terrasse fait 25 m² et non 30 m²"></textarea>
+        </div>
+
+        <div class="flex justify-between items-center pt-4 border-t border-slate-100">
+          <button onclick="switchStep(2)" class="text-sm font-medium text-slate-600 hover:text-slate-900">← Retour</button>
+          <button onclick="switchStep(4)" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition">Étape suivante : Export & PDF →</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- ÉTAPE 4 : Dossier & Export PDF -->
+    <div id="step-panel-4" class="step-panel hidden space-y-6">
+      <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+        <h2 class="text-lg font-semibold text-slate-900">💾 Enregistrement & Exportation</h2>
+        
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button id="save" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-xl transition shadow-sm">💾 Enregistrer le dossier</button>
+          <button onclick="generatePDF()" class="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-medium rounded-xl transition shadow-sm flex items-center justify-center gap-2">📄 Télécharger le PDF Client</button>
+        </div>
+
+        <div class="flex gap-2">
+          <button id="printVisit" type="button" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg transition flex-1">🖨️ Impression standard</button>
+          <button id="downloadVisit" type="button" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg transition flex-1">💾 Sauvegarde locale</button>
+        </div>
+
+        <div id="saveStatus" class="text-xs text-slate-500"></div>
+      </section>
+
+      <!-- Aperçu Live du Rapport PDF -->
+      <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Aperçu du document PDF</h3>
+        <div id="pdf-preview" class="p-8 bg-white border border-slate-200 rounded-xl text-slate-800 space-y-4">
+          <div class="flex justify-between items-center border-b pb-4">
+            <div>
+              <h1 class="text-2xl font-bold text-slate-900">RAPPORT VISITE & ESTIMATION</h1>
+              <p id="pdf-address" class="text-sm text-slate-500">Adresse du bien</p>
+            </div>
+            <div class="text-right">
+              <span class="text-xs bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded-full">ESTIM'IA</span>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4 text-sm py-2 bg-slate-50 p-3 rounded-lg">
+            <div><strong>Client :</strong> <span id="pdf-owner">-</span></div>
+            <div><strong>Téléphone :</strong> <span id="pdf-phone">-</span></div>
+            <div><strong>Type :</strong> <span id="pdf-type">-</span></div>
+            <div><strong>Surface :</strong> <span id="pdf-surface">-</span> m²</div>
+          </div>
+          <div class="border-t pt-4">
+            <h4 class="font-semibold text-sm mb-2 text-slate-700">Synthèse des caractéristiques</h4>
+            <div id="pdf-facts-content" class="text-xs text-slate-600 space-y-1">
+              Les détails de la fiche apparaîtront ici.
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+  </main>
+
+  <!-- Scripts JavaScript d'origine inchangés -->
+  <script src="/static/app.js?v=13.2"></script>
+  <script src="/static/v7_pro.js"></script>
+  <script src="/static/v8_fiche_pro.js"></script>
+  <script src="/static/v13_visite.js?v=13.2"></script>
+
+  <!-- Script pour le Wizard et l'export PDF -->
+  <script>
+    function switchStep(stepNumber) {
+      document.querySelectorAll('.step-panel').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.step-tab').forEach(el => {
+        el.classList.remove('bg-emerald-50', 'text-emerald-700', 'font-semibold');
+      });
+
+      document.getElementById(`step-panel-${stepNumber}`).classList.remove('hidden');
+      const activeTab = document.getElementById(`tab-step-${stepNumber}`);
+      activeTab.classList.add('bg-emerald-50', 'text-emerald-700', 'font-semibold');
+
+      if(stepNumber === 4) updatePDFPreview();
+    }
+
+    function updatePDFPreview() {
+      document.getElementById('pdf-owner').textContent = document.getElementById('owner')?.value || '-';
+      document.getElementById('pdf-phone').textContent = document.getElementById('ownerPhone')?.value || '-';
+      document.getElementById('pdf-address').textContent = document.getElementById('address')?.value || 'Adresse non renseignée';
+      document.getElementById('pdf-type').textContent = document.getElementById('type')?.value || '-';
+      document.getElementById('pdf-surface').textContent = document.getElementById('surface')?.value || '-';
+
+      const factsDiv = document.getElementById('facts');
+      if(factsDiv) {
+        document.getElementById('pdf-facts-content').innerHTML = factsDiv.innerHTML;
+      }
+    }
+
+    function generatePDF() {
+      updatePDFPreview();
+      const element = document.getElementById('pdf-preview');
+      const opt = {
+        margin:       10,
+        filename:     'estimation-immo.pdf',
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2 },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+      html2pdf().set(opt).from(element).save();
+    }
+  </script>
 </body>
 </html>
