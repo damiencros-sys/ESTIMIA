@@ -1051,7 +1051,7 @@ async function buildExportPayload(){
   basse:estimateBox?.querySelectorAll('.estimationRangeAmount')[0]?.innerText||'',
   haute:estimateBox?.querySelectorAll('.estimationRangeAmount')[1]?.innerText||'',
   texte:estimateBox?.querySelector('p')?.innerText||''};
- const annonces=[...document.querySelectorAll('#annoncesResults .annonceCard')].slice(0,4).map(card=>({
+ const annonces=[...document.querySelectorAll('#annoncesResults .annonceCard')].slice(0,6).map(card=>({
   titre:card.querySelector('h4')?.innerText||'',description:card.querySelector('.annonceDescription')?.innerText||'',
   prix:card.querySelector('.annoncePrice')?.innerText||'',site:card.querySelector('.annonceAgency')?.innerText||'',
   photo:card.querySelector('img')?.src||'',url:card.querySelector('.annonceLink')?.href||''}));

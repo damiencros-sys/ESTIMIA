@@ -52,7 +52,7 @@ function estimationReference(){
 function closestAnnonces(rows,price,surface){
  const unique=[...new Map(rows.filter(a=>Number(a.prix)>0).map(a=>[a.url,a])).values()];
  return unique.sort((a,b)=>Math.abs(a.prix-price)-Math.abs(b.prix-price)||
-  Math.abs((Number(a.surface)||0)-surface)-Math.abs((Number(b.surface)||0)-surface)||String(a.url).localeCompare(String(b.url))).slice(0,4);
+  Math.abs((Number(a.surface)||0)-surface)-Math.abs((Number(b.surface)||0)-surface)||String(a.url).localeCompare(String(b.url))).slice(0,6);
 }
 function safeAnnonceUrl(value){
  try{const u=new URL(value);return ['https:','http:'].includes(u.protocol)?u.href:'';}catch{return '';}
@@ -61,7 +61,7 @@ function displayAnnonces(){
  const target=q('#annoncesResults');if(!target)return;
  const all=[...found,...manual],price=estimationReference();
  if(!all.length){target.textContent='Aucun comparable affichable.';return;}
- if(!price){target.textContent='Calculez d’abord l’estimation du bien pour sélectionner les 4 annonces les plus proches de sa valeur centrale.';return;}
+ if(!price){target.textContent='Calculez d’abord l’estimation du bien pour sélectionner les 6 annonces les plus proches de sa valeur centrale.';return;}
  const rows=closestAnnonces(all,price,Number(q('#surfaceHab')?.value||0));
  target.innerHTML=`<p class="small">${rows.length} annonce(s) sélectionnée(s) sur ${all.length} — prix les plus proches de l’estimation centrale de ${fmt(price)}.</p><div class="annoncesCards">${rows.map(a=>{
   const photo=safeAnnonceUrl(a.photo),url=safeAnnonceUrl(a.url);
@@ -88,7 +88,7 @@ annoncesBtn?.addEventListener('click',async()=>{
 
  if(!commune||!type_bien){status.textContent='Renseigne la commune (nom), et le type maison/appartement. Si le cadastre contient seulement un code INSEE, saisis le nom de la commune dans l’adresse.';return;}
  if(/^\d{5}$/.test(commune)){status.textContent='Nom de commune nécessaire pour rechercher les annonces (le code INSEE seul ne suffit pas).';return;}
- annoncesBtn.disabled=true;status.textContent='Lecture du catalogue public…';
+ annoncesBtn.disabled=true;status.textContent='Lecture des catalogues publics…';
  const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),22000);
  try{const res=await fetch('/api/estimation/annonces?'+new URLSearchParams({commune,type_bien,surface}),{signal:controller.signal});const d=await res.json();if(!res.ok)throw Error(d.detail||'Erreur serveur');found=d.annonces||[];
  if(links && d.recherches_agences?.length){

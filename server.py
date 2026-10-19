@@ -355,23 +355,31 @@ def _property_color(t):
 
 
 def _export_market_images(annonces):
-    # Télécharger seulement les photos des catalogues connus, sans redirections.
+    # Télécharger seulement les photos des catalogues connus et vérifier chaque redirection.
     from concurrent.futures import ThreadPoolExecutor
     from PIL import Image
-    class NoRedirect(urllib.request.HTTPRedirectHandler):
-        def redirect_request(self,*args,**kwargs):return None
+    def allowed_image(url):
+        parsed=urllib.parse.urlsplit(url)
+        hosts=('roquesimmobilie.staticlbi.com','www.roques-immobilier.com','images.iadfrance.fr','cdn.safti.fr','photo.superimmo.com','file.bienici.com','storage.gra.cloud.ovh.net',
+            'image.hestia.immo','images.playiad.com','img.netty.immo','photos.exportadapt.com','photos.ubiflow.net','yxnwgqqvrnmyhrxcaatb.supabase.co')
+        host=parsed.hostname or ''
+        return parsed.scheme=='https' and parsed.port in (None,443) and (host in hosts or host.endswith('.staticlbi.com'))
+    class SafeRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self,req,fp,code,msg,headers,newurl):
+            if not allowed_image(newurl):return None
+            return super().redirect_request(req,fp,code,msg,headers,newurl)
     def load(item):
         try:
             url=str(item.get('photo','')); parsed=urllib.parse.urlsplit(url)
-            if parsed.scheme!='https' or parsed.hostname not in ('roquesimmobilie.staticlbi.com','www.roques-immobilier.com') or parsed.port not in (None,443):return None
-            opener=urllib.request.build_opener(NoRedirect())
+            if not allowed_image(url):return None
+            opener=urllib.request.build_opener(SafeRedirect())
             with opener.open(urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0'}),timeout=8) as response:
                 raw=response.read(8_000_001)
             if len(raw)>8_000_000:return None
             im=Image.open(io.BytesIO(raw));im.thumbnail((1000,750));im=im.convert('RGB')
             out=io.BytesIO();im.save(out,format='JPEG',quality=82);return out.getvalue()
         except Exception:return None
-    with ThreadPoolExecutor(max_workers=4) as pool:return list(pool.map(load,annonces[:4]))
+    with ThreadPoolExecutor(max_workers=4) as pool:return list(pool.map(load,annonces[:6]))
 
 @app.post("/api/word")
 def word_export(p:WordPayload):
@@ -476,7 +484,7 @@ def word_export(p:WordPayload):
         heading('ANNONCES COMPARABLES')
         doc.add_paragraph('Biens proposés à la vente sélectionnés par proximité du prix central. Prix affichés et disponibilité à confirmer auprès des agences.')
         pictures=_export_market_images(p.annonces)
-        for index,item in enumerate(p.annonces[:4]):
+        for index,item in enumerate(p.annonces[:6]):
             heading(str(index+1)+'  '+str(item.get('titre','Bien proposé à la vente')))
             if pictures[index]:
                 para=doc.add_paragraph();para.alignment=WD_ALIGN_PARAGRAPH.CENTER
@@ -586,7 +594,7 @@ def pdf_export(p:WordPayload):
         story.append(Paragraph('ANNONCES COMPARABLES',h))
         story.append(Paragraph('Biens proposés à la vente sélectionnés par proximité du prix central. Prix affichés et disponibilité à confirmer auprès des agences.',normal))
         pictures=_export_market_images(p.annonces)
-        for index,item in enumerate(p.annonces[:4]):
+        for index,item in enumerate(p.annonces[:6]):
             card=[Paragraph(text(str(index+1)+'  '+str(item.get('titre','Bien proposé à la vente'))),h)]
             if pictures[index]:card.append(RLImage(io.BytesIO(pictures[index]),width=105*mm,height=65*mm,kind='proportional'))
             else:card.append(Paragraph('Photo de cette annonce indisponible lors de l’export.',cap))
@@ -1083,6 +1091,87 @@ def _market_parse_roques(page, city, typ):
           'consulte_le':datetime.now().isoformat(timespec='seconds')})
     return rows
 
+
+def _market_parse_public(page, city, typ, source):
+    import html
+    bases={'IAD':'https://www.iadfrance.fr','SAFTI':'https://www.safti.fr','Superimmo':'https://www.superimmo.com'}
+    out=[];seen=set();citykey=_market_city_key(city)
+    for block in re.findall(r'<article\b[^>]*>(.*?)</article>',page,re.S|re.I):
+        plain=_market_clean(block)
+        if re.search(r'\b(?:sous compromis|sous offre|vendu[e]?)\b',plain[:400],re.I):continue
+        hrefs=[html.unescape(m[1]) for m in re.findall(r'href=(["\'])(.*?)\1',block,re.S|re.I)]
+        if source=='IAD':path=next((u for u in hrefs if re.match(r'/annonce/[^/]+/r\d+$',u)),None)
+        elif source=='SAFTI':path=next((u for u in hrefs if re.match(r'/annonces/achat/[^/]+/[^/]+/\d+$',u)),None)
+        else:path=next((u for u in hrefs if u.startswith('/annonces/achat-')),None)
+        if not path or path in seen:continue
+        # Filtrer la commune dans le chemin de l'annonce, pas seulement le descriptif.
+        if citykey not in _market_city_key(path):continue
+        if not re.search(r'/(?:annonce/)?(?:achat-)?'+typ+r'[-/]',path,re.I) and not (source=='SAFTI' and '/'+typ+'/' in path):continue
+        heading=re.search(r'<h[23]\b[^>]*>(.*?)</h[23]>',block,re.S|re.I)
+        title=_market_clean(heading[1]) if heading else ''
+        if source=='Superimmo':title=title.split('Ter.')[0].strip(' •')
+        # L'habitation est la première surface dans la carte, avant le terrain.
+        area=_market_area(title) or _market_area(plain)
+        price_block=re.search(r'<b\b[^>]*class=["\'][^"\']*font-rubik[^>]*>(.*?)</b>',block,re.S|re.I) if source=='Superimmo' else None
+        price=_market_euro(_market_clean(price_block[1]) if price_block else plain)
+        if not area or not price:continue
+        photos=[]
+        for tag in re.findall(r'<img\b[^>]*>',block,re.S|re.I):
+            src=re.search(r'\bsrc=(["\'])(.*?)\1',tag,re.S|re.I)
+            if not src:continue
+            image=html.unescape(src[2]);alt=re.search(r'\balt=(["\'])(.*?)\1',tag,re.S|re.I)
+            if source=='IAD' and 'images.iadfrance.fr/property/' in image:photos.append(image)
+            if source=='SAFTI' and 'cdn.safti.fr/bien-photo/' in image:photos.append(image)
+            if source=='Superimmo' and 'photo.superimmo.com/' in image and alt and re.search(r'maison|appartement|villa',html.unescape(alt[2]),re.I):photos.append(image)
+        agency=source
+        if source=='Superimmo':
+            names=[_market_clean(x) for x in re.findall(r'<a\b[^>]*href=["\']/agence/[^>]*>(.*?)</a>',block,re.S|re.I)]
+            name=next((x for x in names if x),'')
+            if name:agency=name[:100]+' via Superimmo'
+            desc=re.search(r'<p\b[^>]*class=["\'][^"\']*js-desc-truncate[^>]*>(.*?)</p>',block,re.S|re.I)
+            description=_market_clean(desc[1])[:180] if desc else title
+        else:description=title+' — '+city+' — '+str(area).rstrip('0').rstrip('.')+' m²'
+        seen.add(path)
+        out.append({'titre':title,'description':description,'site':agency,'source_recherche':source,
+          'url':bases[source]+path,'photo':photos[0] if photos else '', 'commune':city,
+          'prix':price,'surface':area,'prix_m2':round(price/area),'consulte_le':datetime.now().isoformat(timespec='seconds'),
+          'fiabilite':'Annonce du catalogue public ; disponibilité à confirmer'})
+    return out
+
+
+def _market_bienici_url(typ):
+    filters={'filterType':'buy','propertyType':['house' if typ=='maison' else 'flat'],
+        'zoneIdsByTypes':{'zoneIds':['-164612']},'onTheMarket':[True],
+        'size':100,'from':0,'sortBy':'price','sortOrder':'asc'}
+    return 'https://www.bienici.com/realEstateAds.json?'+urllib.parse.urlencode({'filters':json.dumps(filters)})
+
+
+def _market_parse_bienici(content,city,typ):
+    data=json.loads(content);out=[];seen=set()
+    for ad in data.get('realEstateAds',[]):
+        if _market_city_key(str(ad.get('city','')))!=_market_city_key(city):continue
+        if ad.get('propertyType')!=('house' if typ=='maison' else 'flat'):continue
+        if ad.get('isSold') or ad.get('isUnderOffer') or ad.get('onTheMarket') is False:continue
+        try:price=float(ad.get('price') or 0);area=float(ad.get('surfaceArea') or 0)
+        except (ValueError,TypeError):continue
+        if not 15000<=price<=10000000 or not 12<=area<=1000:continue
+        ref=str(ad.get('id') or '')
+        if not ref or ref in seen:continue
+        seen.add(ref)
+        photo=next((str(p.get('url','')) for p in ad.get('photos',[]) if isinstance(p,dict) and str(p.get('url','')).startswith('https://file.bienici.com/')),'')
+        description=_market_clean(str(ad.get('description','')))
+        # Arrêter le descriptif à une limite de mot pour garder des cartes courtes.
+        if len(description)>180:description=description[:177].rsplit(' ',1)[0]+'…'
+        title=_market_clean(str(ad.get('title') or 'Bien proposé à la vente'))
+        title+=' — '+str(area).removesuffix('.0')+' m²'
+        if ad.get('roomsQuantity'):title+=' — '+str(ad['roomsQuantity'])+' pièces'
+        out.append({'titre':title,'description':description,'prix':round(price),'surface':area,
+            'prix_m2':round(price/area),'site':'Bien’ici','source_recherche':'Bien’ici','commune':city,
+            'photo':photo,'url':'https://www.bienici.com/annonce/'+urllib.parse.quote(ref,safe=''),
+            'consulte_le':datetime.now().isoformat(timespec='seconds'),
+            'fiabilite':'Annonce du catalogue public ; disponibilité à confirmer'})
+    return out
+
 @app.get('/api/estimation/annonces')
 def annonces_marche(commune: str, type_bien: str, surface: float = 0):
     city=commune.strip()[:80];typ=type_bien.lower().strip()
@@ -1094,22 +1183,35 @@ def annonces_marche(commune: str, type_bien: str, surface: float = 0):
     links=[{'nom':name,'url':'https://www.google.com/search?'+urllib.parse.urlencode({'q':
         (f'site:{domain} ' if domain else '')+f'"{city}" {typ} vente'})} for name,domain in domains]
     rows=[];diag=[]
-    # Première source directe vérifiée. Ne pas annoncer une couverture multiportails.
     if _market_city_key(city)=='lamaloulesbains':
-        url='https://www.roques-immobilier.com/vente/4-lamalou-les-bains/1'
-        try:
-            req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0','Accept':'text/html'})
-            with urllib.request.urlopen(req,timeout=15) as response:
-                page=response.read(2500000).decode('utf-8',errors='replace')
-            rows=_market_parse_roques(page,city,typ)
-            diag.append({'source':'Roques Immobilier','etat':'accessible','retenus':len(rows)})
-        except Exception as exc:
-            diag.append({'source':'Roques Immobilier','etat':'indisponible','detail':type(exc).__name__})
-    else:
-        diag.append({'source':'Catalogue direct','etat':'commune_non_couverte'})
+        from concurrent.futures import ThreadPoolExecutor
+        sources=[('Roques Immobilier','https://www.roques-immobilier.com/vente/4-lamalou-les-bains/1'),
+          ('IAD','https://www.iadfrance.fr/annonces/lamalou-les-bains-34240/vente/'+typ),
+          ('SAFTI','https://www.safti.fr/annonces/achat/'+typ+'/lamalou-les-bains-34240'),
+          ('Superimmo','https://www.superimmo.com/achat/'+typ+'/languedoc-roussillon/herault/lamalou-les-bains-34240'),
+          ('Bien’ici',_market_bienici_url(typ))]
+        def load_source(entry):
+            name,url=entry
+            try:
+                req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0','Accept':'text/html'})
+                with urllib.request.urlopen(req,timeout=12) as response:page=response.read(2500000).decode('utf-8',errors='replace')
+                found=(_market_parse_bienici(page,city,typ) if name=='Bien’ici' else
+                    _market_parse_roques(page,city,typ) if name=='Roques Immobilier' else _market_parse_public(page,city,typ,name))
+                return found,{'source':name,'etat':'accessible','retenus':len(found)}
+            except Exception as exc:return [],{'source':name,'etat':'indisponible','detail':type(exc).__name__}
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            for found,diagnostic in pool.map(load_source,sources):rows.extend(found);diag.append(diagnostic)
+        # Conserver une seule occurrence des mêmes prix et surface dans la commune.
+        # Il s'agit de doublons probables, l'identité précise du bien reste à vérifier.
+        unique={}
+        for row in rows:
+            key=(row['prix'],row['surface'])
+            if key not in unique:unique[key]=row
+        rows=list(unique.values())
+    else:diag.append({'source':'Catalogues directs','etat':'commune_non_couverte'})
     if surface:rows.sort(key=lambda row:abs(row['surface']-surface))
-    message=(f'{len(rows)} annonce(s) de {typ} lue(s) sur le catalogue Roques Immobilier, commune de {city}.' if rows else
+    message=(f'{len(rows)} annonce(s) de {typ} repérée(s) à {city} sur {sum(d.get("retenus",0)>0 for d in diag)} source(s), après retrait des doublons probables.' if rows else
         'Aucune annonce récupérée automatiquement. Les liens ci-dessous restent disponibles pour rechercher et ajouter des comparables.')
     return {'status':'resultats' if rows else 'aucun_resultat','annonces':rows,'recherches_agences':links,
         'message':message,'diagnostics':diag,
-        'limites':'Couverture automatique actuelle : Roques Immobilier à Lamalou-les-Bains uniquement. Autres agences et communes : recherches par liens. Prix affichés, disponibilité à confirmer ; aucune intégration automatique au calcul DVF.'}
+        'limites':'Catalogues consultés à Lamalou-les-Bains : Roques Immobilier, IAD, SAFTI, Superimmo et Bien’ici. Résultats non exhaustifs ; autres communes par liens. Doublons résiduels possibles. Prix affichés, disponibilité à confirmer ; aucune intégration automatique au calcul DVF.'}

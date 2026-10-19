@@ -1,1 +1,1 @@
-V13.67 : correction du remplissage des équipements lors de la réouverture des dossiers sauvegardés. Conservation des valeurs saisies manuellement.
+V13.67 — Ajout du catalogue Bien’ici à Lamalou-les-Bains. Filtrage par périmètre communal, vente et type de bien, puis contrôle de la commune de chaque résultat. Prix, surface, photo et descriptif lus dans les données publiques. Six annonces les plus proches de la valeur centrale, doublons probables retirés. Photos Bien’ici compatibles avec Word/PDF. Fonctionnalités précédentes conservées.
