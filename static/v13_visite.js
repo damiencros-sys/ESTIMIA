@@ -243,6 +243,18 @@ function markers(text){
  }
  return out;
 }
+// V13.78 : normaliser uniquement une decimale explicitement dictee.
+function normalizeDictatedAreas(text){
+ return clean(text)
+  .replace(/\b(\d+)\s*(?:m[eè]tres?|m)\s+virgule\s+(\d{1,3})\s*(?:m\s*[²2]|m[eè]tres?(?:\s+carr[ée]s?)?)?/gi,(_,a,b)=>a+','+b+' m²')
+  .replace(/\b(\d+)\s+virgule\s+(\d{1,3})\s*(m\s*[²2]|m[eè]tres?\s+carr[ée]s?)/gi,(_,a,b)=>a+','+b+' m²')
+  .replace(/\b(\d+)\s*([.,])\s*(\d+)\s*(m\s*[²2]|m[eè]tres?\s+carr[ée]s?)/gi,(_,a,sep,b,u)=>a+sep+b+' '+u);
+}
+function roomSurfaceLimit(name){
+ if(/^chambre\b/i.test(name))return 25;
+ if(isSanitaryRoom(name))return 15;
+ return null;
+}
 // V13.77 : une surface commune cave/garage est conservee une seule fois.
 function sharedAnnexAreas(text){
  const t=clean(text),out=[],unit=/\b(\d+(?:[.,]\d+)?)\s*(?:m\s*[²2]|m[eè]tres?\s+carr[ée]s?)/gi;
@@ -275,15 +287,10 @@ function sanitaryLocalFragment(text,start,end){
  return {tail,area:area?n(area[1]):null,index:area?end+area.index:-1};
 }
 function sanitarySurfaceWarnings(text){
- const t=clean(text),shared=sharedAnnexAreas(t),rows=[];
- for(const m of t.matchAll(/\b(?:wc|toilettes?|salles?\s+(?:de\s+bains?|d[' ]eau))\b/gi)){
-  const a=sanitaryLocalFragment(t,m.index,m.index+m[0].length);
-  if(a.area>15&&!shared.some(g=>g.valueIndex===a.index))rows.push([m[0],fmt(a.area)+' dictés — surface non attribuée : supérieure au seuil de contrôle de 15 m². Vérifier la pièce concernée.']);
- }
- return rows;
+ return surfaces(text,true).filter(r=>{const max=roomSurfaceLimit(r.name);return max!=null&&r.val>max}).map(r=>[r.name+' — '+r.lvl,fmt(r.val)+' dictés — surface non attribuée : supérieure au seuil de contrôle de '+roomSurfaceLimit(r.name)+' m². Vérifier la pièce concernée ; aucune correction numérique inventée.']);
 }
-function surfaces(text){
- const t=clean(text), ms=markers(t), out=[],shared=sharedAnnexAreas(t);
+function surfaces(text,includeSuspicious=false){
+ const t=normalizeDictatedAreas(text), ms=markers(t), out=[],shared=sharedAnnexAreas(t);
  const levelAt=i=>{let lvl='Rez-de-chaussée';for(const z of ms){if(z.i<=i)lvl=z.name;else break}return lvl};
  const canon=name=>{
   name=clean(name);
@@ -291,9 +298,9 @@ function surfaces(text){
   return name;
  };
  const push=(name,val,index)=>{
-  if(!Number.isFinite(val)||val<=0||val>250)return;
+  if(!Number.isFinite(val)||val<=0)return;
   name=canon(name);
-  if(isSanitaryRoom(name)&&val>15)return;
+  const limit=roomSurfaceLimit(name);if(val>250&&(!includeSuspicious||limit==null))return;if(!includeSuspicious&&limit!=null&&val>limit)return;
   const cat=/garage|cave|grenier|atelier|dépendance|local|abri|cabanon|carport/i.test(name)?'Annexe':/terrasse|balcon|loggia/i.test(name)?'Extérieur':'Intérieur';
   const lvl=/cabanon|abri/i.test(name)?'Extérieur':levelAt(index);
   out.push({lvl,name,val,cat});
@@ -303,7 +310,7 @@ function surfaces(text){
  const grp=/\b(?:deux|2)\s+chambres?\s*(?:de|mesurant|:)?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)?\s*(?:et|,)\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/ig;
  for(const m of t.matchAll(grp)){push('Chambre 1',n(m[1]),m.index);push('Chambre 2',n(m[2]),m.index);grouped.push([m.index,m.index+m[0].length]);}
 
- const token=/\b(s[ée]jour|salon|salle à manger|cuisine|chambre(?:\s*(?:\d+|un|une|deux|trois|parentale))?|bureau|pi[eè]ce|salle d[' ]eau|salle de bains?|wc|toilettes?|d[ée]gagement|couloir|entr[ée]e|hall|cellier|buanderie|dressing|palier|mezzanine|garage|cave|grenier|atelier|d[ée]pendance|local|abri|cabanon|carport|terrasse|balcon|loggia)\b/ig;
+ const token=/\b(s[ée]jour|salon|salle à manger|cuisine|chambre(?:\s+(?:(?:num[ée]ro|n[°o])\s*\d+|\d+(?![\d.,])(?=\s*(?:de\b|fait\b|mesure\b|[:=]|\d))|un|une|deux|trois|parentale|suppl[ée]mentaire))?|bureau|pi[eè]ce|salle d[' ]eau|salle de bains?|wc|toilettes?|d[ée]gagement|couloir|entr[ée]e|hall|cellier|buanderie|dressing|palier|mezzanine|garage|cave|grenier|atelier|d[ée]pendance|local|abri|cabanon|carport|terrasse|balcon|loggia)\b/ig;
  const marks=[...t.matchAll(token)].map(m=>({name:m[1],i:m.index,end:m.index+m[0].length}));
  for(let k=0;k<marks.length;k++){
   const m=marks[k]; if(grouped.some(([a,b])=>m.i>=a&&m.i<b))continue;
@@ -340,7 +347,7 @@ function surfaces(text){
   }
  }
  // Last explicit correction for named room replaces previous candidates.
- const corrections=/\b(?:tu\s+prends|je\s+corrige|rectification|finalement)\b[^.!?]{0,90}?\b(s[ée]jour|salon|cuisine|chambre|bureau|salle d[' ]eau|salle de bains?|wc|d[ée]gagement|couloir|entr[ée]e|cellier|buanderie|garage)\b[^.!?]{0,60}?\b(?:fait|de|à|a)\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/ig;
+ const corrections=/\b(?:tu\s+prends|je\s+corrige|rectification|finalement)\b[^.!?]{0,90}?\b(s[ée]jour|salon|cuisine|chambre(?:\s+(?:(?:num[ée]ro|n[°o])\s*)?\d+(?![\d.,])(?=\s*(?:fait\b|de\b|[àa]\b)))?|bureau|salle d[' ]eau|salle de bains?|wc|d[ée]gagement|couloir|entr[ée]e|cellier|buanderie|garage)\b[^.!?]{0,60}?\b(?:fait|de|à|a)\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/ig;
  for(const c of t.matchAll(corrections)){
    const lvl=levelAt(c.index), nm=clean(c[1]).toLowerCase();
    for(let i=out.length-1;i>=0;i--)if(out[i].lvl===lvl&&out[i].name.toLowerCase()===nm)out.splice(i,1);
@@ -354,7 +361,7 @@ function surfaces(text){
   if(pos>=0)final[pos]=x;else final.push(x);
  }
  const seen=new Set();
- return final.filter(x=>{const k=x.lvl+'|'+x.name.toLowerCase()+'|'+x.val;if(seen.has(k))return false;seen.add(k);return true});
+ return final.filter(x=>{if(/^chambre\b/i.test(x.name))return true;const k=x.lvl+'|'+x.name.toLowerCase()+'|'+x.val;if(seen.has(k))return false;seen.add(k);return true});
 }
 function declaredPropertySurface(text){
  const m=clean(text).match(/\b(?:maison|villa|appartement|studio|immeuble|local commercial)\s+(?:d['’]une\s+surface\s+de|de|fait|mesure)\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/i);
@@ -478,7 +485,7 @@ function countExplicit(t,nounRx){
  return Math.max(...values);
 }
 function sanitary(t){
- const rows=[],s=clean(t);
+ const rows=[],s=normalizeDictatedAreas(t);
  const m=s.match(/\bsalle de bains?\b/i);
  if(m){const local=sanitaryLocalFragment(s,m.index,m.index+m[0].length),c=m[0]+local.tail;let v='1 salle de bains';if(local.area!=null&&local.area<=15&&!sharedAnnexAreas(s).some(g=>g.valueIndex===local.index))v+=' — '+fmt(local.area);const eq=[];if(/\bdouche\b/i.test(c))eq.push('douche');if(/\bbaignoire\b/i.test(c))eq.push('baignoire');if(/(?:deux|2|double)\s+vasques?|double vasque/i.test(c))eq.push('double vasque');else if(/\bvasque\b/i.test(c))eq.push('vasque');if(eq.length)v+=' — '+eq.join(' · ');rows.push(['Salle de bains',v]);}
  const e=s.match(/\bsalle d[' ]eau\b/i);
@@ -979,10 +986,11 @@ async function render(){
   await normalizeCommune(cm.name,cm.postcode);
  }
  const typ=typeOf(t);if(typ&&!$('#type').value)$('#type').value=typ;applyPropertyTheme();
+ const surfaceAlerts=sanitarySurfaceWarnings(t);
  const ss=surfaces(t), habRows=habitableRows(ss,t), total=habRows.reduce((a,x)=>a+x.val,0);
  const habDeclared=explicitHabitable(t), announced=declaredPropertySurface(t), carrez=explicitCarrez(t);
  if(habDeclared!=null)$('#surfaceHab').value=habDeclared.toFixed(2);
- else if(total)$('#surfaceHab').value=total.toFixed(2);
+ else if(total&&!surfaceAlerts.length)$('#surfaceHab').value=total.toFixed(2);
  else $('#surfaceHab').value='';
  if(carrez!=null)$('#surfaceCarrez').value=carrez.toFixed(2);
  let topRows=buildInfo(t);
@@ -992,11 +1000,12 @@ async function render(){
  if(total){
    let msg=`<div class="calculatedTop">📏 <span>Surface habitable calculée sur les pièces admissibles chiffrées</span><strong>${fmt(total)}</strong></div>`;
    if(announced!=null && Math.abs(announced-total)>.01)msg+=`<div class="status">⚠ Surface annoncée : ${fmt(announced)} — total des pièces chiffrées : ${fmt(total)}. Écart conservé à contrôler ; aucune valeur n’est supprimée.</div>`;
+   if(surfaceAlerts.length)msg+='<div class="status">⚠ Total partiel : les surfaces suspectes sont exclues. Le total des pièces n’est pas utilisé automatiquement pour l’estimation. Vérifiez les alertes ou renseignez une surface habitable globale confirmée.</div>';
    out+=msg;
  }
  out+='<div class="proGrid">';
  out+=card('Sanitaires','🚿',sanitary(t))+card('Chauffage & eau chaude','🔥',heating(t))+card('Réseaux & compteurs','⚡',networks(t))+card('Construction / structure','🏗️',structure(t))+card('Annexes','🏚️',allAnnexes(t))+card('Divers','📌',divers(t))+card('Menuiseries & fermetures','🪟',menu(t))+card('État / désordres','⚠️',state(t))+card('Fiscalité','💶',finance(t));
- out+=card('Surfaces à vérifier','⚠️',sanitarySurfaceWarnings(t));
+ out+=card('Surfaces à vérifier','⚠️',surfaceAlerts);
  out+='</div>';
  const extras=[];
 
