@@ -13,6 +13,10 @@ function card(title,icon,rows){
   const items=rows.map(([designation,nombre,detail])=>`<div class="proRow annexRow"><span contenteditable="true" spellcheck="true">${E(designation)}</span><strong><span contenteditable="true" spellcheck="false">${E(nombre)}</span></strong><span contenteditable="true" spellcheck="true">${E(detail||'')}</span><button type="button" class="rowDelete" title="Supprimer">×</button></div>`).join('');
   return `<section class="proGroup editableCard annexCard"><h3 contenteditable="true" spellcheck="true">${icon} ${title}</h3><div class="annexHeader"><span>Désignation</span><span>Nombre</span><span>Détails dictés</span></div>${items}<button type="button" class="addTextRow miniEditBtn">＋ Ajouter une ligne</button></section>`;
  }
+ if(title==='Chauffage & eau chaude'){
+  const items=rows.map(([designation,nombre,detail])=>`<div class="proRow sanitaryRow"><span contenteditable="true" spellcheck="true">${E(designation)}${detail?' — '+E(detail):''}</span><strong><span contenteditable="true" spellcheck="false">${E(nombre)}</span></strong><button type="button" class="rowDelete" title="Supprimer">×</button></div>`).join('');
+  return `<section class="proGroup editableCard sanitaryCard heatingCard"><h3 contenteditable="true" spellcheck="true">${icon} ${title}</h3><div class="sanitaryHeader"><span>Désignation</span><span>Nombre</span></div>${items}<button type="button" class="addTextRow miniEditBtn">＋ Ajouter une ligne</button></section>`;
+ }
  if(title==='Sanitaires'){
   const items=rows.map(([k,v])=>{
    const value=String(v||'');
@@ -470,7 +474,28 @@ function heating(t){
  else if(/\b(?:cumulus|ballon\s+(?:d[' ]eau\s+chaude\s+)?[ée]lectrique|chauffe.eau\s+[ée]lectrique)\b/i.test(text))ecs='Ballon électrique';
  else if(/\b(?:eau chaude|ecs|production d[' ]eau chaude)[^.!?]{0,100}chaudi[eè]re\b|\bchaudi[eè]re[^.!?]{0,100}(?:eau chaude|ecs|production d[' ]eau chaude)\b/i.test(text))
    ecs=/condensation/i.test(text)&&/gaz/i.test(text)?'Chaudière gaz à condensation':'Chaudière';
- return [['Mode(s) de chauffage',uniq(heat.filter(Boolean)).join(' + ')],["Production d'eau chaude",ecs]];
+ // V13.61 : une ligne par équipement, quantité explicitement dictée uniquement.
+ const equipment=/\b(?:chemin[ée]es?|foyers?|inserts?|po[eê]les?|radiateurs?|convecteurs?|climatisations?|clim|pompes?\s+à\s+chaleur|pac|planchers?\s+chauffants?|chauffage\s+au\s+sol|chaudi[eè]res?|ballons?|cumulus|chauffe.eau)\b/gi;
+ const mentions=[...text.matchAll(equipment)].filter((m,i,all)=>!(i&&/chemin[ée]e/i.test(all[i-1][0])&&/^\s+à\s*$/.test(text.slice(all[i-1].index+all[i-1][0].length,m.index))));
+ const rows=[];
+ for(let i=0;i<mentions.length;i++){
+  const m=mentions[i],end=i+1<mentions.length?mentions[i+1].index:text.length;
+  const prefix=text.slice(0,m.index).match(/\b(\d+|un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix)\s*$/i);
+  const number=prefix?countExplicit(prefix[0]+m[0],m[0]):null;
+  let detail=clean(text.slice(m.index,end).split(/[.!?;]|,\s*(?=(?:la|le|une?|des|avec)\b)/)[0]).replace(/\s+(?:et|avec|ainsi que)\s*(?:(?:\d+|un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix)\s*)?$/i,'').trim();
+  // Garder la description dictée, y compris capacité, énergie et état.
+  const isWater=/ballon|cumulus|chauffe.eau/i.test(m[0]);
+  let label=isWater?"Production d'eau chaude":'';
+  if(!label){
+   if(/chemin[ée]e|foyer/i.test(m[0]))label=/ouvert/i.test(detail)?'Cheminée à foyer ouvert':'Cheminée';
+   else label=heat.find(h=>new RegExp(m[0].replace(/s$/,'').replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i').test(h))||m[0].replace(/^./,c=>c.toUpperCase());
+  }
+  rows.push([label,number===null?'—':String(number),detail]);
+ }
+ // Conserver les modes reconnus sans nom d'équipement et l'ECS par chaudière.
+ if(!rows.length)for(const h of uniq(heat))rows.push([h,'—','']);
+ if(ecs&&!rows.some(r=>r[0]==="Production d'eau chaude"))rows.push(["Production d'eau chaude",'—',ecs]);
+ return rows;
 }
 function networks(t){
  const rows=[],cl=clauses(t);
@@ -848,12 +873,10 @@ function fillConstructionExtras(t){
  if(/double vitrage/i.test(norm))windows.push('Double vitrage');
  if(/menuiseries?[^.!?]{0,30}pvc/i.test(norm))windows.push('PVC');
  set('#estWindows',uniq(windows).join(' · '));
- const heat=[];
- if(/radiateurs?[^.!?]{0,35}[ée]lectriques?[^.!?]{0,30}(?:inertie|inertiels?)|radiateurs?[^.!?]{0,30}(?:inertie|inertiels?)[^.!?]{0,30}[ée]lectriques?/i.test(norm))heat.push('Radiateurs électriques à inertie');
- else if(/radiateurs?[^.!?]{0,35}[ée]lectriques?/i.test(norm))heat.push('Radiateurs électriques');
- if(/chaudi[eè]re[^.!?]{0,35}gaz/i.test(norm))heat.push('Chaudière gaz');
- set('#estHeating',uniq(heat).join(' · '));
- const hot=heating(norm)[1][1];set('#estHotWater',hot);
+ const equipmentRows=heating(norm);
+ const equipmentText=r=>(r[1]==='—'?'':r[1]+' × ')+(r[2]||r[0]);
+ set('#estHeating',equipmentRows.filter(r=>r[0]!=="Production d'eau chaude").map(equipmentText).join(' · '));
+ set('#estHotWater',equipmentRows.filter(r=>r[0]==="Production d'eau chaude").map(equipmentText).join(' · '));
  const nets=[];
  if(/fosse septique/i.test(norm))nets.push('Assainissement individuel — fosse septique');
  if(/fosse septique[^.!?]{0,100}vidange|vidange[^.!?]{0,100}fosse septique/i.test(norm))nets.push('Vidange signalée — date à vérifier');

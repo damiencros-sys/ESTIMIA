@@ -1,1 +1,1 @@
-V13.61 : contrôle obligatoire avant calcul DVF, questionnaire dynamique selon type de bien, préremplissage prudent depuis fiche, blocage des valeurs inconnues, réponses conservées localement par adresse dans ce navigateur. Calcul DVF et annonces inchangés. Attention : validation interface, non contrôle serveur ; réponse sauvegardée localement et non synchronisée entre appareils.
+V13.61 — Base exclusive V13.60. Chauffage et eau chaude : lignes distinctes, désignation, nombre explicite et détails dictés. Quantité absente : tiret. Aucun module ajouté.
