@@ -973,55 +973,66 @@ def _market_parse_rss(xml, city, typ):
           'fiabilite':'Extrait indexé : disponibilité, prix et caractéristiques non vérifiés'})
     return out,stats
 
+
+def _market_city_key(value):
+    import unicodedata
+    return re.sub(r'[^a-z0-9]', '', unicodedata.normalize('NFKD', value).encode('ascii','ignore').decode().lower())
+
+
+def _market_parse_roques(page, city, typ):
+    """Lire chaque carte indépendamment, sans confondre terrain et habitation."""
+    import html
+    rows=[];seen=set()
+    citykey=_market_city_key(city)
+    for block in re.findall(r'<article\b[^>]*>(.*?)</article>',page,re.S|re.I):
+        links=re.findall(r'href=["\'](/vente/[^"\']+)["\']',block,re.I)
+        path=next((u for u in links if re.search(r'/\d+-[^/]+/(?:maison|villa|appartement)/\d+-',u)),None)
+        if not path or path in seen:continue
+        parts=path.split('/')
+        if _market_city_key(re.sub(r'^\d+-','',parts[2]))!=citykey:continue
+        if parts[3] not in (('maison','villa') if typ=='maison' else ('appartement',)):continue
+        titlematch=re.search(r'<p\b[^>]*class=["\'][^"\']*item__block--title[^"\']*["\'][^>]*>(.*?)</p>',block,re.S|re.I)
+        pricematch=re.search(r'<div\b[^>]*class=["\'][^"\']*item__price[^"\']*["\'][^>]*>(.*?)</div>',block,re.S|re.I)
+        if not titlematch or not pricematch:continue
+        title=_market_clean(titlematch[1]);price=_market_euro(_market_clean(pricematch[1]))
+        # La surface provient du titre de la carte, jamais des options terrain.
+        area=_market_area(title)
+        if not price or not area:continue
+        if re.search(r'\b(?:vendu[e]?|sous compromis)\b',_market_clean(block),re.I):continue
+        seen.add(path)
+        rows.append({'titre':title,'description':city,'url':'https://www.roques-immobilier.com'+html.unescape(path),
+          'site':'Roques Immobilier','prix':price,'surface':area,'prix_m2':round(price/area),
+          'fiabilite':'Annonce présente sur le catalogue public ; disponibilité à confirmer auprès de l’agence',
+          'consulte_le':datetime.now().isoformat(timespec='seconds')})
+    return rows
+
 @app.get('/api/estimation/annonces')
 def annonces_marche(commune: str, type_bien: str, surface: float = 0):
     city=commune.strip()[:80];typ=type_bien.lower().strip()
     if not re.fullmatch(r"[A-Za-zÀ-ÿ0-9 '’\-]{2,80}",city):raise HTTPException(400,'Commune non valide')
     if typ not in ('maison','appartement'):raise HTTPException(400,'Type de bien non pris en charge')
     if not 0<=surface<=20000:raise HTTPException(400,'Surface non valide')
-    # RSS only indexes snippets. Never claim these are active listings.
-    # Recherche multi-agences. Les résultats sont des extraits indexés, jamais
-    # une confirmation de disponibilité. Les domaines locaux ne sont pas exclus.
-    domains=[
-      ('Roques Immobilier','roques-immobilier.com'),
-      ('Lamalou Immobilier','lamalou-immobilier.fr'),
-      ('IAD','iadfrance.fr'),
-      ('SAFTI','safti.fr'),
-      ('Groupement Immobilier','groupementimmo.fr'),
-      ('Immo Réseau','immo-reseau.com'),
-      ('BSK Immobilier','bskimmobilier.com'),
-      ('SeLoger','seloger.com'),
-      ('Leboncoin','leboncoin.fr'),
-      ('Bien’ici','bienici.com'),
-      ('Agences de Bédarieux','superimmo.com'),
-    ]
-    searches=[(name,f'site:{domain} "{city}" {typ} vente prix m2') for name,domain in domains]
-    searches.extend([('Recherche générale',f'{typ} vente "{city}" immobilier prix surface'),
-                     ('Agences locales',f'{typ} vente "{city}" agence Bédarieux Hérépian')])
-    all_rows=[];diag=[];seen=set();success=False
-    for name,query in searches:
-        url='https://www.bing.com/search?'+urllib.parse.urlencode({'q':query,'format':'rss','count':30})
+    domains=[('Roques Immobilier','roques-immobilier.com'),('IAD','iadfrance.fr'),('SAFTI','safti.fr'),
+      ('SeLoger','seloger.com'),('Leboncoin','leboncoin.fr'),('Bien’ici','bienici.com'),('Agences locales','')]
+    links=[{'nom':name,'url':'https://www.google.com/search?'+urllib.parse.urlencode({'q':
+        (f'site:{domain} ' if domain else '')+f'"{city}" {typ} vente'})} for name,domain in domains]
+    rows=[];diag=[]
+    # Première source directe vérifiée. Ne pas annoncer une couverture multiportails.
+    if _market_city_key(city)=='lamaloulesbains':
+        url='https://www.roques-immobilier.com/vente/4-lamalou-les-bains/1'
         try:
-            req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0','Accept':'application/rss+xml, application/xml'})
-            with urllib.request.urlopen(req,timeout=6) as response:content=response.read(400000)
-            rows,stats=_market_parse_rss(content,city,typ)
-            success=True;diag.append({'source':name,'etat':'accessible',**stats,'retenus':len(rows)})
-            for row in rows:
-                parts=urllib.parse.urlsplit(row['url'])
-                key=(parts.hostname or '')+parts.path.rstrip('/').lower()
-                if key not in seen:
-                    seen.add(key);row['source_recherche']=name;all_rows.append(row)
-        except urllib.error.HTTPError as e:diag.append({'source':name,'etat':'erreur_http','code':e.code})
-        except Exception as e:diag.append({'source':name,'etat':'indisponible','detail':type(e).__name__})
-    # Links are honest search entry points, not synthetic listing cards.
-    source_links=[
-      {'nom':name,'url':'https://www.google.com/search?'+urllib.parse.urlencode({'q':f'site:{domain} "{city}" {typ} vente'})}
-      for name,domain in domains
-    ]
-    return {'status':'resultats' if all_rows else ('aucun_resultat' if success else 'indisponible'),
-       'annonces':all_rows[:60],'recherches_agences':source_links,
-       'message':(f'{len(all_rows)} extrait(s) d’annonces repéré(s) sur {len(domains)} sources ciblées, non vérifiés.' if all_rows else
-         'Aucune annonce exploitable dans les résultats indexés. Les portails peuvent bloquer leur indexation.' if success else
-         'Recherche automatisée inaccessible depuis le serveur. Utiliser les recherches directes ci-dessous.'),
-       'diagnostics':diag,'limites':'Résultats non exhaustifs. Les annonces ne sont pas confirmées disponibles et ne sont jamais assimilées à des ventes DVF.'}
-
+            req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0','Accept':'text/html'})
+            with urllib.request.urlopen(req,timeout=15) as response:
+                page=response.read(2500000).decode('utf-8',errors='replace')
+            rows=_market_parse_roques(page,city,typ)
+            diag.append({'source':'Roques Immobilier','etat':'accessible','retenus':len(rows)})
+        except Exception as exc:
+            diag.append({'source':'Roques Immobilier','etat':'indisponible','detail':type(exc).__name__})
+    else:
+        diag.append({'source':'Catalogue direct','etat':'commune_non_couverte'})
+    if surface:rows.sort(key=lambda row:abs(row['surface']-surface))
+    message=(f'{len(rows)} annonce(s) de {typ} lue(s) sur le catalogue Roques Immobilier, commune de {city}.' if rows else
+        'Aucune annonce récupérée automatiquement. Les liens ci-dessous restent disponibles pour rechercher et ajouter des comparables.')
+    return {'status':'resultats' if rows else 'aucun_resultat','annonces':rows,'recherches_agences':links,
+        'message':message,'diagnostics':diag,
+        'limites':'Couverture automatique actuelle : Roques Immobilier à Lamalou-les-Bains uniquement. Autres agences et communes : recherches par liens. Prix affichés, disponibilité à confirmer ; aucune intégration automatique au calcul DVF.'}

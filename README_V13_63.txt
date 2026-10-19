@@ -1,0 +1,1 @@
+V13.63 — Chauffage V13.62 conservé. Annonces : remplacement Bing RSS vide par lecture directe des cartes publiques Roques Immobilier, Lamalou-les-Bains. Autres communes et sources : liens de recherche et ajout manuel conservés. Prix et surface de chaque carte, terrain exclu, villas incluses dans maisons, doublons supprimés. Temps limité. Aucun service payant.

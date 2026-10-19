@@ -65,17 +65,18 @@ annoncesBtn?.addEventListener('click',async()=>{
 
  if(!commune||!type_bien){status.textContent='Renseigne la commune (nom), et le type maison/appartement. Si le cadastre contient seulement un code INSEE, saisis le nom de la commune dans l’adresse.';return;}
  if(/^\d{5}$/.test(commune)){status.textContent='Nom de commune nécessaire pour rechercher les annonces (le code INSEE seul ne suffit pas).';return;}
- annoncesBtn.disabled=true;status.textContent='Recherche des annonces indexées…';
- try{const res=await fetch('/api/estimation/annonces?'+new URLSearchParams({commune,type_bien,surface}));const d=await res.json();if(!res.ok)throw Error(d.detail||'Erreur serveur');found=d.annonces||[];
+ annoncesBtn.disabled=true;status.textContent='Lecture du catalogue public…';
+ const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),22000);
+ try{const res=await fetch('/api/estimation/annonces?'+new URLSearchParams({commune,type_bien,surface}),{signal:controller.signal});const d=await res.json();if(!res.ok)throw Error(d.detail||'Erreur serveur');found=d.annonces||[];
  if(links && d.recherches_agences?.length){
   links.replaceChildren(document.createTextNode('Agences et réseaux — recherches directes (liens de recherche, annonces à vérifier) : '));
   for(const item of d.recherches_agences){
    const a=document.createElement('a');a.href=item.url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=item.nom;a.style.marginRight='12px';links.append(a);
   }
  }
- status.textContent=d.message+(d.limites?' '+d.limites:'')+(d.diagnostics?.length?' Diagnostic : '+d.diagnostics.map(x=>x.etat+' ('+(x.extraits??x.code??x.detail??'?')+')').join(' ; '):'');displayAnnonces();}
- catch(e){status.textContent='Recherche indisponible : '+e.message;found=[];displayAnnonces();}
- finally{annoncesBtn.disabled=false;}
+ status.textContent=d.message+(d.limites?' '+d.limites:'')+'';displayAnnonces();}
+ catch(e){status.textContent=(e.name==='AbortError'?'Le catalogue ne répond pas dans le délai prévu. Utilisez les liens de recherche.':'Recherche indisponible : '+e.message);found=[];displayAnnonces();}
+ finally{clearTimeout(timer);annoncesBtn.disabled=false;}
 });
 q('#addAnnonce')?.addEventListener('click',()=>{
  const url=q('#annonceUrl').value.trim(),price=Number(q('#annoncePrix').value),surface=Number(q('#annonceSurface').value);
