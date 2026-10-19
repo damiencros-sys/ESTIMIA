@@ -1,0 +1,3264 @@
+<!doctype html><html lang="fr"><meta charset="utf-8"><title>ESTIM’IA V13.76 — bilan de tests</title><style>body{font:16px/1.5 system-ui,sans-serif;color:#193044;max-width:1120px;margin:35px auto;padding:0 20px}h1{font-size:30px}h2{margin-top:32px;color:#176651}table{width:100%;border-collapse:collapse;font-size:14px;margin:18px 0}th,td{border:1px solid #ccd6df;padding:9px;text-align:left;vertical-align:top}th{background:#eaf1f5}.alert{padding:18px;background:#fff0df;border-left:5px solid #be5c0b}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;background:#f5f7f9;padding:14px}small{color:#526775}@media print{body{margin:0;font-size:11px}table{font-size:10px}h2{break-after:avoid}tr{break-inside:avoid}details{display:none}}</style><h1>ESTIM’IA V13.76<br>Bilan de tests</h1><p>19/10/2026 à 18:38 — heure française</p><div class="alert"><b>La version ne peut pas être validée comme fiable pour toutes les saisies.</b> Plusieurs anomalies affectent les surfaces, les sanitaires, les annexes et la restauration des dossiers. La V13.76 retire l’envoi par mail ; les défauts identifiés dans cet audit ne sont pas annoncés comme corrigés.</div><h2>Ce qui a été modifié</h2><p>Suppression des boutons et actions d’envoi mail, des routes serveur de brouillon et de transfert, ainsi que des scripts du relais Windows. Téléchargement Word et PDF conservé. Rubriques 1 à 6 conservées et biens similaires avant estimation. Les e-mails dans les coordonnées des propriétaires restent disponibles.</p><p>Un relais déjà installé sur un ordinateur ne peut pas être retiré par le site. Si nécessaire, supprimer la clé utilisateur HKCU\Software\Classes\estimia-mail et le dossier LocalAppData\EstimiaMail.</p><h2>Étendue et méthode</h2><p>24 scénarios textuels : 8 catégories et 3 surfaces chacune, répartis sur 7 communes. Les adresses et parcelles sont réelles ; les descriptions, surfaces, équipements et montants utilisés dans les scénarios sont fictifs. Ces essais ne décrivent pas les propriétés réelles à ces adresses et ne prouvent ni propriété, ni surface, ni constructibilité.</p><table><thead><tr><th>Contrôle</th><th>Résultat</th></tr></thead><tbody><tr><td>Fiche dans un DOM simulé, scripts réels de l’application</td><td>288 assertions : 198 conformes, 90 non conformes ; plusieurs échecs répètent les mêmes causes.</td></tr><tr><td>Surfaces ciblées</td><td>12 tests : 8 conformes, 4 non conformes. Script reproductible fourni : TESTS_SURFACES_V13_76.js.</td></tr><tr><td>Niveaux</td><td>5 tests existants réussis : repérage des étages. Cela ne garantit pas la reprise des surfaces des chambres.</td></tr><tr><td>API et exports</td><td>111 opérations initiales, puis 8 vérifications complémentaires de commune/cadastre et 10 essais de robustesse. Résultats détaillés ci-dessous.</td></tr><tr><td>Exports ordinaires</td><td>24 Word + 24 PDF générés en HTTP 200 : A4, photo et montant de test présents. Aucun bloc texte hors page dans les 24 PDF.</td></tr><tr><td>Mise en page</td><td>Un Word rendu et ses 2 pages inspectées ; échantillon de 4 PDF (maison, studio, immeuble, terrain), soit 8 pages, inspecté. Les autres Word ne sont pas tous rendus visuellement.</td></tr><tr><td>Sélection des annonces</td><td>12 tests réussis : six résultats maximum, proximité du prix, retrait de Roques et doublons probables, règles de médiane.</td></tr><tr><td>Services publics</td><td>23 communes interrogées par nom seul ; 7 parcelles retrouvées sur 7 ; carte PNG et plan SVG de C 2320 à Lamalou générés.</td></tr></tbody></table><p>La première passe des communes/adresses avait un délai réseau plafonné à 6 secondes pour limiter les blocages : 3 communes et 3 vérifications d’adresse n’ont pas répondu. Ces absences ne sont pas comptées comme des erreurs fonctionnelles certaines. Les six contrôles ultérieurs nom + code postal utilisent le délai normal et sont tous conformes.</p><p>Tests dans un environnement Linux avec les vrais scripts et routes FastAPI. Le DOM est simulé par jsdom ; Chromium n’a pas pu être installé. La capture audio réelle, les permissions micro, le rendu interactif Chrome/Android, Render déployé et le stockage réel du téléphone ne sont pas validés par cette campagne. Aucun appel à un service d’IA payant n’a été exécuté. Les anciens endpoints d’IA restent présents dans le serveur mais les tests de transformation gratuits utilisent le code local.</p><h2>Anomalies et priorités</h2><table><thead><tr><th>Priorité</th><th>Sujet</th><th>Constat reproductible</th><th>Interprétation</th></tr></thead><tbody><tr><td>Bloquant</td><td>Surfaces des chambres</td><td>Chambre 12 m² → aucune ligne ; Séjour 30 + Cuisine 10 + Chambre 12 → total 40 au lieu de 52 m².</td><td>Le nombre peut être absorbé comme numéro de chambre. Chambre de 12 m² et Chambre 1 de 12 m² passent.</td></tr><tr><td>Bloquant</td><td>Annexes dans l’habitable</td><td>Garage 30 m² avec mezzanine 15 m² → 15 m² habitables ajoutés. Dans les terrains de la matrice, 8 m² habitables apparaissent malgré l’absence de surface habitable dictée.</td><td>La qualification de la mezzanine et sa portée doivent dépendre du garage ; un terrain ne doit pas recevoir automatiquement un habitable.</td></tr><tr><td>Majeur</td><td>Grandes pièces</td><td>Séjour de 300 m² → aucune surface.</td><td>La fonction rejette silencieusement les surfaces de pièce supérieures à 250 m².</td></tr><tr><td>Bloquant</td><td>Sanitaires au pluriel</td><td>2 salles de bains et 3 salles d’eau → aucune ligne correspondante dans les 24 scénarios. Les 2 WC sont bien repris.</td><td>Les expressions au pluriel et leurs quantités ne sont pas couvertes par cette fonction.</td></tr><tr><td>Majeur</td><td>Détails des annexes</td><td>Piscine : dimensions 8 × 4 m conservées ; profondeur 1,50 m, traitement au sel et volet roulant omis de la rubrique. Les détails des caves, du forage et du portail sont aussi incomplets.</td><td>Le texte original reste dans les notes mais la fiche structurée est incomplète.</td></tr><tr><td>Bloquant</td><td>Équipements niés et faux positifs</td><td>Maison sans piscine, sans garage → Piscine 1 et Garage 1. Rue du Puits dans l’adresse → Puits 1 ajouté comme annexe.</td><td>Les négations et les limites entre adresse et description doivent être traitées avant extraction.</td></tr><tr><td>Majeur</td><td>Types de biens</td><td>Mas non reconnu dans 3 essais. Terrain de loisir et terrain à bâtir sont tous deux réduits à terrain.</td><td>Studio et immeuble sont reconnus comme libellés de fiche ; cela ne signifie pas que leur estimation fonctionne.</td></tr><tr><td>Majeur</td><td>Périmètre de l’estimation</td><td>API DVF : seuls maison et appartement acceptés ; studio, immeuble, mas et les deux types de terrains refusés. L’interface ne convertit pas automatiquement studio en appartement.</td><td>Aucun estimateur spécifique pour immeubles, mas ou terrains. Ces refus ne sont pas des résultats d’estimation.</td></tr><tr><td>Bloquant</td><td>Communes par nom seul</td><td>Les Aires → Orée d’Anjou ; Combes → Gimont ; Le Pradal → Les Vans, dans la première passe.</td><td>Les six reprises avec nom + code postal donnent les bons codes INSEE. Ne jamais accepter un résultat de commune sans correspondance suffisante.</td></tr><tr><td>Majeur</td><td>Adresse de Taussac</td><td>1 Rue de l’Église - MAURIAN : le parseur retire le tiret du libellé, sans erreur de commune.</td><td>Écart de fidélité textuelle dans 3 scénarios ; la correspondance parcellaire a été vérifiée séparément.</td></tr><tr><td>Bloquant</td><td>Réouverture du dossier</td><td>Notes conservées ; une photo chargée devient zéro fichier photo disponible à l’export après rechargement. Résultat d’estimation et montant validé absents après restauration dans le test.</td><td>La sauvegarde du HTML de galerie ne restaure pas les fichiers photographiques. Le test DOM doit être confirmé dans le navigateur de l’utilisateur.</td></tr><tr><td>Majeur</td><td>Ancien bouton de sauvegarde</td><td>Le clic Enregistrer déclenche aussi un ancien gestionnaire qui lit un champ #surface absent. Le stockage local affiche néanmoins un succès.</td><td>Erreur JavaScript reproduite dans le test DOM ; le succès visible ne démontre pas une sauvegarde complète.</td></tr><tr><td>Majeur</td><td>PDF très long</td><td>Une annexe avec environ 25 000 caractères dans une seule cellule provoque HTTP 500 ; le Word est généré.</td><td>Le tableau PDF ne répartit pas ce contenu sur plusieurs pages.</td></tr><tr><td>Limitation</td><td>Annonces hors Lamalou</td><td>Recherche générale Bédarieux : zéro résultat automatique, commune_non_couverte, liens de recherche proposés.</td><td>Le catalogue général est limité à Lamalou ; la recherche Roques dédiée a un mécanisme distinct, non validé sur toutes les communes dans cet audit.</td></tr><tr><td>Visuel</td><td>Icônes PDF</td><td>Certaines icônes de rubrique apparaissent comme de petits carrés dans l’échantillon PDF.</td><td>Défaut graphique ; les textes et valeurs restent lisibles.</td></tr></tbody></table><h2>Cas Pomes et surfaces</h2><p>Le texte exact de la dictée de Pomes n’était pas disponible dans les éléments de cet audit et n’a pas été retrouvé. Il faut le comparer au résultat affiché avant de conclure sur son total exact. Les quatre défauts reproduits ci-dessous peuvent expliquer une partie des écarts, sans démontrer qu’ils sont la cause du cas Pomes.</p><table><thead><tr><th>Phrase testée</th><th>Attendu m²</th><th>Obtenu m²</th><th>Résultat</th></tr></thead><tbody><tr><td>Chambre 12 m².</td><td>12</td><td>0</td><td>Anomalie</td></tr><tr><td>Chambre de 12 m².</td><td>12</td><td>12</td><td>Conforme</td></tr><tr><td>Chambre 1 de 12 m².</td><td>12</td><td>12</td><td>Conforme</td></tr><tr><td>Séjour 30 m². Cuisine 10 m². Chambre 12 m².</td><td>52</td><td>40</td><td>Anomalie</td></tr><tr><td>Chambre de 12,45 m².</td><td>12.45</td><td>12.45</td><td>Conforme</td></tr><tr><td>Deux chambres de 12 et 9 m².</td><td>21</td><td>21</td><td>Conforme</td></tr><tr><td>Couloir de 3,84 m² + 2,5 m².</td><td>6.34</td><td>6.34</td><td>Conforme</td></tr><tr><td>Séjour de 30 m². Finalement le séjour fait 28 m².</td><td>28</td><td>28</td><td>Conforme</td></tr><tr><td>Séjour de 300 m².</td><td>300</td><td>0</td><td>Anomalie</td></tr><tr><td>Séjour de 30 m². Garage de 20 m². Cave de 8 m². Terrasse de 15 m².</td><td>30</td><td>30</td><td>Conforme</td></tr><tr><td>Séjour de 30 mètres carrés.</td><td>30</td><td>30</td><td>Conforme</td></tr><tr><td>Garage de 30 m² avec mezzanine de 15 m².</td><td>0</td><td>15</td><td>Anomalie</td></tr></tbody></table><h2>Adresses et parcelles réelles contrôlées</h2><p>Pour chaque ligne, l’API cartographique cadastrale a renvoyé une parcelle contenant le point d’adresse du géocodeur officiel ; l’API cadastre de l’application a ensuite retrouvé sa référence. Une adresse peut desservir plusieurs parcelles et logements : cette vérification ne constitue pas une identification juridique complète du bien.</p><table><thead><tr><th>Commune</th><th>Adresse de référence</th><th>Section / numéro</th><th>Identifiant cadastral</th></tr></thead><tbody><tr><td>Les Aires</td><td>1 Rue du Puits 34600 Les Aires</td><td>0C / 0878</td><td>340080000C0878</td></tr><tr><td>Avène</td><td>1 Rue des Tonneliers 34260 Avène</td><td>AB / 0076</td><td>34019000AB0076</td></tr><tr><td>Bédarieux</td><td>1 Rue Saint Alexandre 34600 Bédarieux</td><td>BE / 0282</td><td>34028000BE0282</td></tr><tr><td>Hérépian</td><td>1 Rue de la Bascule 34600 Hérépian</td><td>0A / 0420</td><td>341190000A0420</td></tr><tr><td>Lamalou-les-Bains</td><td>2 Impasse de Saint-Pierre de Rhèdes 34240 Lamalou-les-Bains</td><td>0C / 2320</td><td>341260000C2320</td></tr><tr><td>Le Poujol-sur-Orb</td><td>1 Rue des Pountils 34600 Le Poujol-sur-Orb</td><td>0A / 0479</td><td>342110000A0479</td></tr><tr><td>Taussac-la-Billière</td><td>1 Rue de l’Église - MAURIAN 34600 Taussac-la-Billière</td><td>AB / 0193</td><td>34308000AB0193</td></tr></tbody></table><h2>Matrice des 24 scénarios</h2><p>Les scénarios appliquent volontairement les mêmes équipements et annexes pour tester leur extraction indépendamment du type de bien. Ils incluent 2 garages avec mezzanine, 3 caves, une piscine et son local, 2 terrasses, 4 stationnements, plusieurs chauffages et une servitude. Un terrain de test équipé ainsi n’est pas présenté comme un terrain constructible réel.</p><table><thead><tr><th>N°</th><th>Type dicté</th><th>Surface de test m²</th><th>Commune</th><th>Type repris</th><th>Habitable repris m²</th><th>Assertions conformes</th></tr></thead><tbody><tr><td>1</td><td>maison</td><td>65</td><td>Les Aires</td><td>maison</td><td>65.00</td><td>9/12</td></tr><tr><td>2</td><td>maison</td><td>120.5</td><td>Avène</td><td>maison</td><td>120.50</td><td>9/12</td></tr><tr><td>3</td><td>maison</td><td>280</td><td>Bédarieux</td><td>maison</td><td>280.00</td><td>9/12</td></tr><tr><td>4</td><td>appartement</td><td>18</td><td>Hérépian</td><td>appartement</td><td>18.00</td><td>9/12</td></tr><tr><td>5</td><td>appartement</td><td>58.31</td><td>Lamalou-les-Bains</td><td>appartement</td><td>58.31</td><td>9/12</td></tr><tr><td>6</td><td>appartement</td><td>165</td><td>Le Poujol-sur-Orb</td><td>appartement</td><td>165.00</td><td>9/12</td></tr><tr><td>7</td><td>studio</td><td>12</td><td>Taussac-la-Billière</td><td>studio</td><td>12.00</td><td>8/12</td></tr><tr><td>8</td><td>studio</td><td>24.5</td><td>Les Aires</td><td>studio</td><td>24.50</td><td>9/12</td></tr><tr><td>9</td><td>studio</td><td>38</td><td>Avène</td><td>studio</td><td>38.00</td><td>9/12</td></tr><tr><td>10</td><td>immeuble</td><td>180</td><td>Bédarieux</td><td>immeuble</td><td>180.00</td><td>9/12</td></tr><tr><td>11</td><td>immeuble</td><td>420</td><td>Hérépian</td><td>immeuble</td><td>420.00</td><td>9/12</td></tr><tr><td>12</td><td>immeuble</td><td>1200</td><td>Lamalou-les-Bains</td><td>immeuble</td><td>1200.00</td><td>9/12</td></tr><tr><td>13</td><td>mas</td><td>110</td><td>Le Poujol-sur-Orb</td><td>Non reconnu</td><td>110.00</td><td>8/12</td></tr><tr><td>14</td><td>mas</td><td>250</td><td>Taussac-la-Billière</td><td>Non reconnu</td><td>250.00</td><td>7/12</td></tr><tr><td>15</td><td>mas</td><td>650</td><td>Les Aires</td><td>Non reconnu</td><td>650.00</td><td>8/12</td></tr><tr><td>16</td><td>terrain de loisir</td><td>500</td><td>Avène</td><td>terrain</td><td>8.00</td><td>7/12</td></tr><tr><td>17</td><td>terrain de loisir</td><td>2500</td><td>Bédarieux</td><td>terrain</td><td>8.00</td><td>7/12</td></tr><tr><td>18</td><td>terrain de loisir</td><td>12000</td><td>Hérépian</td><td>terrain</td><td>8.00</td><td>7/12</td></tr><tr><td>19</td><td>terrain à bâtir</td><td>300</td><td>Lamalou-les-Bains</td><td>terrain</td><td>8.00</td><td>7/12</td></tr><tr><td>20</td><td>terrain à bâtir</td><td>850</td><td>Le Poujol-sur-Orb</td><td>terrain</td><td>8.00</td><td>7/12</td></tr><tr><td>21</td><td>terrain à bâtir</td><td>5000</td><td>Taussac-la-Billière</td><td>terrain</td><td>8.00</td><td>6/12</td></tr><tr><td>22</td><td>maison de village</td><td>42</td><td>Les Aires</td><td>maison de village</td><td>42.00</td><td>9/12</td></tr><tr><td>23</td><td>maison de village</td><td>95</td><td>Avène</td><td>maison de village</td><td>95.00</td><td>9/12</td></tr><tr><td>24</td><td>maison de village</td><td>170</td><td>Bédarieux</td><td>maison de village</td><td>170.00</td><td>9/12</td></tr></tbody></table><h2>Ce qui fonctionne dans les limites testées</h2><p>Les nombres de la cheminée, des radiateurs et des pompes à chaleur sont conservés dans les 24 scénarios. La production d’eau chaude retrouve le ballon thermodynamique et ses 200 litres. Les WC sont comptés. Les références cadastrales normalisées sont extraites. Les décimales avec virgule, les deux chambres annoncées ensemble, l’addition des segments de couloir et une correction explicite de séjour passent les essais ciblés. Les garages, caves et terrasses simples sont exclus du calcul habitable dans le test dédié ; leur mezzanine reste problématique.</p><p>Les exportations ordinaires restent possibles même quand la fiche contient des erreurs. Un fichier généré correctement ne valide donc pas les informations qu’il contient. La sauvegarde serveur conserve deux photos de test et les métadonnées ; la réouverture locale révèle les défauts signalés plus haut.</p><h2>Estimation et annonces en ligne</h2><p>DVF live maison à Lamalou : 6 ventes retenues, prix médian 2230 €/m², valeur centrale de contrôle 268000 €. Surface test 120 m². Valeur statistique non ajustée ; ce n’est pas un avis de valeur réel.</p><p>DVF live appartement à Lamalou : 14 ventes retenues, prix médian 1891 €/m², valeur centrale de contrôle 110000 €. Surface test 58,31 m². Valeur statistique non ajustée ; ce n’est pas un avis de valeur réel.</p><p>Le catalogue Lamalou renvoie 35 annonces après fusion serveur. Les cinq catalogues répondent dans cet essai. La sélection locale de contrôle retient 4 annonces Roques et 6 autres sans doublon probable avec ces 4. L’identité réelle de deux annonces proches n’est pas vérifiable uniquement par prix/surface ; le retrait reste heuristique.</p><h2>Robustesse des exports</h2><table><thead><tr><th>Essai</th><th>Format</th><th>HTTP</th><th>Lecture</th></tr></thead><tbody><tr><td>vide</td><td>word</td><td>200</td><td>Généré</td></tr><tr><td>vide</td><td>pdf</td><td>200</td><td>Généré</td></tr><tr><td>caracteres speciaux</td><td>word</td><td>200</td><td>Généré</td></tr><tr><td>caracteres speciaux</td><td>pdf</td><td>200</td><td>Généré</td></tr><tr><td>long descriptif</td><td>word</td><td>200</td><td>Généré</td></tr><tr><td>long descriptif</td><td>pdf</td><td>500</td><td>Erreur</td></tr><tr><td>photo invalide</td><td>word</td><td>200</td><td>Généré</td></tr><tr><td>photo invalide</td><td>pdf</td><td>200</td><td>Généré</td></tr><tr><td>format invalide</td><td>word</td><td>422</td><td>Refus de format attendu</td></tr><tr><td>format invalide</td><td>pdf</td><td>422</td><td>Refus de format attendu</td></tr></tbody></table><h2>Ordre de correction recommandé</h2><ol><li>Surfaces des chambres, rattachement des mezzanines, surfaces des terrains et absence de troncature silencieuse.</li><li>Sanitaires au pluriel, négations, détails d’annexes et exclusion de l’adresse du texte descriptif.</li><li>Verrouillage du choix de commune et conservation fidèle des adresses.</li><li>Restauration complète des photos, de la fiche et des résultats validés ; retrait du gestionnaire de sauvegarde obsolète.</li><li>Types de biens et périmètre explicite des estimations et des annonces ; grands descriptifs PDF.</li><li>Rejouer les mêmes tests, puis contrôler un dossier réel Pomes et un appareil mobile avant validation.</li></ol><h2>Sources et traçabilité</h2><p>Référentiels consultés le 19 octobre 2026 : <a href="https://geo.api.gouv.fr/epcis/200042646/communes?fields=nom,code,codesPostaux,centre">API géographique — communes de Grand Orb</a> (23 communes retournées), <a href="https://data.geopf.fr/geocodage/search/">Géocodage Géoplateforme</a>, <a href="https://apicarto.ign.fr/api/cadastre/parcelle">API Carto IGN — cadastre</a>, <a href="https://files.data.gouv.fr/geo-dvf/latest/">DVF géolocalisées</a>. Les photos de contrôle sont de simples aplats créés pour les tests.</p><details><summary>Résultats techniques complets</summary><pre>{
+  &quot;api&quot;: [
+    {
+      &quot;name&quot;: &quot;homepage_no_mail&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;email_ui&quot;: false,
+        &quot;email_routes&quot;: []
+      },
+      &quot;seconds&quot;: 0.09
+    },
+    {
+      &quot;name&quot;: &quot;removed /api/email/draft&quot;,
+      &quot;result&quot;: {
+        &quot;get&quot;: 404,
+        &quot;post&quot;: 404
+      },
+      &quot;seconds&quot;: 0.01
+    },
+    {
+      &quot;name&quot;: &quot;removed /api/email/bridge&quot;,
+      &quot;result&quot;: {
+        &quot;get&quot;: 404,
+        &quot;post&quot;: 404
+      },
+      &quot;seconds&quot;: 0.01
+    },
+    {
+      &quot;name&quot;: &quot;removed /api/email/bridge-download&quot;,
+      &quot;result&quot;: {
+        &quot;get&quot;: 404,
+        &quot;post&quot;: 404
+      },
+      &quot;seconds&quot;: 0.01
+    },
+    {
+      &quot;name&quot;: &quot;removed /api/email/bridge-installer&quot;,
+      &quot;result&quot;: {
+        &quot;get&quot;: 404,
+        &quot;post&quot;: 404
+      },
+      &quot;seconds&quot;: 0.01
+    },
+    {
+      &quot;name&quot;: &quot;DVF type studio&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 400,
+        &quot;body&quot;: {
+          &quot;detail&quot;: &quot;Seuls maisons et appartements sont pris en charge&quot;
+        }
+      },
+      &quot;seconds&quot;: 0.01
+    },
+    {
+      &quot;name&quot;: &quot;DVF type immeuble&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 400,
+        &quot;body&quot;: {
+          &quot;detail&quot;: &quot;Seuls maisons et appartements sont pris en charge&quot;
+        }
+      },
+      &quot;seconds&quot;: 0.0
+    },
+    {
+      &quot;name&quot;: &quot;DVF type mas&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 400,
+        &quot;body&quot;: {
+          &quot;detail&quot;: &quot;Seuls maisons et appartements sont pris en charge&quot;
+        }
+      },
+      &quot;seconds&quot;: 0.0
+    },
+    {
+      &quot;name&quot;: &quot;DVF type terrain de loisir&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 400,
+        &quot;body&quot;: {
+          &quot;detail&quot;: &quot;Seuls maisons et appartements sont pris en charge&quot;
+        }
+      },
+      &quot;seconds&quot;: 0.01
+    },
+    {
+      &quot;name&quot;: &quot;DVF type terrain à bâtir&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 400,
+        &quot;body&quot;: {
+          &quot;detail&quot;: &quot;Seuls maisons et appartements sont pris en charge&quot;
+        }
+      },
+      &quot;seconds&quot;: 0.01
+    },
+    {
+      &quot;name&quot;: &quot;DVF surface 0&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 400,
+        &quot;body&quot;: {
+          &quot;detail&quot;: &quot;Surface habitable suspecte ou manquante : vérifier la fiche avant estimation&quot;
+        }
+      },
+      &quot;seconds&quot;: 0.01
+    },
+    {
+      &quot;name&quot;: &quot;DVF surface -10&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 400,
+        &quot;body&quot;: {
+          &quot;detail&quot;: &quot;Surface habitable suspecte ou manquante : vérifier la fiche avant estimation&quot;
+        }
+      },
+      &quot;seconds&quot;: 0.01
+    },
+    {
+      &quot;name&quot;: &quot;DVF surface 11&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 400,
+        &quot;body&quot;: {
+          &quot;detail&quot;: &quot;Surface habitable suspecte ou manquante : vérifier la fiche avant estimation&quot;
+        }
+      },
+      &quot;seconds&quot;: 0.0
+    },
+    {
+      &quot;name&quot;: &quot;DVF surface 1001&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 400,
+        &quot;body&quot;: {
+          &quot;detail&quot;: &quot;Surface habitable suspecte ou manquante : vérifier la fiche avant estimation&quot;
+        }
+      },
+      &quot;seconds&quot;: 0.01
+    },
+    {
+      &quot;name&quot;: &quot;DVF surface 12000&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 400,
+        &quot;body&quot;: {
+          &quot;detail&quot;: &quot;Surface habitable suspecte ou manquante : vérifier la fiche avant estimation&quot;
+        }
+      },
+      &quot;seconds&quot;: 0.0
+    },
+    {
+      &quot;name&quot;: &quot;cadastre numero zero&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 400
+      },
+      &quot;seconds&quot;: 0.01
+    },
+    {
+      &quot;name&quot;: &quot;geocode vide&quot;,
+      &quot;result&quot;: {
+        &quot;results&quot;: []
+      },
+      &quot;seconds&quot;: 0.01
+    },
+    {
+      &quot;name&quot;: &quot;DVF calcul controle 12&quot;,
+      &quot;result&quot;: {
+        &quot;status&quot;: &quot;indicatif&quot;,
+        &quot;source&quot;: &quot;https://files.data.gouv.fr/geo-dvf/latest/&quot;,
+        &quot;source_nom&quot;: &quot;Données DGFiP géolocalisées&quot;,
+        &quot;comparables&quot;: [
+          {
+            &quot;prix_m2&quot;: 1800,
+            &quot;prix&quot;: 180000,
+            &quot;surface&quot;: 100,
+            &quot;date&quot;: &quot;2025-01-01&quot;,
+            &quot;reference&quot;: &quot;TEST&quot;
+          },
+          {
+            &quot;prix_m2&quot;: 2000,
+            &quot;prix&quot;: 200000,
+            &quot;surface&quot;: 100,
+            &quot;date&quot;: &quot;2025-01-01&quot;,
+            &quot;reference&quot;: &quot;TEST&quot;
+          },
+          {
+            &quot;prix_m2&quot;: 2200,
+            &quot;prix&quot;: 220000,
+            &quot;surface&quot;: 100,
+            &quot;date&quot;: &quot;2025-01-01&quot;,
+            &quot;reference&quot;: &quot;TEST&quot;
+          }
+        ],
+        &quot;nombre&quot;: 3,
+        &quot;diagnostics&quot;: [
+          {
+            &quot;source&quot;: &quot;Cache DVF local&quot;,
+            &quot;etat&quot;: &quot;accessible&quot;,
+            &quot;lignes&quot;: 3,
+            &quot;comparables&quot;: 3
+          }
+        ],
+        &quot;periode_debut&quot;: &quot;2025-01-01&quot;,
+        &quot;periode_fin&quot;: &quot;2025-01-01&quot;,
+        &quot;prix_m2_median&quot;: 2000,
+        &quot;basse&quot;: 20000,
+        &quot;centrale&quot;: 24000,
+        &quot;haute&quot;: 28000,
+        &quot;avertissement&quot;: &quot;Fourchette statistique non ajustée : état, terrain, travaux et dépendances non pris en compte. Données tierces à vérifier avant tout avis de valeur.&quot;
+      },
+      &quot;seconds&quot;: 0.01
+    },
+    {
+      &quot;name&quot;: &quot;DVF calcul controle 58.31&quot;,
+      &quot;result&quot;: {
+        &quot;status&quot;: &quot;indicatif&quot;,
+        &quot;source&quot;: &quot;https://files.data.gouv.fr/geo-dvf/latest/&quot;,
+        &quot;source_nom&quot;: &quot;Données DGFiP géolocalisées&quot;,
+        &quot;comparables&quot;: [
+          {
+            &quot;prix_m2&quot;: 1800,
+            &quot;prix&quot;: 180000,
+            &quot;surface&quot;: 100,
+            &quot;date&quot;: &quot;2025-01-01&quot;,
+            &quot;reference&quot;: &quot;TEST&quot;
+          },
+          {
+            &quot;prix_m2&quot;: 2000,
+            &quot;prix&quot;: 200000,
+            &quot;surface&quot;: 100,
+            &quot;date&quot;: &quot;2025-01-01&quot;,
+            &quot;reference&quot;: &quot;TEST&quot;
+          },
+          {
+            &quot;prix_m2&quot;: 2200,
+            &quot;prix&quot;: 220000,
+            &quot;surface&quot;: 100,
+            &quot;date&quot;: &quot;2025-01-01&quot;,
+            &quot;reference&quot;: &quot;TEST&quot;
+          }
+        ],
+        &quot;nombre&quot;: 3,
+        &quot;diagnostics&quot;: [
+          {
+            &quot;source&quot;: &quot;Cache DVF local&quot;,
+            &quot;etat&quot;: &quot;accessible&quot;,
+            &quot;lignes&quot;: 3,
+            &quot;comparables&quot;: 3
+          }
+        ],
+        &quot;periode_debut&quot;: &quot;2025-01-01&quot;,
+        &quot;periode_fin&quot;: &quot;2025-01-01&quot;,
+        &quot;prix_m2_median&quot;: 2000,
+        &quot;basse&quot;: 99000,
+        &quot;centrale&quot;: 117000,
+        &quot;haute&quot;: 134000,
+        &quot;avertissement&quot;: &quot;Fourchette statistique non ajustée : état, terrain, travaux et dépendances non pris en compte. Données tierces à vérifier avant tout avis de valeur.&quot;
+      },
+      &quot;seconds&quot;: 0.01
+    },
+    {
+      &quot;name&quot;: &quot;DVF calcul controle 120.5&quot;,
+      &quot;result&quot;: {
+        &quot;status&quot;: &quot;indicatif&quot;,
+        &quot;source&quot;: &quot;https://files.data.gouv.fr/geo-dvf/latest/&quot;,
+        &quot;source_nom&quot;: &quot;Données DGFiP géolocalisées&quot;,
+        &quot;comparables&quot;: [
+          {
+            &quot;prix_m2&quot;: 1800,
+            &quot;prix&quot;: 180000,
+            &quot;surface&quot;: 100,
+            &quot;date&quot;: &quot;2025-01-01&quot;,
+            &quot;reference&quot;: &quot;TEST&quot;
+          },
+          {
+            &quot;prix_m2&quot;: 2000,
+            &quot;prix&quot;: 200000,
+            &quot;surface&quot;: 100,
+            &quot;date&quot;: &quot;2025-01-01&quot;,
+            &quot;reference&quot;: &quot;TEST&quot;
+          },
+          {
+            &quot;prix_m2&quot;: 2200,
+            &quot;prix&quot;: 220000,
+            &quot;surface&quot;: 100,
+            &quot;date&quot;: &quot;2025-01-01&quot;,
+            &quot;reference&quot;: &quot;TEST&quot;
+          }
+        ],
+        &quot;nombre&quot;: 3,
+        &quot;diagnostics&quot;: [
+          {
+            &quot;source&quot;: &quot;Cache DVF local&quot;,
+            &quot;etat&quot;: &quot;accessible&quot;,
+            &quot;lignes&quot;: 3,
+            &quot;comparables&quot;: 3
+          }
+        ],
+        &quot;periode_debut&quot;: &quot;2025-01-01&quot;,
+        &quot;periode_fin&quot;: &quot;2025-01-01&quot;,
+        &quot;prix_m2_median&quot;: 2000,
+        &quot;basse&quot;: 205000,
+        &quot;centrale&quot;: 241000,
+        &quot;haute&quot;: 277000,
+        &quot;avertissement&quot;: &quot;Fourchette statistique non ajustée : état, terrain, travaux et dépendances non pris en compte. Données tierces à vérifier avant tout avis de valeur.&quot;
+      },
+      &quot;seconds&quot;: 0.01
+    },
+    {
+      &quot;name&quot;: &quot;DVF calcul controle 1000&quot;,
+      &quot;result&quot;: {
+        &quot;status&quot;: &quot;indicatif&quot;,
+        &quot;source&quot;: &quot;https://files.data.gouv.fr/geo-dvf/latest/&quot;,
+        &quot;source_nom&quot;: &quot;Données DGFiP géolocalisées&quot;,
+        &quot;comparables&quot;: [
+          {
+            &quot;prix_m2&quot;: 1800,
+            &quot;prix&quot;: 180000,
+            &quot;surface&quot;: 100,
+            &quot;date&quot;: &quot;2025-01-01&quot;,
+            &quot;reference&quot;: &quot;TEST&quot;
+          },
+          {
+            &quot;prix_m2&quot;: 2000,
+            &quot;prix&quot;: 200000,
+            &quot;surface&quot;: 100,
+            &quot;date&quot;: &quot;2025-01-01&quot;,
+            &quot;reference&quot;: &quot;TEST&quot;
+          },
+          {
+            &quot;prix_m2&quot;: 2200,
+            &quot;prix&quot;: 220000,
+            &quot;surface&quot;: 100,
+            &quot;date&quot;: &quot;2025-01-01&quot;,
+            &quot;reference&quot;: &quot;TEST&quot;
+          }
+        ],
+        &quot;nombre&quot;: 3,
+        &quot;diagnostics&quot;: [
+          {
+            &quot;source&quot;: &quot;Cache DVF local&quot;,
+            &quot;etat&quot;: &quot;accessible&quot;,
+            &quot;lignes&quot;: 3,
+            &quot;comparables&quot;: 3
+          }
+        ],
+        &quot;periode_debut&quot;: &quot;2025-01-01&quot;,
+        &quot;periode_fin&quot;: &quot;2025-01-01&quot;,
+        &quot;prix_m2_median&quot;: 2000,
+        &quot;basse&quot;: 1700000,
+        &quot;centrale&quot;: 2000000,
+        &quot;haute&quot;: 2300000,
+        &quot;avertissement&quot;: &quot;Fourchette statistique non ajustée : état, terrain, travaux et dépendances non pris en compte. Données tierces à vérifier avant tout avis de valeur.&quot;
+      },
+      &quot;seconds&quot;: 0.01
+    },
+    {
+      &quot;name&quot;: &quot;save deux photos&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;body&quot;: {
+          &quot;id&quot;: &quot;EST-4CD04E70&quot;,
+          &quot;photos&quot;: 2
+        },
+        &quot;persisted&quot;: true
+      },
+      &quot;seconds&quot;: 0.01
+    },
+    {
+      &quot;name&quot;: &quot;export 1 word&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 39744,
+        &quot;file&quot;: &quot;qa76/exports/01_docx.docx&quot;,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.26
+    },
+    {
+      &quot;name&quot;: &quot;export 1 pdf&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 11041,
+        &quot;file&quot;: &quot;qa76/exports/01_pdf.pdf&quot;,
+        &quot;pages&quot;: 2,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 1.06
+    },
+    {
+      &quot;name&quot;: &quot;export 2 word&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 39732,
+        &quot;file&quot;: &quot;qa76/exports/02_docx.docx&quot;,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.19
+    },
+    {
+      &quot;name&quot;: &quot;export 2 pdf&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 11013,
+        &quot;file&quot;: &quot;qa76/exports/02_pdf.pdf&quot;,
+        &quot;pages&quot;: 2,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.1
+    },
+    {
+      &quot;name&quot;: &quot;export 3 word&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 39730,
+        &quot;file&quot;: &quot;qa76/exports/03_docx.docx&quot;,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.21
+    },
+    {
+      &quot;name&quot;: &quot;export 3 pdf&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 11013,
+        &quot;file&quot;: &quot;qa76/exports/03_pdf.pdf&quot;,
+        &quot;pages&quot;: 2,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.1
+    },
+    {
+      &quot;name&quot;: &quot;export 4 word&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 39730,
+        &quot;file&quot;: &quot;qa76/exports/04_docx.docx&quot;,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.17
+    },
+    {
+      &quot;name&quot;: &quot;export 4 pdf&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 11016,
+        &quot;file&quot;: &quot;qa76/exports/04_pdf.pdf&quot;,
+        &quot;pages&quot;: 2,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.11
+    },
+    {
+      &quot;name&quot;: &quot;export 5 word&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 39744,
+        &quot;file&quot;: &quot;qa76/exports/05_docx.docx&quot;,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.18
+    },
+    {
+      &quot;name&quot;: &quot;export 5 pdf&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 11038,
+        &quot;file&quot;: &quot;qa76/exports/05_pdf.pdf&quot;,
+        &quot;pages&quot;: 2,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.11
+    },
+    {
+      &quot;name&quot;: &quot;export 6 word&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 39734,
+        &quot;file&quot;: &quot;qa76/exports/06_docx.docx&quot;,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.21
+    },
+    {
+      &quot;name&quot;: &quot;export 6 pdf&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 11023,
+        &quot;file&quot;: &quot;qa76/exports/06_pdf.pdf&quot;,
+        &quot;pages&quot;: 2,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.09
+    },
+    {
+      &quot;name&quot;: &quot;export 7 word&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 39737,
+        &quot;file&quot;: &quot;qa76/exports/07_docx.docx&quot;,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.18
+    },
+    {
+      &quot;name&quot;: &quot;export 7 pdf&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 11031,
+        &quot;file&quot;: &quot;qa76/exports/07_pdf.pdf&quot;,
+        &quot;pages&quot;: 2,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.11
+    },
+    {
+      &quot;name&quot;: &quot;export 8 word&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 39741,
+        &quot;file&quot;: &quot;qa76/exports/08_docx.docx&quot;,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.18
+    },
+    {
+      &quot;name&quot;: &quot;export 8 pdf&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 11037,
+        &quot;file&quot;: &quot;qa76/exports/08_pdf.pdf&quot;,
+        &quot;pages&quot;: 2,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.08
+    },
+    {
+      &quot;name&quot;: &quot;export 9 word&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 39729,
+        &quot;file&quot;: &quot;qa76/exports/09_docx.docx&quot;,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.17
+    },
+    {
+      &quot;name&quot;: &quot;export 9 pdf&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 11008,
+        &quot;file&quot;: &quot;qa76/exports/09_pdf.pdf&quot;,
+        &quot;pages&quot;: 2,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.1
+    },
+    {
+      &quot;name&quot;: &quot;export 10 word&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 39730,
+        &quot;file&quot;: &quot;qa76/exports/10_docx.docx&quot;,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.19
+    },
+    {
+      &quot;name&quot;: &quot;export 10 pdf&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 11019,
+        &quot;file&quot;: &quot;qa76/exports/10_pdf.pdf&quot;,
+        &quot;pages&quot;: 2,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.09
+    },
+    {
+      &quot;name&quot;: &quot;export 11 word&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 39727,
+        &quot;file&quot;: &quot;qa76/exports/11_docx.docx&quot;,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.17
+    },
+    {
+      &quot;name&quot;: &quot;export 11 pdf&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 11014,
+        &quot;file&quot;: &quot;qa76/exports/11_pdf.pdf&quot;,
+        &quot;pages&quot;: 2,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.13
+    },
+    {
+      &quot;name&quot;: &quot;export 12 word&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 39746,
+        &quot;file&quot;: &quot;qa76/exports/12_docx.docx&quot;,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.16
+    },
+    {
+      &quot;name&quot;: &quot;export 12 pdf&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 11037,
+        &quot;file&quot;: &quot;qa76/exports/12_pdf.pdf&quot;,
+        &quot;pages&quot;: 2,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.13
+    },
+    {
+      &quot;name&quot;: &quot;export 13 word&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 39671,
+        &quot;file&quot;: &quot;qa76/exports/13_docx.docx&quot;,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.16
+    },
+    {
+      &quot;name&quot;: &quot;export 13 pdf&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 10908,
+        &quot;file&quot;: &quot;qa76/exports/13_pdf.pdf&quot;,
+        &quot;pages&quot;: 2,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.11
+    },
+    {
+      &quot;name&quot;: &quot;export 14 word&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 39686,
+        &quot;file&quot;: &quot;qa76/exports/14_docx.docx&quot;,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.15
+    },
+    {
+      &quot;name&quot;: &quot;export 14 pdf&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 10929,
+        &quot;file&quot;: &quot;qa76/exports/14_pdf.pdf&quot;,
+        &quot;pages&quot;: 2,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.12
+    },
+    {
+      &quot;name&quot;: &quot;export 15 word&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 39685,
+        &quot;file&quot;: &quot;qa76/exports/15_docx.docx&quot;,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.18
+    },
+    {
+      &quot;name&quot;: &quot;export 15 pdf&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 10935,
+        &quot;file&quot;: &quot;qa76/exports/15_pdf.pdf&quot;,
+        &quot;pages&quot;: 2,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.11
+    },
+    {
+      &quot;name&quot;: &quot;export 16 word&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 39648,
+        &quot;file&quot;: &quot;qa76/exports/16_docx.docx&quot;,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.17
+    },
+    {
+      &quot;name&quot;: &quot;export 16 pdf&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 10804,
+        &quot;file&quot;: &quot;qa76/exports/16_pdf.pdf&quot;,
+        &quot;pages&quot;: 2,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.12
+    },
+    {
+      &quot;name&quot;: &quot;export 17 word&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 39645,
+        &quot;file&quot;: &quot;qa76/exports/17_docx.docx&quot;,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.18
+    },
+    {
+      &quot;name&quot;: &quot;export 17 pdf&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 10804,
+        &quot;file&quot;: &quot;qa76/exports/17_pdf.pdf&quot;,
+        &quot;pages&quot;: 2,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.11
+    },
+    {
+      &quot;name&quot;: &quot;export 18 word&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 39644,
+        &quot;file&quot;: &quot;qa76/exports/18_docx.docx&quot;,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.18
+    },
+    {
+      &quot;name&quot;: &quot;export 18 pdf&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 10807,
+        &quot;file&quot;: &quot;qa76/exports/18_pdf.pdf&quot;,
+        &quot;pages&quot;: 2,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.09
+    },
+    {
+      &quot;name&quot;: &quot;export 19 word&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 39660,
+        &quot;file&quot;: &quot;qa76/exports/19_docx.docx&quot;,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.16
+    },
+    {
+      &quot;name&quot;: &quot;export 19 pdf&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 10820,
+        &quot;file&quot;: &quot;qa76/exports/19_pdf.pdf&quot;,
+        &quot;pages&quot;: 2,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.2
+    },
+    {
+      &quot;name&quot;: &quot;export 20 word&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 39648,
+        &quot;file&quot;: &quot;qa76/exports/20_docx.docx&quot;,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.19
+    },
+    {
+      &quot;name&quot;: &quot;export 20 pdf&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 10808,
+        &quot;file&quot;: &quot;qa76/exports/20_pdf.pdf&quot;,
+        &quot;pages&quot;: 2,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.12
+    },
+    {
+      &quot;name&quot;: &quot;export 21 word&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 39666,
+        &quot;file&quot;: &quot;qa76/exports/21_docx.docx&quot;,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.18
+    },
+    {
+      &quot;name&quot;: &quot;export 21 pdf&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 10827,
+        &quot;file&quot;: &quot;qa76/exports/21_pdf.pdf&quot;,
+        &quot;pages&quot;: 2,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.11
+    },
+    {
+      &quot;name&quot;: &quot;export 22 word&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 39754,
+        &quot;file&quot;: &quot;qa76/exports/22_docx.docx&quot;,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.18
+    },
+    {
+      &quot;name&quot;: &quot;export 22 pdf&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 11052,
+        &quot;file&quot;: &quot;qa76/exports/22_pdf.pdf&quot;,
+        &quot;pages&quot;: 2,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.1
+    },
+    {
+      &quot;name&quot;: &quot;export 23 word&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 39738,
+        &quot;file&quot;: &quot;qa76/exports/23_docx.docx&quot;,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.19
+    },
+    {
+      &quot;name&quot;: &quot;export 23 pdf&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 11021,
+        &quot;file&quot;: &quot;qa76/exports/23_pdf.pdf&quot;,
+        &quot;pages&quot;: 2,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.13
+    },
+    {
+      &quot;name&quot;: &quot;export 24 word&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 39737,
+        &quot;file&quot;: &quot;qa76/exports/24_docx.docx&quot;,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.2
+    },
+    {
+      &quot;name&quot;: &quot;export 24 pdf&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;bytes&quot;: 11023,
+        &quot;file&quot;: &quot;qa76/exports/24_pdf.pdf&quot;,
+        &quot;pages&quot;: 2,
+        &quot;photo_count&quot;: 1,
+        &quot;estimation&quot;: true,
+        &quot;A4&quot;: true
+      },
+      &quot;seconds&quot;: 0.11
+    },
+    {
+      &quot;name&quot;: &quot;commune Brenas&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;Brenas&quot;,
+          &quot;code&quot;: &quot;34040&quot;,
+          &quot;postcode&quot;: &quot;34650&quot;
+        }
+      },
+      &quot;seconds&quot;: 8.58
+    },
+    {
+      &quot;name&quot;: &quot;commune Les Aires&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;Orée d&#x27;Anjou&quot;,
+          &quot;code&quot;: &quot;49126&quot;,
+          &quot;postcode&quot;: &quot;49530&quot;
+        }
+      },
+      &quot;seconds&quot;: 8.62
+    },
+    {
+      &quot;name&quot;: &quot;commune Le Bousquet-d&#x27;Orb&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;Le Bousquet-d&#x27;Orb&quot;,
+          &quot;code&quot;: &quot;34038&quot;,
+          &quot;postcode&quot;: &quot;34260&quot;
+        }
+      },
+      &quot;seconds&quot;: 8.62
+    },
+    {
+      &quot;name&quot;: &quot;commune Camplong&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;Camplong&quot;,
+          &quot;code&quot;: &quot;34049&quot;,
+          &quot;postcode&quot;: &quot;34260&quot;
+        }
+      },
+      &quot;seconds&quot;: 8.63
+    },
+    {
+      &quot;name&quot;: &quot;commune Avène&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;Avène&quot;,
+          &quot;code&quot;: &quot;34019&quot;,
+          &quot;postcode&quot;: &quot;34260&quot;
+        }
+      },
+      &quot;seconds&quot;: 8.71
+    },
+    {
+      &quot;name&quot;: &quot;commune Bédarieux&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;Bédarieux&quot;,
+          &quot;code&quot;: &quot;34028&quot;,
+          &quot;postcode&quot;: &quot;34600&quot;
+        }
+      },
+      &quot;seconds&quot;: 8.74
+    },
+    {
+      &quot;name&quot;: &quot;commune Joncels&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;Joncels&quot;,
+          &quot;code&quot;: &quot;34121&quot;,
+          &quot;postcode&quot;: &quot;34650&quot;
+        }
+      },
+      &quot;seconds&quot;: 11.79
+    },
+    {
+      &quot;name&quot;: &quot;commune Ceilhes-et-Rocozels&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;Ceilhes-et-Rocozels&quot;,
+          &quot;code&quot;: &quot;34071&quot;,
+          &quot;postcode&quot;: &quot;34260&quot;
+        }
+      },
+      &quot;seconds&quot;: 11.96
+    },
+    {
+      &quot;name&quot;: &quot;commune Carlencas-et-Levas&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;Carlencas-et-Levas&quot;,
+          &quot;code&quot;: &quot;34053&quot;,
+          &quot;postcode&quot;: &quot;34600&quot;
+        }
+      },
+      &quot;seconds&quot;: 11.99
+    },
+    {
+      &quot;name&quot;: &quot;commune Hérépian&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;Hérépian&quot;,
+          &quot;code&quot;: &quot;34119&quot;,
+          &quot;postcode&quot;: &quot;34600&quot;
+        }
+      },
+      &quot;seconds&quot;: 11.88
+    },
+    {
+      &quot;name&quot;: &quot;commune Graissessac&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;Graissessac&quot;,
+          &quot;code&quot;: &quot;34117&quot;,
+          &quot;postcode&quot;: &quot;34260&quot;
+        }
+      },
+      &quot;seconds&quot;: 12.04
+    },
+    {
+      &quot;name&quot;: &quot;commune Combes&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;Gimont&quot;,
+          &quot;code&quot;: &quot;32147&quot;,
+          &quot;postcode&quot;: &quot;32200&quot;
+        }
+      },
+      &quot;seconds&quot;: 12.07
+    },
+    {
+      &quot;name&quot;: &quot;commune Le Pradal&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;Les Vans&quot;,
+          &quot;code&quot;: &quot;07334&quot;,
+          &quot;postcode&quot;: &quot;07140&quot;
+        }
+      },
+      &quot;seconds&quot;: 8.65
+    },
+    {
+      &quot;name&quot;: &quot;commune Pézènes-les-Mines&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;Pézènes-les-Mines&quot;,
+          &quot;code&quot;: &quot;34200&quot;,
+          &quot;postcode&quot;: &quot;34600&quot;
+        }
+      },
+      &quot;seconds&quot;: 8.75
+    },
+    {
+      &quot;name&quot;: &quot;commune Saint-Étienne-Estréchoux&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;Saint-Étienne-Estréchoux&quot;,
+          &quot;code&quot;: &quot;34252&quot;,
+          &quot;postcode&quot;: &quot;34260&quot;
+        }
+      },
+      &quot;seconds&quot;: 8.64
+    },
+    {
+      &quot;name&quot;: &quot;commune Lamalou-les-Bains&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;Lamalou-les-Bains&quot;,
+          &quot;code&quot;: &quot;34126&quot;,
+          &quot;postcode&quot;: &quot;34240&quot;
+        }
+      },
+      &quot;seconds&quot;: 8.94
+    },
+    {
+      &quot;name&quot;: &quot;commune Le Poujol-sur-Orb&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;Le Poujol-sur-Orb&quot;,
+          &quot;code&quot;: &quot;34211&quot;,
+          &quot;postcode&quot;: &quot;34600&quot;
+        }
+      },
+      &quot;seconds&quot;: 8.89
+    },
+    {
+      &quot;name&quot;: &quot;commune Lunas-les-Châteaux&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;Lunas-les-Châteaux&quot;,
+          &quot;code&quot;: &quot;34144&quot;,
+          &quot;postcode&quot;: &quot;34650&quot;
+        }
+      },
+      &quot;seconds&quot;: 9.07
+    },
+    {
+      &quot;name&quot;: &quot;commune Villemagne-l&#x27;Argentière&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;Villemagne-l&#x27;Argentière&quot;,
+          &quot;code&quot;: &quot;34335&quot;,
+          &quot;postcode&quot;: &quot;34600&quot;
+        }
+      },
+      &quot;seconds&quot;: 6.21
+    },
+    {
+      &quot;name&quot;: &quot;adresse Les Aires&quot;,
+      &quot;result&quot;: {
+        &quot;results&quot;: [
+          {
+            &quot;label&quot;: &quot;1 Rue du Puits 34600 Les Aires&quot;,
+            &quot;postcode&quot;: &quot;34600&quot;,
+            &quot;city&quot;: &quot;Les Aires&quot;,
+            &quot;citycode&quot;: &quot;34008&quot;,
+            &quot;score&quot;: 0.9464681818181817,
+            &quot;parcels&quot;: [],
+            &quot;coordinates&quot;: [
+              3.102665,
+              43.581597
+            ]
+          }
+        ]
+      },
+      &quot;seconds&quot;: 6.1
+    },
+    {
+      &quot;name&quot;: &quot;commune La Tour-sur-Orb&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;La Tour-sur-Orb&quot;,
+          &quot;code&quot;: &quot;34312&quot;,
+          &quot;postcode&quot;: &quot;34260&quot;
+        }
+      },
+      &quot;seconds&quot;: 6.39
+    },
+    {
+      &quot;name&quot;: &quot;parcelle Avène&quot;,
+      &quot;result&quot;: {
+        &quot;found&quot;: true,
+        &quot;commune&quot;: &quot;34019&quot;,
+        &quot;code_insee&quot;: &quot;34019&quot;,
+        &quot;section&quot;: &quot;AB&quot;,
+        &quot;numero&quot;: &quot;0076&quot;,
+        &quot;properties&quot;: {
+          &quot;gid&quot;: 83310700,
+          &quot;numero&quot;: &quot;0076&quot;,
+          &quot;feuille&quot;: 1,
+          &quot;section&quot;: &quot;AB&quot;,
+          &quot;code_dep&quot;: &quot;34&quot;,
+          &quot;nom_com&quot;: &quot;Avène&quot;,
+          &quot;code_com&quot;: &quot;019&quot;,
+          &quot;com_abs&quot;: &quot;000&quot;,
+          &quot;code_arr&quot;: &quot;000&quot;,
+          &quot;idu&quot;: &quot;34019000AB0076&quot;,
+          &quot;contenance&quot;: 100,
+          &quot;code_insee&quot;: &quot;34019&quot;
+        },
+        &quot;geometry&quot;: {
+          &quot;type&quot;: &quot;MultiPolygon&quot;,
+          &quot;coordinates&quot;: [
+            [
+              [
+                [
+                  3.09869444,
+                  43.75702306
+                ],
+                [
+                  3.09868983,
+                  43.75701281
+                ],
+                [
+                  3.09863484,
+                  43.75694807
+                ],
+                [
+                  3.09857953,
+                  43.75697961
+                ],
+                [
+                  3.09851493,
+                  43.7570307
+                ],
+                [
+                  3.09854987,
+                  43.75705928
+                ],
+                [
+                  3.09856678,
+                  43.75707348
+                ],
+                [
+                  3.09861379,
+                  43.75705076
+                ],
+                [
+                  3.09864766,
+                  43.75703786
+                ],
+                [
+                  3.09869444,
+                  43.75702306
+                ]
+              ]
+            ]
+          ]
+        }
+      },
+      &quot;seconds&quot;: 3.89
+    },
+    {
+      &quot;name&quot;: &quot;parcelle Les Aires&quot;,
+      &quot;result&quot;: {
+        &quot;found&quot;: true,
+        &quot;commune&quot;: &quot;34008&quot;,
+        &quot;code_insee&quot;: &quot;34008&quot;,
+        &quot;section&quot;: &quot;C&quot;,
+        &quot;numero&quot;: &quot;0878&quot;,
+        &quot;properties&quot;: {
+          &quot;gid&quot;: 89398226,
+          &quot;numero&quot;: &quot;0878&quot;,
+          &quot;feuille&quot;: 4,
+          &quot;section&quot;: &quot;0C&quot;,
+          &quot;code_dep&quot;: &quot;34&quot;,
+          &quot;nom_com&quot;: &quot;Les Aires&quot;,
+          &quot;code_com&quot;: &quot;008&quot;,
+          &quot;com_abs&quot;: &quot;000&quot;,
+          &quot;code_arr&quot;: &quot;000&quot;,
+          &quot;idu&quot;: &quot;340080000C0878&quot;,
+          &quot;contenance&quot;: 40,
+          &quot;code_insee&quot;: &quot;34008&quot;
+        },
+        &quot;geometry&quot;: {
+          &quot;type&quot;: &quot;MultiPolygon&quot;,
+          &quot;coordinates&quot;: [
+            [
+              [
+                [
+                  3.10271613,
+                  43.58166531
+                ],
+                [
+                  3.10275446,
+                  43.58164476
+                ],
+                [
+                  3.10267415,
+                  43.58158239
+                ],
+                [
+                  3.10263408,
+                  43.58160078
+                ],
+                [
+                  3.10268353,
+                  43.5816397
+                ],
+                [
+                  3.10271613,
+                  43.58166531
+                ]
+              ]
+            ]
+          ]
+        }
+      },
+      &quot;seconds&quot;: 4.14
+    },
+    {
+      &quot;name&quot;: &quot;commune Taussac-la-Billière&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: null
+      },
+      &quot;seconds&quot;: 12.03
+    },
+    {
+      &quot;name&quot;: &quot;commune Saint-Geniès-de-Varensal&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: null
+      },
+      &quot;seconds&quot;: 12.05
+    },
+    {
+      &quot;name&quot;: &quot;commune Saint-Gervais-sur-Mare&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: null
+      },
+      &quot;seconds&quot;: 12.05
+    },
+    {
+      &quot;name&quot;: &quot;adresse Avène&quot;,
+      &quot;result&quot;: {
+        &quot;detail&quot;: &quot;Le service public d&#x27;adresses ne répond pas pour le moment.&quot;
+      },
+      &quot;seconds&quot;: 6.01
+    },
+    {
+      &quot;name&quot;: &quot;parcelle Bédarieux&quot;,
+      &quot;result&quot;: {
+        &quot;found&quot;: true,
+        &quot;commune&quot;: &quot;34028&quot;,
+        &quot;code_insee&quot;: &quot;34028&quot;,
+        &quot;section&quot;: &quot;BE&quot;,
+        &quot;numero&quot;: &quot;0282&quot;,
+        &quot;properties&quot;: {
+          &quot;gid&quot;: 41835672,
+          &quot;numero&quot;: &quot;0282&quot;,
+          &quot;feuille&quot;: 1,
+          &quot;section&quot;: &quot;BE&quot;,
+          &quot;code_dep&quot;: &quot;34&quot;,
+          &quot;nom_com&quot;: &quot;Bédarieux&quot;,
+          &quot;code_com&quot;: &quot;028&quot;,
+          &quot;com_abs&quot;: &quot;000&quot;,
+          &quot;code_arr&quot;: &quot;000&quot;,
+          &quot;idu&quot;: &quot;34028000BE0282&quot;,
+          &quot;contenance&quot;: 1030,
+          &quot;code_insee&quot;: &quot;34028&quot;
+        },
+        &quot;geometry&quot;: {
+          &quot;type&quot;: &quot;MultiPolygon&quot;,
+          &quot;coordinates&quot;: [
+            [
+              [
+                [
+                  3.16384485,
+                  43.62044572
+                ],
+                [
+                  3.16405337,
+                  43.62034139
+                ],
+                [
+                  3.16416443,
+                  43.6202867
+                ],
+                [
+                  3.16442638,
+                  43.6201571
+                ],
+                [
+                  3.16432829,
+                  43.62007059
+                ],
+                [
+                  3.16429054,
+                  43.62003835
+                ],
+                [
+                  3.1641275,
+                  43.62010698
+                ],
+                [
+                  3.16385165,
+                  43.62022626
+                ],
+                [
+                  3.16370025,
+                  43.62029361
+                ],
+                [
+                  3.16384485,
+                  43.62044572
+                ]
+              ]
+            ]
+          ]
+        }
+      },
+      &quot;seconds&quot;: 2.96
+    },
+    {
+      &quot;name&quot;: &quot;parcelle Hérépian&quot;,
+      &quot;result&quot;: {
+        &quot;found&quot;: true,
+        &quot;commune&quot;: &quot;34119&quot;,
+        &quot;code_insee&quot;: &quot;34119&quot;,
+        &quot;section&quot;: &quot;A&quot;,
+        &quot;numero&quot;: &quot;0420&quot;,
+        &quot;properties&quot;: {
+          &quot;gid&quot;: 58290962,
+          &quot;numero&quot;: &quot;0420&quot;,
+          &quot;feuille&quot;: 1,
+          &quot;section&quot;: &quot;0A&quot;,
+          &quot;code_dep&quot;: &quot;34&quot;,
+          &quot;nom_com&quot;: &quot;Hérépian&quot;,
+          &quot;code_com&quot;: &quot;119&quot;,
+          &quot;com_abs&quot;: &quot;000&quot;,
+          &quot;code_arr&quot;: &quot;000&quot;,
+          &quot;idu&quot;: &quot;341190000A0420&quot;,
+          &quot;contenance&quot;: 255,
+          &quot;code_insee&quot;: &quot;34119&quot;
+        },
+        &quot;geometry&quot;: {
+          &quot;type&quot;: &quot;MultiPolygon&quot;,
+          &quot;coordinates&quot;: [
+            [
+              [
+                [
+                  3.11704265,
+                  43.59258817
+                ],
+                [
+                  3.11708918,
+                  43.59258092
+                ],
+                [
+                  3.11705792,
+                  43.59248873
+                ],
+                [
+                  3.1170328,
+                  43.59249317
+                ],
+                [
+                  3.11700917,
+                  43.59249715
+                ],
+                [
+                  3.11700248,
+                  43.59249842
+                ],
+                [
+                  3.11690249,
+                  43.59251535
+                ],
+                [
+                  3.11689688,
+                  43.59249421
+                ],
+                [
+                  3.11679688,
+                  43.59250791
+                ],
+                [
+                  3.11678103,
+                  43.59262687
+                ],
+                [
+                  3.1169189,
+                  43.59260648
+                ],
+                [
+                  3.11704265,
+                  43.59258817
+                ]
+              ]
+            ]
+          ]
+        }
+      },
+      &quot;seconds&quot;: 2.17
+    },
+    {
+      &quot;name&quot;: &quot;parcelle Lamalou-les-Bains&quot;,
+      &quot;result&quot;: {
+        &quot;found&quot;: true,
+        &quot;commune&quot;: &quot;34126&quot;,
+        &quot;code_insee&quot;: &quot;34126&quot;,
+        &quot;section&quot;: &quot;C&quot;,
+        &quot;numero&quot;: &quot;2320&quot;,
+        &quot;properties&quot;: {
+          &quot;gid&quot;: 34316923,
+          &quot;numero&quot;: &quot;2320&quot;,
+          &quot;feuille&quot;: 3,
+          &quot;section&quot;: &quot;0C&quot;,
+          &quot;code_dep&quot;: &quot;34&quot;,
+          &quot;nom_com&quot;: &quot;Lamalou-les-Bains&quot;,
+          &quot;code_com&quot;: &quot;126&quot;,
+          &quot;com_abs&quot;: &quot;000&quot;,
+          &quot;code_arr&quot;: &quot;000&quot;,
+          &quot;idu&quot;: &quot;341260000C2320&quot;,
+          &quot;contenance&quot;: 1631,
+          &quot;code_insee&quot;: &quot;34126&quot;
+        },
+        &quot;geometry&quot;: {
+          &quot;type&quot;: &quot;MultiPolygon&quot;,
+          &quot;coordinates&quot;: [
+            [
+              [
+                [
+                  3.08002302,
+                  43.58728483
+                ],
+                [
+                  3.08001709,
+                  43.58729563
+                ],
+                [
+                  3.07979348,
+                  43.58770042
+                ],
+                [
+                  3.0799129,
+                  43.58767235
+                ],
+                [
+                  3.07999991,
+                  43.58776055
+                ],
+                [
+                  3.0801233,
+                  43.587743
+                ],
+                [
+                  3.08054866,
+                  43.58768303
+                ],
+                [
+                  3.08068688,
+                  43.58765261
+                ],
+                [
+                  3.08067583,
+                  43.58753826
+                ],
+                [
+                  3.08051328,
+                  43.58752209
+                ],
+                [
+                  3.0803881,
+                  43.58749762
+                ],
+                [
+                  3.08033994,
+                  43.58748695
+                ],
+                [
+                  3.08034697,
+                  43.58747174
+                ],
+                [
+                  3.08033805,
+                  43.5874695
+                ],
+                [
+                  3.08033472,
+                  43.5874749
+                ],
+                [
+                  3.08025238,
+                  43.5874557
+                ],
+                [
+                  3.08024929,
+                  43.58746218
+                ],
+                [
+                  3.08014763,
+                  43.58743779
+                ],
+                [
+                  3.08012318,
+                  43.58748153
+                ],
+                [
+                  3.08008404,
+                  43.5875512
+                ],
+                [
+                  3.08014235,
+                  43.58755359
+                ],
+                [
+                  3.08026527,
+                  43.5875589
+                ],
+                [
+                  3.08037693,
+                  43.58756376
+                ],
+                [
+                  3.08037929,
+                  43.58757042
+                ],
+                [
+                  3.08041371,
+                  43.58766694
+                ],
+                [
+                  3.08040777,
+                  43.58766802
+                ],
+                [
+                  3.08032288,
+                  43.58768374
+                ],
+                [
+                  3.0803117,
+                  43.58765253
+                ],
+                [
+                  3.080282,
+                  43.58765795
+                ],
+                [
+                  3.08016728,
+                  43.58767918
+                ],
+                [
+                  3.08015206,
+                  43.58768198
+                ],
+                [
+                  3.08001992,
+                  43.58763844
+                ],
+                [
+                  3.08003659,
+                  43.58760855
+                ],
+                [
+                  3.07999064,
+                  43.58759275
+                ],
+                [
+                  3.08006716,
+                  43.58742669
+                ],
+                [
+                  3.08011381,
+                  43.58732534
+                ],
+                [
+                  3.08022005,
+                  43.5873501
+                ],
+                [
+                  3.08022424,
+                  43.58734128
+                ],
+                [
+                  3.08023526,
+                  43.58734343
+                ],
+                [
+                  3.08024405,
+                  43.58734504
+                ],
+                [
+                  3.08025396,
+                  43.58734692
+                ],
+                [
+                  3.08026374,
+                  43.5873488
+                ],
+                [
+                  3.08027179,
+                  43.58735033
+                ],
+                [
+                  3.08028157,
+                  43.5873523
+                ],
+                [
+                  3.08029011,
+                  43.58735382
+                ],
+                [
+                  3.0802994,
+                  43.58735571
+                ],
+                [
+                  3.08038471,
+                  43.58737211
+                ],
+                [
+                  3.08041727,
+                  43.58737946
+                ],
+                [
+                  3.08048881,
+                  43.58737023
+                ],
+                [
+                  3.08052074,
+                  43.58736634
+                ],
+                [
+                  3.08055242,
+                  43.58736092
+                ],
+                [
+                  3.08058335,
+                  43.58735406
+                ],
+                [
+                  3.08060031,
+                  43.58734955
+                ],
+                [
+                  3.08066835,
+                  43.58732511
+                ],
+                [
+                  3.08009519,
+                  43.58728928
+                ],
+                [
+                  3.08004703,
+                  43.58728625
+                ],
+                [
+                  3.08002302,
+                  43.58728483
+                ]
+              ]
+            ]
+          ]
+        }
+      },
+      &quot;seconds&quot;: 1.79
+    },
+    {
+      &quot;name&quot;: &quot;adresse Hérépian&quot;,
+      &quot;result&quot;: {
+        &quot;results&quot;: [
+          {
+            &quot;label&quot;: &quot;1 Rue de la Bascule 34600 Hérépian&quot;,
+            &quot;postcode&quot;: &quot;34600&quot;,
+            &quot;city&quot;: &quot;Hérépian&quot;,
+            &quot;citycode&quot;: &quot;34119&quot;,
+            &quot;score&quot;: 0.9524336363636362,
+            &quot;parcels&quot;: [],
+            &quot;coordinates&quot;: [
+              3.116849,
+              43.592579
+            ]
+          }
+        ]
+      },
+      &quot;seconds&quot;: 2.4
+    },
+    {
+      &quot;name&quot;: &quot;adresse Bédarieux&quot;,
+      &quot;result&quot;: {
+        &quot;results&quot;: [
+          {
+            &quot;label&quot;: &quot;1 Rue Saint Alexandre 34600 Bédarieux&quot;,
+            &quot;postcode&quot;: &quot;34600&quot;,
+            &quot;city&quot;: &quot;Bédarieux&quot;,
+            &quot;citycode&quot;: &quot;34028&quot;,
+            &quot;score&quot;: 0.9646890909090908,
+            &quot;parcels&quot;: [],
+            &quot;coordinates&quot;: [
+              3.164365,
+              43.620116
+            ]
+          },
+          {
+            &quot;label&quot;: &quot;Lieu Dit Saint Alexandre 34600 Bédarieux&quot;,
+            &quot;postcode&quot;: &quot;34600&quot;,
+            &quot;city&quot;: &quot;Bédarieux&quot;,
+            &quot;citycode&quot;: &quot;34028&quot;,
+            &quot;score&quot;: 0.4800280519480519,
+            &quot;parcels&quot;: [],
+            &quot;coordinates&quot;: [
+              3.162442,
+              43.628581
+            ]
+          }
+        ]
+      },
+      &quot;seconds&quot;: 4.02
+    },
+    {
+      &quot;name&quot;: &quot;adresse Lamalou-les-Bains&quot;,
+      &quot;result&quot;: {
+        &quot;results&quot;: [
+          {
+            &quot;label&quot;: &quot;2 Impasse de Saint-Pierre de Rhèdes 34240 Lamalou-les-Bains&quot;,
+            &quot;postcode&quot;: &quot;34240&quot;,
+            &quot;city&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;citycode&quot;: &quot;34126&quot;,
+            &quot;score&quot;: 0.9476045454545453,
+            &quot;parcels&quot;: [],
+            &quot;coordinates&quot;: [
+              3.080073,
+              43.587318
+            ]
+          }
+        ]
+      },
+      &quot;seconds&quot;: 2.44
+    },
+    {
+      &quot;name&quot;: &quot;parcelle Taussac-la-Billière&quot;,
+      &quot;result&quot;: {
+        &quot;found&quot;: true,
+        &quot;commune&quot;: &quot;34308&quot;,
+        &quot;code_insee&quot;: &quot;34308&quot;,
+        &quot;section&quot;: &quot;AB&quot;,
+        &quot;numero&quot;: &quot;0193&quot;,
+        &quot;properties&quot;: {
+          &quot;gid&quot;: 26785120,
+          &quot;numero&quot;: &quot;0193&quot;,
+          &quot;feuille&quot;: 1,
+          &quot;section&quot;: &quot;AB&quot;,
+          &quot;code_dep&quot;: &quot;34&quot;,
+          &quot;nom_com&quot;: &quot;Taussac-la-Billière&quot;,
+          &quot;code_com&quot;: &quot;308&quot;,
+          &quot;com_abs&quot;: &quot;000&quot;,
+          &quot;code_arr&quot;: &quot;000&quot;,
+          &quot;idu&quot;: &quot;34308000AB0193&quot;,
+          &quot;contenance&quot;: 100,
+          &quot;code_insee&quot;: &quot;34308&quot;
+        },
+        &quot;geometry&quot;: {
+          &quot;type&quot;: &quot;MultiPolygon&quot;,
+          &quot;coordinates&quot;: [
+            [
+              [
+                [
+                  3.08120183,
+                  43.64986947
+                ],
+                [
+                  3.081251,
+                  43.64985162
+                ],
+                [
+                  3.08130255,
+                  43.64985239
+                ],
+                [
+                  3.08130804,
+                  43.64978958
+                ],
+                [
+                  3.08129744,
+                  43.64974244
+                ],
+                [
+                  3.08132315,
+                  43.64969527
+                ],
+                [
+                  3.08124626,
+                  43.64965538
+                ],
+                [
+                  3.08124829,
+                  43.64968948
+                ],
+                [
+                  3.08125262,
+                  43.64976884
+                ],
+                [
+                  3.08125252,
+                  43.64978891
+                ],
+                [
+                  3.08125246,
+                  43.64983156
+                ],
+                [
+                  3.08119856,
+                  43.64983196
+                ],
+                [
+                  3.08120183,
+                  43.64986947
+                ]
+              ]
+            ]
+          ]
+        }
+      },
+      &quot;seconds&quot;: 3.52
+    },
+    {
+      &quot;name&quot;: &quot;parcelle Le Poujol-sur-Orb&quot;,
+      &quot;result&quot;: {
+        &quot;found&quot;: true,
+        &quot;commune&quot;: &quot;34211&quot;,
+        &quot;code_insee&quot;: &quot;34211&quot;,
+        &quot;section&quot;: &quot;A&quot;,
+        &quot;numero&quot;: &quot;0479&quot;,
+        &quot;properties&quot;: {
+          &quot;gid&quot;: 63376363,
+          &quot;numero&quot;: &quot;0479&quot;,
+          &quot;feuille&quot;: 1,
+          &quot;section&quot;: &quot;0A&quot;,
+          &quot;code_dep&quot;: &quot;34&quot;,
+          &quot;nom_com&quot;: &quot;Le Poujol-sur-Orb&quot;,
+          &quot;code_com&quot;: &quot;211&quot;,
+          &quot;com_abs&quot;: &quot;000&quot;,
+          &quot;code_arr&quot;: &quot;000&quot;,
+          &quot;idu&quot;: &quot;342110000A0479&quot;,
+          &quot;contenance&quot;: 130,
+          &quot;code_insee&quot;: &quot;34211&quot;
+        },
+        &quot;geometry&quot;: {
+          &quot;type&quot;: &quot;MultiPolygon&quot;,
+          &quot;coordinates&quot;: [
+            [
+              [
+                [
+                  3.06284727,
+                  43.57951883
+                ],
+                [
+                  3.06291969,
+                  43.57953517
+                ],
+                [
+                  3.06293512,
+                  43.57949818
+                ],
+                [
+                  3.06295067,
+                  43.57946056
+                ],
+                [
+                  3.06298919,
+                  43.57936741
+                ],
+                [
+                  3.06292318,
+                  43.57933173
+                ],
+                [
+                  3.06291405,
+                  43.57936179
+                ],
+                [
+                  3.06290259,
+                  43.57940039
+                ],
+                [
+                  3.06287882,
+                  43.57939627
+                ],
+                [
+                  3.06284727,
+                  43.57951883
+                ]
+              ]
+            ]
+          ]
+        }
+      },
+      &quot;seconds&quot;: 3.85
+    },
+    {
+      &quot;name&quot;: &quot;adresse Le Poujol-sur-Orb&quot;,
+      &quot;result&quot;: {
+        &quot;detail&quot;: &quot;Le service public d&#x27;adresses ne répond pas pour le moment.&quot;
+      },
+      &quot;seconds&quot;: 6.02
+    },
+    {
+      &quot;name&quot;: &quot;adresse Taussac-la-Billière&quot;,
+      &quot;result&quot;: {
+        &quot;detail&quot;: &quot;Le service public d&#x27;adresses ne répond pas pour le moment.&quot;
+      },
+      &quot;seconds&quot;: 6.02
+    },
+    {
+      &quot;name&quot;: &quot;DVF live maison&quot;,
+      &quot;result&quot;: {
+        &quot;status&quot;: &quot;indicatif&quot;,
+        &quot;source&quot;: &quot;https://files.data.gouv.fr/geo-dvf/latest/&quot;,
+        &quot;source_nom&quot;: &quot;Données DGFiP géolocalisées&quot;,
+        &quot;comparables&quot;: [
+          {
+            &quot;date&quot;: &quot;2025-05-01&quot;,
+            &quot;prix&quot;: 245000,
+            &quot;surface&quot;: 110.0,
+            &quot;prix_m2&quot;: 2227,
+            &quot;reference&quot;: &quot;2025-M77-1&quot;,
+            &quot;adresse&quot;: &quot;Rue test&quot;
+          },
+          {
+            &quot;date&quot;: &quot;2024-05-05&quot;,
+            &quot;prix&quot;: 250000,
+            &quot;surface&quot;: 105.0,
+            &quot;prix_m2&quot;: 2381,
+            &quot;reference&quot;: &quot;2025-M5-1&quot;,
+            &quot;adresse&quot;: &quot;Rue test&quot;
+          },
+          {
+            &quot;date&quot;: &quot;2024-05-04&quot;,
+            &quot;prix&quot;: 240000,
+            &quot;surface&quot;: 104.0,
+            &quot;prix_m2&quot;: 2308,
+            &quot;reference&quot;: &quot;2025-M4-1&quot;,
+            &quot;adresse&quot;: &quot;Rue test&quot;
+          },
+          {
+            &quot;date&quot;: &quot;2024-05-03&quot;,
+            &quot;prix&quot;: 230000,
+            &quot;surface&quot;: 103.0,
+            &quot;prix_m2&quot;: 2233,
+            &quot;reference&quot;: &quot;2025-M3-1&quot;,
+            &quot;adresse&quot;: &quot;Rue test&quot;
+          },
+          {
+            &quot;date&quot;: &quot;2024-05-02&quot;,
+            &quot;prix&quot;: 220000,
+            &quot;surface&quot;: 102.0,
+            &quot;prix_m2&quot;: 2157,
+            &quot;reference&quot;: &quot;2025-M2-1&quot;,
+            &quot;adresse&quot;: &quot;Rue test&quot;
+          },
+          {
+            &quot;date&quot;: &quot;2024-05-01&quot;,
+            &quot;prix&quot;: 210000,
+            &quot;surface&quot;: 101.0,
+            &quot;prix_m2&quot;: 2079,
+            &quot;reference&quot;: &quot;2025-M1-1&quot;,
+            &quot;adresse&quot;: &quot;Rue test&quot;
+          }
+        ],
+        &quot;nombre&quot;: 6,
+        &quot;diagnostics&quot;: [
+          {
+            &quot;source&quot;: &quot;Cache DVF local&quot;,
+            &quot;etat&quot;: &quot;accessible&quot;,
+            &quot;lignes&quot;: 6,
+            &quot;comparables&quot;: 6
+          }
+        ],
+        &quot;periode_debut&quot;: &quot;2024-05-01&quot;,
+        &quot;periode_fin&quot;: &quot;2025-05-01&quot;,
+        &quot;prix_m2_median&quot;: 2230,
+        &quot;basse&quot;: 227000,
+        &quot;centrale&quot;: 268000,
+        &quot;haute&quot;: 308000,
+        &quot;avertissement&quot;: &quot;Fourchette statistique non ajustée : état, terrain, travaux et dépendances non pris en compte. Données tierces à vérifier avant tout avis de valeur.&quot;
+      },
+      &quot;seconds&quot;: 0.01
+    },
+    {
+      &quot;name&quot;: &quot;DVF live appartement&quot;,
+      &quot;result&quot;: {
+        &quot;status&quot;: &quot;indicatif&quot;,
+        &quot;source&quot;: &quot;https://files.data.gouv.fr/geo-dvf/latest/csv/2025/communes/34/34126.csv&quot;,
+        &quot;source_nom&quot;: &quot;Données DGFiP géolocalisées&quot;,
+        &quot;comparables&quot;: [
+          {
+            &quot;date&quot;: &quot;2025-12-17&quot;,
+            &quot;prix&quot;: 104000,
+            &quot;surface&quot;: 41.0,
+            &quot;prix_m2&quot;: 2537,
+            &quot;reference&quot;: &quot;2025-2025-449195-000001&quot;,
+            &quot;adresse&quot;: &quot;CHE DU VERDALE&quot;
+          },
+          {
+            &quot;date&quot;: &quot;2025-12-11&quot;,
+            &quot;prix&quot;: 97000,
+            &quot;surface&quot;: 72.0,
+            &quot;prix_m2&quot;: 1347,
+            &quot;reference&quot;: &quot;2025-2025-449189-000001&quot;,
+            &quot;adresse&quot;: &quot;AV FRANCOIS BOISSIER&quot;
+          },
+          {
+            &quot;date&quot;: &quot;2025-11-25&quot;,
+            &quot;prix&quot;: 124000,
+            &quot;surface&quot;: 56.0,
+            &quot;prix_m2&quot;: 2214,
+            &quot;reference&quot;: &quot;2025-2025-448305-000001&quot;,
+            &quot;adresse&quot;: &quot;CHE DU VERDALE&quot;
+          },
+          {
+            &quot;date&quot;: &quot;2025-09-05&quot;,
+            &quot;prix&quot;: 70000,
+            &quot;surface&quot;: 52.0,
+            &quot;prix_m2&quot;: 1346,
+            &quot;reference&quot;: &quot;2025-2025-445717-000001&quot;,
+            &quot;adresse&quot;: &quot;AV CHARCOT&quot;
+          },
+          {
+            &quot;date&quot;: &quot;2025-09-04&quot;,
+            &quot;prix&quot;: 109565,
+            &quot;surface&quot;: 53.0,
+            &quot;prix_m2&quot;: 2067,
+            &quot;reference&quot;: &quot;2025-2025-445505-000001&quot;,
+            &quot;adresse&quot;: &quot;IMP LE CONTINENTAL&quot;
+          },
+          {
+            &quot;date&quot;: &quot;2025-08-22&quot;,
+            &quot;prix&quot;: 64850,
+            &quot;surface&quot;: 34.0,
+            &quot;prix_m2&quot;: 1907,
+            &quot;reference&quot;: &quot;2025-2025-445162-000001&quot;,
+            &quot;adresse&quot;: &quot;RES PLEIN SOLEIL&quot;
+          },
+          {
+            &quot;date&quot;: &quot;2025-08-04&quot;,
+            &quot;prix&quot;: 88000,
+            &quot;surface&quot;: 60.0,
+            &quot;prix_m2&quot;: 1467,
+            &quot;reference&quot;: &quot;2025-2025-444599-000001&quot;,
+            &quot;adresse&quot;: &quot;AV CHARCOT&quot;
+          },
+          {
+            &quot;date&quot;: &quot;2025-06-30&quot;,
+            &quot;prix&quot;: 96000,
+            &quot;surface&quot;: 69.0,
+            &quot;prix_m2&quot;: 1391,
+            &quot;reference&quot;: &quot;2025-2025-443761-000001&quot;,
+            &quot;adresse&quot;: &quot;BD DU MOURCAYROL&quot;
+          },
+          {
+            &quot;date&quot;: &quot;2025-06-30&quot;,
+            &quot;prix&quot;: 144895,
+            &quot;surface&quot;: 66.0,
+            &quot;prix_m2&quot;: 2195,
+            &quot;reference&quot;: &quot;2025-2025-443762-000001&quot;,
+            &quot;adresse&quot;: &quot;AV MAL FOCH&quot;
+          },
+          {
+            &quot;date&quot;: &quot;2025-06-02&quot;,
+            &quot;prix&quot;: 70000,
+            &quot;surface&quot;: 45.0,
+            &quot;prix_m2&quot;: 1556,
+            &quot;reference&quot;: &quot;2025-2025-442228-000001&quot;,
+            &quot;adresse&quot;: &quot;AV DE LA REPUBLIQUE&quot;
+          },
+          {
+            &quot;date&quot;: &quot;2025-03-21&quot;,
+            &quot;prix&quot;: 79000,
+            &quot;surface&quot;: 41.0,
+            &quot;prix_m2&quot;: 1927,
+            &quot;reference&quot;: &quot;2025-2025-440358-000001&quot;,
+            &quot;adresse&quot;: &quot;CHEM DU VERDALE&quot;
+          },
+          {
+            &quot;date&quot;: &quot;2025-03-18&quot;,
+            &quot;prix&quot;: 75000,
+            &quot;surface&quot;: 46.0,
+            &quot;prix_m2&quot;: 1630,
+            &quot;reference&quot;: &quot;2025-2025-440053-000001&quot;,
+            &quot;adresse&quot;: &quot;AV CHARCOT&quot;
+          },
+          {
+            &quot;date&quot;: &quot;2025-01-27&quot;,
+            &quot;prix&quot;: 106740,
+            &quot;surface&quot;: 42.0,
+            &quot;prix_m2&quot;: 2541,
+            &quot;reference&quot;: &quot;2025-2025-438556-000001&quot;,
+            &quot;adresse&quot;: &quot;AV DE BARDEJEAN&quot;
+          },
+          {
+            &quot;date&quot;: &quot;2025-01-24&quot;,
+            &quot;prix&quot;: 135000,
+            &quot;surface&quot;: 72.0,
+            &quot;prix_m2&quot;: 1875,
+            &quot;reference&quot;: &quot;2025-2025-438496-000001&quot;,
+            &quot;adresse&quot;: &quot;IMP LE CONTINENTAL&quot;
+          }
+        ],
+        &quot;nombre&quot;: 14,
+        &quot;diagnostics&quot;: [
+          {
+            &quot;source&quot;: &quot;Cache DVF local&quot;,
+            &quot;etat&quot;: &quot;vide&quot;,
+            &quot;lignes&quot;: 0,
+            &quot;comparables&quot;: 0
+          },
+          {
+            &quot;source&quot;: &quot;DVF géolocalisées 2025&quot;,
+            &quot;etat&quot;: &quot;accessible&quot;,
+            &quot;lignes&quot;: 61
+          }
+        ],
+        &quot;periode_debut&quot;: &quot;2025-01-24&quot;,
+        &quot;periode_fin&quot;: &quot;2025-12-17&quot;,
+        &quot;prix_m2_median&quot;: 1891,
+        &quot;basse&quot;: 94000,
+        &quot;centrale&quot;: 110000,
+        &quot;haute&quot;: 127000,
+        &quot;avertissement&quot;: &quot;Fourchette statistique non ajustée : état, terrain, travaux et dépendances non pris en compte. Données tierces à vérifier avant tout avis de valeur.&quot;
+      },
+      &quot;seconds&quot;: 12.3
+    },
+    {
+      &quot;name&quot;: &quot;annonces hors Lamalou&quot;,
+      &quot;result&quot;: {
+        &quot;status&quot;: &quot;aucun_resultat&quot;,
+        &quot;annonces&quot;: [],
+        &quot;recherches_agences&quot;: [
+          {
+            &quot;nom&quot;: &quot;Roques Immobilier&quot;,
+            &quot;url&quot;: &quot;https://www.google.com/search?q=site%3Aroques-immobilier.com+%22B%C3%A9darieux%22+maison+vente&quot;
+          },
+          {
+            &quot;nom&quot;: &quot;IAD&quot;,
+            &quot;url&quot;: &quot;https://www.google.com/search?q=site%3Aiadfrance.fr+%22B%C3%A9darieux%22+maison+vente&quot;
+          },
+          {
+            &quot;nom&quot;: &quot;SAFTI&quot;,
+            &quot;url&quot;: &quot;https://www.google.com/search?q=site%3Asafti.fr+%22B%C3%A9darieux%22+maison+vente&quot;
+          },
+          {
+            &quot;nom&quot;: &quot;SeLoger&quot;,
+            &quot;url&quot;: &quot;https://www.google.com/search?q=site%3Aseloger.com+%22B%C3%A9darieux%22+maison+vente&quot;
+          },
+          {
+            &quot;nom&quot;: &quot;Leboncoin&quot;,
+            &quot;url&quot;: &quot;https://www.google.com/search?q=site%3Aleboncoin.fr+%22B%C3%A9darieux%22+maison+vente&quot;
+          },
+          {
+            &quot;nom&quot;: &quot;Bien’ici&quot;,
+            &quot;url&quot;: &quot;https://www.google.com/search?q=site%3Abienici.com+%22B%C3%A9darieux%22+maison+vente&quot;
+          },
+          {
+            &quot;nom&quot;: &quot;Agences locales&quot;,
+            &quot;url&quot;: &quot;https://www.google.com/search?q=%22B%C3%A9darieux%22+maison+vente&quot;
+          }
+        ],
+        &quot;message&quot;: &quot;Aucune annonce récupérée automatiquement. Les liens ci-dessous restent disponibles pour rechercher et ajouter des comparables.&quot;,
+        &quot;diagnostics&quot;: [
+          {
+            &quot;source&quot;: &quot;Catalogues directs&quot;,
+            &quot;etat&quot;: &quot;commune_non_couverte&quot;
+          }
+        ],
+        &quot;limites&quot;: &quot;Catalogues consultés à Lamalou-les-Bains : Roques Immobilier, IAD, SAFTI, Superimmo et Bien’ici. Résultats non exhaustifs ; autres communes par liens. Doublons résiduels possibles. Prix affichés, disponibilité à confirmer ; aucune intégration automatique au calcul DVF.&quot;
+      },
+      &quot;seconds&quot;: 0.01
+    },
+    {
+      &quot;name&quot;: &quot;annonces live Lamalou&quot;,
+      &quot;result&quot;: {
+        &quot;status&quot;: &quot;resultats&quot;,
+        &quot;annonces&quot;: [
+          {
+            &quot;titre&quot;: &quot;Belle villa de plain pied! — 103 m² — 5 pièces&quot;,
+            &quot;description&quot;: &quot;Découvrez en exclusivité chez API, cette belle villa de plain-pied composée d&#x27;un hall d&#x27;entrée desservant la pièce de vie avec bureau et la cuisine semi ouverte. Ces quatre…&quot;,
+            &quot;prix&quot;: 209000,
+            &quot;surface&quot;: 103.0,
+            &quot;prix_m2&quot;: 2029,
+            &quot;site&quot;: &quot;Bien’ici&quot;,
+            &quot;source_recherche&quot;: &quot;Bien’ici&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;photo&quot;: &quot;https://file.bienici.com/photo/hektor-apiagencepezenas-653_apiagencepezenas.staticlbi.com_original_images_biens_1_afb5a452ba3fb615634c1d5f4398489a_photo_9c61222655a0b3b020ae4e7a766e6ae0.png&quot;,
+            &quot;url&quot;: &quot;https://www.bienici.com/annonce/hektor-apiagencepezenas-653&quot;,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:27&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison 6 pièce(s), LAMALOU-LES-BAINS — 103 m² — 6 pièces&quot;,
+            &quot;description&quot;: &quot;AMENAGEMENT : Plusieurs accès sont possibles : - portail ouvrant directement sur l&#x27;entrée principale, - une second portail sur une allée latérale, - un accès indépendant à une…&quot;,
+            &quot;prix&quot;: 288000,
+            &quot;surface&quot;: 103.0,
+            &quot;prix_m2&quot;: 2796,
+            &quot;site&quot;: &quot;Bien’ici&quot;,
+            &quot;source_recherche&quot;: &quot;Bien’ici&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;photo&quot;: &quot;https://file.bienici.com/photo/legget-PROFV46MPHX8_image.hestia.immo_YESuhjiDR69dJzSO-t80HlXojYgFXtn4HCGsJkqhcUY_w_800_h_600_rt_fill_wm_0.9_so_1_75_0.25_dpr_1_el_false_ex_false_mb_0_aHR0cHM6Ly9jZG4uaGVzdGlhLmltbW8vaW1hZ2UvVEVOM1hQTkMvMjAyNi0wNC9ET0NDUUJNM0MxNUEuanBn.jpg&quot;,
+            &quot;url&quot;: &quot;https://www.bienici.com/annonce/legget-PROFV46MPHX8&quot;,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:27&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison • 104 m² • 6 pièces • 4 chambres&quot;,
+            &quot;description&quot;: &quot;Une maison familiale entre nature et proximité du centre-ville Et si vous pouviez profiter du calme de la campagne tout en restant à quelques minutes du centre de Lamalou-les-Bains&quot;,
+            &quot;site&quot;: &quot;Corinne POULLETTE - Tower immobilier via Superimmo&quot;,
+            &quot;source_recherche&quot;: &quot;Superimmo&quot;,
+            &quot;url&quot;: &quot;https://www.superimmo.com/annonces/achat-maison-104m-lamalou-les-bains-34240-x11mal7&quot;,
+            &quot;photo&quot;: &quot;https://photo.superimmo.com/kdh03imw14bw09hasbnz1208oqr8&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;prix&quot;: 280000,
+            &quot;surface&quot;: 104.0,
+            &quot;prix_m2&quot;: 2692,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:29&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison • 95 m² • 6 pièces • 4 chambres&quot;,
+            &quot;description&quot;: &quot;Maison spacieuse de style typique de Lamalou --- 6 pièces --- 4 chambres --- espaces dressing / débarras / remises --- jardin / terrasses --- piscine semi-enterrée --- garage Dispo&quot;,
+            &quot;site&quot;: &quot;HONIG IMMOBILIER INTERNATIONAL via Superimmo&quot;,
+            &quot;source_recherche&quot;: &quot;Superimmo&quot;,
+            &quot;url&quot;: &quot;https://www.superimmo.com/annonces/achat-maison-95m-lamalou-les-bains-34240-x124dna&quot;,
+            &quot;photo&quot;: &quot;https://photo.superimmo.com/peblzaudsluaq60wnhtt8hoc3qjv&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;prix&quot;: 225000,
+            &quot;surface&quot;: 95.0,
+            &quot;prix_m2&quot;: 2368,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:29&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison individuelle — 108 m² — 5 pièces&quot;,
+            &quot;description&quot;: &quot;Maison en pierre avec vue dominante dans la commune de Lamalou les Bains, avec son large éventail de commodités et commerces. Cette maison est située au calme dans un des…&quot;,
+            &quot;prix&quot;: 247500,
+            &quot;surface&quot;: 108.0,
+            &quot;prix_m2&quot;: 2292,
+            &quot;site&quot;: &quot;Bien’ici&quot;,
+            &quot;source_recherche&quot;: &quot;Bien’ici&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;photo&quot;: &quot;https://file.bienici.com/photo/adapt-immo-34449509_photos.exportadapt.com_34449_34449509_35.jpg&quot;,
+            &quot;url&quot;: &quot;https://www.bienici.com/annonce/adapt-immo-34449509&quot;,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:27&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Villa 5 pièce(s) 2 chambre(s) 110 m²&quot;,
+            &quot;description&quot;: &quot;A vendre à LAMALOU LES BAINS, maison de 5 pièces 110m² avec garage de 22m²&quot;,
+            &quot;photo&quot;: &quot;https://roquesimmobilie.staticlbi.com/900xauto/images/biens/2/f2cc3e9c04493f993d454f3ec5e966df/photo_daff7c1fabd3e2e197cec49526ba7f03.jpg&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;url&quot;: &quot;https://www.roques-immobilier.com/vente/4-lamalou-les-bains/villa/9330-a-vendre-a-lamalou-les-bains-maison-de-5-pieces-110m-avec-garage-de-22m&quot;,
+            &quot;site&quot;: &quot;Roques Immobilier&quot;,
+            &quot;prix&quot;: 288000,
+            &quot;surface&quot;: 110.0,
+            &quot;prix_m2&quot;: 2618,
+            &quot;fiabilite&quot;: &quot;Annonce présente sur le catalogue public ; disponibilité à confirmer auprès de l’agence&quot;,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:29&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison • 90 m² • 4 pièces • 3 chambres&quot;,
+            &quot;description&quot;: &quot;Agréable et lumineuse, cette villa 2 faces de 87 m2 environ , se trouve dans un quartier calme et recherché de LAMALOU LES BAINS, Elle se compose au rez de chaussée d&#x27;un garage de &quot;,
+            &quot;site&quot;: &quot;Superimmo&quot;,
+            &quot;source_recherche&quot;: &quot;Superimmo&quot;,
+            &quot;url&quot;: &quot;https://www.superimmo.com/annonces/achat-maison-90m-lamalou-les-bains-34240-x11kqjm&quot;,
+            &quot;photo&quot;: &quot;https://photo.superimmo.com/d4435kv2fyg0qcszqzfhys2c1ac2&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;prix&quot;: 210000,
+            &quot;surface&quot;: 90.0,
+            &quot;prix_m2&quot;: 2333,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:29&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Villa 3 pièce(s) 2 chambre(s) 88 m²&quot;,
+            &quot;description&quot;: &quot;LAMALOU LES BAINS à vendre Maison 88m² type T3&quot;,
+            &quot;photo&quot;: &quot;https://roquesimmobilie.staticlbi.com/900xauto/images/biens/2/fff3bfb1bd3e9855f1166bc4eda08fcd/photo_6920bf8860719f3989adeec5a44be16f.jpg&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;url&quot;: &quot;https://www.roques-immobilier.com/vente/4-lamalou-les-bains/villa/10205-lamalou-les-bains-a-vendre-maison-88m-type-t3&quot;,
+            &quot;site&quot;: &quot;Roques Immobilier&quot;,
+            &quot;prix&quot;: 220000,
+            &quot;surface&quot;: 88.0,
+            &quot;prix_m2&quot;: 2500,
+            &quot;fiabilite&quot;: &quot;Annonce présente sur le catalogue public ; disponibilité à confirmer auprès de l’agence&quot;,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:29&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Plain pied, 4 faces sur grande parcelle! — 112 m² — 5 pièces&quot;,
+            &quot;description&quot;: &quot;L&#x27;agence API a le plaisir de vous proposer en exclusivité cette belle villa des années 60 accompagnée de son abri voiture d&#x27;origine! Au fond d&#x27;une impasse, implantée sur 1…&quot;,
+            &quot;prix&quot;: 229000,
+            &quot;surface&quot;: 112.0,
+            &quot;prix_m2&quot;: 2045,
+            &quot;site&quot;: &quot;Bien’ici&quot;,
+            &quot;source_recherche&quot;: &quot;Bien’ici&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;photo&quot;: &quot;https://file.bienici.com/photo/hektor-apiagencepezenas-654_apiagencepezenas.staticlbi.com_original_images_biens_1_b845b3a6489953d32184b600b0edb9ac_photo_027157b639ce4c8cbb014e537356f611.jpg&quot;,
+            &quot;url&quot;: &quot;https://www.bienici.com/annonce/hektor-apiagencepezenas-654&quot;,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:27&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison à Lamalou-les-Bains (34240)&quot;,
+            &quot;description&quot;: &quot;Maison à Lamalou-les-Bains (34240) — Lamalou-les-Bains — 115 m²&quot;,
+            &quot;site&quot;: &quot;IAD&quot;,
+            &quot;source_recherche&quot;: &quot;IAD&quot;,
+            &quot;url&quot;: &quot;https://www.iadfrance.fr/annonce/maison-vente-6-pieces-lamalou-les-bains-115m2/r1937917&quot;,
+            &quot;photo&quot;: &quot;https://images.iadfrance.fr/property/broadcast/2026/02/02/019c1d85cd8509d140b6caa31548d53a.jpg?format=auto&amp;width=300&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;prix&quot;: 169000,
+            &quot;surface&quot;: 115.0,
+            &quot;prix_m2&quot;: 1470,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:30&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison — 85 m² — 7 pièces&quot;,
+            &quot;description&quot;: &quot;Jolie petite maison en face du jardin japonais, à moins de 500 mètres des Thermes, à 100 mètres des Halles et du centre de la station. La maison propose des appartements F2 et…&quot;,
+            &quot;prix&quot;: 223000,
+            &quot;surface&quot;: 85.0,
+            &quot;prix_m2&quot;: 2624,
+            &quot;site&quot;: &quot;Bien’ici&quot;,
+            &quot;source_recherche&quot;: &quot;Bien’ici&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;photo&quot;: &quot;https://file.bienici.com/photo/adapt-immo-340525490_photos.exportadapt.com_34052_340525490_5.jpg&quot;,
+            &quot;url&quot;: &quot;https://www.bienici.com/annonce/adapt-immo-340525490&quot;,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:27&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison • 117 m² • 5 pièces • 3 chambres&quot;,
+            &quot;description&quot;: &quot;Dans le hameau très recherché de Villecelle, à seulement 2,9 km de Lamalou-les-Bains, découvrez cette agréable maison de village d’environ 117 m2 habitables, nichée dans un environ&quot;,
+            &quot;site&quot;: &quot;David LARCO - Groupement Immobilier via Superimmo&quot;,
+            &quot;source_recherche&quot;: &quot;Superimmo&quot;,
+            &quot;url&quot;: &quot;https://www.superimmo.com/annonces/achat-maison-117m-lamalou-les-bains-34240-xxnc2b&quot;,
+            &quot;photo&quot;: &quot;https://photo.superimmo.com/bql57h83hz1lmrpbxs31he2t0apn&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;prix&quot;: 169000,
+            &quot;surface&quot;: 117.0,
+            &quot;prix_m2&quot;: 1444,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:29&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison mitoyenne — 83 m² — 6 pièces&quot;,
+            &quot;description&quot;: &quot;Située dans un environnement agréable et recherché de Lamalou-les-Bains, cette maison élevée d&#x27;un étage offre de beaux volumes et un cadre de vie idéal pour une famille. Au…&quot;,
+            &quot;prix&quot;: 210000,
+            &quot;surface&quot;: 83.0,
+            &quot;prix_m2&quot;: 2530,
+            &quot;site&quot;: &quot;Bien’ici&quot;,
+            &quot;source_recherche&quot;: &quot;Bien’ici&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;photo&quot;: &quot;https://file.bienici.com/photo/adapt-immo-340525464_photos.exportadapt.com_34052_340525464_15.jpg&quot;,
+            &quot;url&quot;: &quot;https://www.bienici.com/annonce/adapt-immo-340525464&quot;,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:27&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Villa 5 pièce(s) 4 chambre(s) 124 m²&quot;,
+            &quot;description&quot;: &quot;Lamalou-les-Bains, à vendre belle villa 5 pièces avec jardin et piscine&quot;,
+            &quot;photo&quot;: &quot;https://roquesimmobilie.staticlbi.com/900xauto/images/biens/2/daaae135712ad57792d57ec8ebde52f5/photo_2abd4fd980cfa56872c9c913afb5d8a7.jpg&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;url&quot;: &quot;https://www.roques-immobilier.com/vente/4-lamalou-les-bains/villa/9259-lamalou-les-bains-a-vendre-belle-villa-5-pieces-avec-jardin-et-piscine&quot;,
+            &quot;site&quot;: &quot;Roques Immobilier&quot;,
+            &quot;prix&quot;: 390000,
+            &quot;surface&quot;: 124.0,
+            &quot;prix_m2&quot;: 3145,
+            &quot;fiabilite&quot;: &quot;Annonce présente sur le catalogue public ; disponibilité à confirmer auprès de l’agence&quot;,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:29&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison à Lamalou-les-Bains (34240)&quot;,
+            &quot;description&quot;: &quot;Maison à Lamalou-les-Bains (34240) — Lamalou-les-Bains — 125 m²&quot;,
+            &quot;site&quot;: &quot;IAD&quot;,
+            &quot;source_recherche&quot;: &quot;IAD&quot;,
+            &quot;url&quot;: &quot;https://www.iadfrance.fr/annonce/maison-vente-5-pieces-lamalou-les-bains-125m2/r1945916&quot;,
+            &quot;photo&quot;: &quot;https://images.iadfrance.fr/property/broadcast/2026/02/06/019c32a4f99128a52b8ca86541c979bf.jpg?format=auto&amp;width=300&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;prix&quot;: 195000,
+            &quot;surface&quot;: 125.0,
+            &quot;prix_m2&quot;: 1560,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:30&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison à Lamalou-les-Bains (34240)&quot;,
+            &quot;description&quot;: &quot;Maison à Lamalou-les-Bains (34240) — Lamalou-les-Bains — 73 m²&quot;,
+            &quot;site&quot;: &quot;IAD&quot;,
+            &quot;source_recherche&quot;: &quot;IAD&quot;,
+            &quot;url&quot;: &quot;https://www.iadfrance.fr/annonce/maison-vente-2-pieces-lamalou-les-bains-73m2/r2097306&quot;,
+            &quot;photo&quot;: &quot;https://images.iadfrance.fr/property/broadcast/2026/09/23/01a0cf1ba2bd1eedf78341c559975acd.jpg?format=auto&amp;width=300&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;prix&quot;: 269000,
+            &quot;surface&quot;: 73.0,
+            &quot;prix_m2&quot;: 3685,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:30&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison 5 pièce(s) 3 chambre(s) 130 m²&quot;,
+            &quot;description&quot;: &quot;A Vendre, Maison composée de deux appartements, Lamalou les bains&quot;,
+            &quot;photo&quot;: &quot;https://roquesimmobilie.staticlbi.com/900xauto/images/biens/2/72363681b4b0bf10dec377c7b1d68e27/photo_501048957ccd4fddd2b0a02d8c40c187.png&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;url&quot;: &quot;https://www.roques-immobilier.com/vente/4-lamalou-les-bains/maison/10644-a-vendre-maison-composee-de-deux-appartements-lamalou-les-bains&quot;,
+            &quot;site&quot;: &quot;Roques Immobilier&quot;,
+            &quot;prix&quot;: 180000,
+            &quot;surface&quot;: 130.0,
+            &quot;prix_m2&quot;: 1385,
+            &quot;fiabilite&quot;: &quot;Annonce présente sur le catalogue public ; disponibilité à confirmer auprès de l’agence&quot;,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:29&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison 5 pièce(s), LAMALOU-LES-BAINS — 131 m² — 5 pièces&quot;,
+            &quot;description&quot;: &quot;Cette maison clôturée dispose de pièces avec de beaux volumes au milieu d&#x27;une parcelle de presque 600 m². EQUIPEMENT : Clôturée Chauffage central au gaz de ville avec chaudière…&quot;,
+            &quot;prix&quot;: 180000,
+            &quot;surface&quot;: 131.0,
+            &quot;prix_m2&quot;: 1374,
+            &quot;site&quot;: &quot;Bien’ici&quot;,
+            &quot;source_recherche&quot;: &quot;Bien’ici&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;photo&quot;: &quot;https://file.bienici.com/photo/legget-PRO1ZBD48CNW_image.hestia.immo_6luc4VoD8WTNr--MSEOhGS0LgG1r4655VpHdiyMpCoI_w_800_h_600_rt_fill_wm_0.9_so_1_75_0.25_dpr_1_el_false_ex_false_mb_0_aHR0cHM6Ly9jZG4uaGVzdGlhLmltbW8vaW1hZ2UvVEVOM1hQTkMvMjAyNi0wMy9ET0NTNTlWMkozN1cuanBn.jpg&quot;,
+            &quot;url&quot;: &quot;https://www.bienici.com/annonce/legget-PRO1ZBD48CNW&quot;,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:27&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison • 135 m² • 6 pièces • 3 chambres&quot;,
+            &quot;description&quot;: &quot;Dans vos agences Laborie, située à deux pas de Lamalou-les-Bains, à 10min de Bédarieux, venez découvrir cette authentique maison en pierre et son studio de 50m2. Au rez de chaussée&quot;,
+            &quot;site&quot;: &quot;LABORIE IMMOBILIER via Superimmo&quot;,
+            &quot;source_recherche&quot;: &quot;Superimmo&quot;,
+            &quot;url&quot;: &quot;https://www.superimmo.com/annonces/achat-maison-135m-lamalou-les-bains-34240-xxs64x&quot;,
+            &quot;photo&quot;: &quot;https://photo.superimmo.com/fcyi313d48vdtjwyy88ya6dm6cf6&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;prix&quot;: 115000,
+            &quot;surface&quot;: 135.0,
+            &quot;prix_m2&quot;: 852,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:29&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison 6 pièce(s) 3 chambre(s) 137 m²&quot;,
+            &quot;description&quot;: &quot;À vendre à Lamalou les Bains, maison familiale avec vue dégagée et terrain arboré&quot;,
+            &quot;photo&quot;: &quot;https://roquesimmobilie.staticlbi.com/900xauto/images/biens/2/f59e0375543ecfa131f24a21a75eea94/photo_e639be8488c82ec5b05108126a97fe12.jpg&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;url&quot;: &quot;https://www.roques-immobilier.com/vente/4-lamalou-les-bains/maison/10491-a-vendre-a-lamalou-les-bains-maison-familiale-avec-vue-degagee-et-terrain-arbore&quot;,
+            &quot;site&quot;: &quot;Roques Immobilier&quot;,
+            &quot;prix&quot;: 260000,
+            &quot;surface&quot;: 137.0,
+            &quot;prix_m2&quot;: 1898,
+            &quot;fiabilite&quot;: &quot;Annonce présente sur le catalogue public ; disponibilité à confirmer auprès de l’agence&quot;,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:29&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison 6 pièce(s) 4 chambre(s) 145 m²&quot;,
+            &quot;description&quot;: &quot;A VENDRE Lamalou les Bains : Maison en centre ville de 7 pièces, 4 chambres pour 145 m² avec garage et studio&quot;,
+            &quot;photo&quot;: &quot;https://roquesimmobilie.staticlbi.com/900xauto/images/biens/2/da6c88d29b6a0a3c00acfbe0167ae719/photo_174a122f7e47a523642d0edf370e4149.jpg&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;url&quot;: &quot;https://www.roques-immobilier.com/vente/4-lamalou-les-bains/maison/9424-a-vendre-lamalou-les-bains-maison-en-centre-ville-de-7-pieces-4-chambres-pour-145-m-avec-garage-et-studio&quot;,
+            &quot;site&quot;: &quot;Roques Immobilier&quot;,
+            &quot;prix&quot;: 325000,
+            &quot;surface&quot;: 145.0,
+            &quot;prix_m2&quot;: 2241,
+            &quot;fiabilite&quot;: &quot;Annonce présente sur le catalogue public ; disponibilité à confirmer auprès de l’agence&quot;,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:29&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison 6 pièce(s) 5 chambre(s) 147 m²&quot;,
+            &quot;description&quot;: &quot;LAMALOU LES BAINS à vendre center ville Immeuble de 2 appartements T2 et T4&quot;,
+            &quot;photo&quot;: &quot;https://roquesimmobilie.staticlbi.com/900xauto/images/biens/2/b214781ca6eb8d2fe709cea50121c701/photo_5e59ceb7475ae35bba54f142a27568e6.jpg&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;url&quot;: &quot;https://www.roques-immobilier.com/vente/4-lamalou-les-bains/maison/10315-lamalou-les-bains-a-vendre-center-ville-immeuble-de-2-appartements-t2-et-t4&quot;,
+            &quot;site&quot;: &quot;Roques Immobilier&quot;,
+            &quot;prix&quot;: 190000,
+            &quot;surface&quot;: 147.0,
+            &quot;prix_m2&quot;: 1293,
+            &quot;fiabilite&quot;: &quot;Annonce présente sur le catalogue public ; disponibilité à confirmer auprès de l’agence&quot;,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:29&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison - 7 pièces - 150m²&quot;,
+            &quot;description&quot;: &quot;Maison - 7 pièces - 150m² — Lamalou-les-Bains — 150 m²&quot;,
+            &quot;site&quot;: &quot;SAFTI&quot;,
+            &quot;source_recherche&quot;: &quot;SAFTI&quot;,
+            &quot;url&quot;: &quot;https://www.safti.fr/annonces/achat/maison/lamalou-les-bains-34240/1601838&quot;,
+            &quot;photo&quot;: &quot;https://cdn.safti.fr/bien-photo/61/01/1601838/405e7209254ded38cf2a50c391c4cf4c9b757bcb/rg_nobn.jpg&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;prix&quot;: 299500,
+            &quot;surface&quot;: 150.0,
+            &quot;prix_m2&quot;: 1997,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:28&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison • 167 m² • Meublée • 9 pièces • 6 chambres&quot;,
+            &quot;description&quot;: &quot;Proche des thermes de Lamalou les Bains, cette propriété offre une opportunité d&#x27;investissement exceptionnelle. Un bien rare, destiné à l&#x27;investisseur averti en quête d&#x27;un actif du&quot;,
+            &quot;site&quot;: &quot;Superimmo&quot;,
+            &quot;source_recherche&quot;: &quot;Superimmo&quot;,
+            &quot;url&quot;: &quot;https://www.superimmo.com/annonces/achat-maison-167m-lamalou-les-bains-34240-x125zsa&quot;,
+            &quot;photo&quot;: &quot;https://photo.superimmo.com/oml2jvsecfm5o74fyhwndbmqq7bj&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;prix&quot;: 380000,
+            &quot;surface&quot;: 167.0,
+            &quot;prix_m2&quot;: 2275,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:29&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;PORTES DE LAMALOU-LES-BAINS VILLA SPACIEUSE AVEC VÉRANDA, — 170 m² — 5 pièces&quot;,
+            &quot;description&quot;: &quot;À seulement quelques minutes de Lamalou-les-Bains, sur la commune des Aires, découvrez cette villa 170 m2 reelement utiles parfaitement entretenue offrant de beaux volumes, de…&quot;,
+            &quot;prix&quot;: 299000,
+            &quot;surface&quot;: 170.0,
+            &quot;prix_m2&quot;: 1759,
+            &quot;site&quot;: &quot;Bien’ici&quot;,
+            &quot;source_recherche&quot;: &quot;Bien’ici&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;photo&quot;: &quot;https://file.bienici.com/photo/hektor-2331_EXPERTIMO22-277809_expertimo.staticlbi.com_original_images_biens_2331_36cc3874ed2abb3eb88e868c9bee29c9_photo_d511f039d182d8dfbd8a5da63be36c33.jpg&quot;,
+            &quot;url&quot;: &quot;https://www.bienici.com/annonce/hektor-2331_EXPERTIMO22-277809&quot;,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:27&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Magnifique villa avec piscine, jardin, vue et garage — 170 m² — 9 pièces&quot;,
+            &quot;description&quot;: &quot;A Vendre / A Vendre / A Vendre - Maison spacieuse à Lamalou-les-bains Cette magnifique maison est située dans un quartier populaire à la périphérie du village de…&quot;,
+            &quot;prix&quot;: 570000,
+            &quot;surface&quot;: 170.0,
+            &quot;prix_m2&quot;: 3353,
+            &quot;site&quot;: &quot;Bien’ici&quot;,
+            &quot;source_recherche&quot;: &quot;Bien’ici&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;photo&quot;: &quot;&quot;,
+            &quot;url&quot;: &quot;https://www.bienici.com/annonce/gedeon-26503920&quot;,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:27&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison 8 pièce(s) 5 chambre(s) 190 m²&quot;,
+            &quot;description&quot;: &quot;A Vendre, maison composée de trois appartements avec terrain, Lamalou les bains&quot;,
+            &quot;photo&quot;: &quot;https://roquesimmobilie.staticlbi.com/900xauto/images/biens/2/b70fd33a74215dd2fa5276e7b4dbf11c/photo_971ab1cb7bb9acf1cd01a0412247883f.png&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;url&quot;: &quot;https://www.roques-immobilier.com/vente/4-lamalou-les-bains/maison/10653-a-vendre-maison-composee-de-trois-appartements-avec-terrain-lamalou-les-bains&quot;,
+            &quot;site&quot;: &quot;Roques Immobilier&quot;,
+            &quot;prix&quot;: 370000,
+            &quot;surface&quot;: 190.0,
+            &quot;prix_m2&quot;: 1947,
+            &quot;fiabilite&quot;: &quot;Annonce présente sur le catalogue public ; disponibilité à confirmer auprès de l’agence&quot;,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:29&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison • 194 m² • 6 pièces • 4 chambres&quot;,
+            &quot;description&quot;: &quot;Située dans l&#x27;une des communes les plus recherchées du Haut-Languedoc, à seulement quelques minutes à pied du centre-ville, des commerces, des établissements scolaires, des thermes&quot;,
+            &quot;site&quot;: &quot;Pascal OURADOU - Groupement Immobilier via Superimmo&quot;,
+            &quot;source_recherche&quot;: &quot;Superimmo&quot;,
+            &quot;url&quot;: &quot;https://www.superimmo.com/annonces/achat-maison-194m-lamalou-les-bains-34240-xzf8jk&quot;,
+            &quot;photo&quot;: &quot;https://photo.superimmo.com/vv3l7jdrkghajoq6zlzko8idk3a5&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;prix&quot;: 483000,
+            &quot;surface&quot;: 194.0,
+            &quot;prix_m2&quot;: 2490,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:29&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison • 195 m² • 9 pièces • 7 chambres&quot;,
+            &quot;description&quot;: &quot;À vendre – Lamalou-les-Bains, entre ville et forêt, au coeur du quartier des cliniques. Sur une parcelle de 866 m², découvrez ce bien unique comprenant trois logements : une villa &quot;,
+            &quot;site&quot;: &quot;L&#x27;ACCENT - RÉSEAU IMMOBILIER via Superimmo&quot;,
+            &quot;source_recherche&quot;: &quot;Superimmo&quot;,
+            &quot;url&quot;: &quot;https://www.superimmo.com/annonces/achat-maison-195m-lamalou-les-bains-34240-x1102uf&quot;,
+            &quot;photo&quot;: &quot;https://photo.superimmo.com/x297ydwzsikdozs9wj0wonrrk6yw&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;prix&quot;: 597000,
+            &quot;surface&quot;: 195.0,
+            &quot;prix_m2&quot;: 3062,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:29&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison 8 pièce(s), LAMALOU-LES-BAINS — 198 m² — 8 pièces&quot;,
+            &quot;description&quot;: &quot;Située sur les hauteurs de Lamalou-les-Bains, station thermale réputée de l’Hérault, cette propriété bénéficie d’un cadre paisible, à l’écart des nuisances, tout en restant…&quot;,
+            &quot;prix&quot;: 319000,
+            &quot;surface&quot;: 198.0,
+            &quot;prix_m2&quot;: 1611,
+            &quot;site&quot;: &quot;Bien’ici&quot;,
+            &quot;source_recherche&quot;: &quot;Bien’ici&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;photo&quot;: &quot;https://file.bienici.com/photo/legget-PRO2QC235BHS_image.hestia.immo_F0M6E31gqi_dkt87lkgKkKfYIDAr9ExTtv7An3tevHc_w_800_h_600_rt_fill_wm_0.9_so_1_75_0.25_dpr_1_el_false_ex_false_mb_0_aHR0cHM6Ly9jZG4uaGVzdGlhLmltbW8vaW1hZ2UvVEVOM1hQTkMvMjAyNS0xMi9ET0MyM1JHSzFBMksuanBn.jpg&quot;,
+            &quot;url&quot;: &quot;https://www.bienici.com/annonce/legget-PRO2QC235BHS&quot;,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:27&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison - 6 pièces - 212m²&quot;,
+            &quot;description&quot;: &quot;Maison - 6 pièces - 212m² — Lamalou-les-Bains — 212 m²&quot;,
+            &quot;site&quot;: &quot;SAFTI&quot;,
+            &quot;source_recherche&quot;: &quot;SAFTI&quot;,
+            &quot;url&quot;: &quot;https://www.safti.fr/annonces/achat/maison/lamalou-les-bains-34240/1583687&quot;,
+            &quot;photo&quot;: &quot;https://cdn.safti.fr/bien-photo/51/83/1583687/a1610efb713a5c091b7464bdfec1e3ec1a58763b/g.jpg&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;prix&quot;: 629000,
+            &quot;surface&quot;: 212.0,
+            &quot;prix_m2&quot;: 2967,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:28&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Ensemble de deux villas indépendantes! — 215 m² — 10 pièces&quot;,
+            &quot;description&quot;: &quot;L&#x27;agence API vous propose en exclusivité ce superbe ensemble de deux villas de plain pieds totalement indépendantes. Une construction de 1960, l&#x27;autre de 1990, sur environ…&quot;,
+            &quot;prix&quot;: 438000,
+            &quot;surface&quot;: 215.0,
+            &quot;prix_m2&quot;: 2037,
+            &quot;site&quot;: &quot;Bien’ici&quot;,
+            &quot;source_recherche&quot;: &quot;Bien’ici&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;photo&quot;: &quot;https://file.bienici.com/photo/hektor-apiagencepezenas-657_apiagencepezenas.staticlbi.com_original_images_biens_1_5659d0e0e9c9b7190ebfc8d55071696a_photo_cf6ee869a737d515983371185605984a.jpg&quot;,
+            &quot;url&quot;: &quot;https://www.bienici.com/annonce/hektor-apiagencepezenas-657&quot;,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:27&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison 8 pièce(s) 4 chambre(s) 220 m²&quot;,
+            &quot;description&quot;: &quot;LAMALOU LES BAINS, à vendre maison de 220 m² composée de deux habitations type T3 –– Terrain 1 005 m²&quot;,
+            &quot;photo&quot;: &quot;https://roquesimmobilie.staticlbi.com/900xauto/images/biens/2/aaffb87538d60ca192e1e85b356ce6ac/photo_26fc3a05f74a1615a24c087e51f8ee13.png&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;url&quot;: &quot;https://www.roques-immobilier.com/vente/4-lamalou-les-bains/maison/10209-lamalou-les-bains-a-vendre-maison-de-220-m-composee-de-deux-habitations-type-t3-terrain-1-005-m&quot;,
+            &quot;site&quot;: &quot;Roques Immobilier&quot;,
+            &quot;prix&quot;: 299000,
+            &quot;surface&quot;: 220.0,
+            &quot;prix_m2&quot;: 1359,
+            &quot;fiabilite&quot;: &quot;Annonce présente sur le catalogue public ; disponibilité à confirmer auprès de l’agence&quot;,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:29&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Maison • 227 m² • 8 pièces • 4 chambres&quot;,
+            &quot;description&quot;: &quot;De l&#x27;espace, une vue superbe, un appartement indépendant… et quelques surprises que l&#x27;on préfère vous laisser découvrir en visite. Dans le secteur du Bois de Coubillou à Lamalou-le&quot;,
+            &quot;site&quot;: &quot;SOPHIE DAGUENET - BSK Immobilier via Superimmo&quot;,
+            &quot;source_recherche&quot;: &quot;Superimmo&quot;,
+            &quot;url&quot;: &quot;https://www.superimmo.com/annonces/achat-maison-227m-lamalou-les-bains-34240-x121174&quot;,
+            &quot;photo&quot;: &quot;https://photo.superimmo.com/77bn88u5hxpvtywpjcvbnl6j91mz&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;prix&quot;: 446000,
+            &quot;surface&quot;: 227.0,
+            &quot;prix_m2&quot;: 1965,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:29&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          },
+          {
+            &quot;titre&quot;: &quot;Magnifique maison 230 m² Lamalou-les-Bains — 232.42 m² — 8 pièces&quot;,
+            &quot;description&quot;: &quot;Découvrez cette magnifique maison aux charmes intemporels Avec ses 232 m² de surface habitable, ses 3 chambres, ses combles aménagés composés de 2 chambres spacieuses, sa…&quot;,
+            &quot;prix&quot;: 515000,
+            &quot;surface&quot;: 232.42,
+            &quot;prix_m2&quot;: 2216,
+            &quot;site&quot;: &quot;Bien’ici&quot;,
+            &quot;source_recherche&quot;: &quot;Bien’ici&quot;,
+            &quot;commune&quot;: &quot;Lamalou-les-Bains&quot;,
+            &quot;photo&quot;: &quot;https://file.bienici.com/photo/agence-immo-3-VM15467_yxnwgqqvrnmyhrxcaatb.supabase.co_storage_v1_object_public_biens-media_VM15467_maison-bourgeoise-8-pieces-lamalou-les-bains-34240-1785488189-VM15467_27_original.jpg&quot;,
+            &quot;url&quot;: &quot;https://www.bienici.com/annonce/agence-immo-3-VM15467&quot;,
+            &quot;consulte_le&quot;: &quot;2026-10-19T19:32:27&quot;,
+            &quot;fiabilite&quot;: &quot;Annonce du catalogue public ; disponibilité à confirmer&quot;
+          }
+        ],
+        &quot;recherches_agences&quot;: [
+          {
+            &quot;nom&quot;: &quot;Roques Immobilier&quot;,
+            &quot;url&quot;: &quot;https://www.google.com/search?q=site%3Aroques-immobilier.com+%22Lamalou-les-Bains%22+maison+vente&quot;
+          },
+          {
+            &quot;nom&quot;: &quot;IAD&quot;,
+            &quot;url&quot;: &quot;https://www.google.com/search?q=site%3Aiadfrance.fr+%22Lamalou-les-Bains%22+maison+vente&quot;
+          },
+          {
+            &quot;nom&quot;: &quot;SAFTI&quot;,
+            &quot;url&quot;: &quot;https://www.google.com/search?q=site%3Asafti.fr+%22Lamalou-les-Bains%22+maison+vente&quot;
+          },
+          {
+            &quot;nom&quot;: &quot;SeLoger&quot;,
+            &quot;url&quot;: &quot;https://www.google.com/search?q=site%3Aseloger.com+%22Lamalou-les-Bains%22+maison+vente&quot;
+          },
+          {
+            &quot;nom&quot;: &quot;Leboncoin&quot;,
+            &quot;url&quot;: &quot;https://www.google.com/search?q=site%3Aleboncoin.fr+%22Lamalou-les-Bains%22+maison+vente&quot;
+          },
+          {
+            &quot;nom&quot;: &quot;Bien’ici&quot;,
+            &quot;url&quot;: &quot;https://www.google.com/search?q=site%3Abienici.com+%22Lamalou-les-Bains%22+maison+vente&quot;
+          },
+          {
+            &quot;nom&quot;: &quot;Agences locales&quot;,
+            &quot;url&quot;: &quot;https://www.google.com/search?q=%22Lamalou-les-Bains%22+maison+vente&quot;
+          }
+        ],
+        &quot;message&quot;: &quot;35 annonce(s) de maison repérée(s) à Lamalou-les-Bains sur 5 source(s), après retrait des doublons probables.&quot;,
+        &quot;diagnostics&quot;: [
+          {
+            &quot;source&quot;: &quot;Roques Immobilier&quot;,
+            &quot;etat&quot;: &quot;accessible&quot;,
+            &quot;retenus&quot;: 9
+          },
+          {
+            &quot;source&quot;: &quot;IAD&quot;,
+            &quot;etat&quot;: &quot;accessible&quot;,
+            &quot;retenus&quot;: 3
+          },
+          {
+            &quot;source&quot;: &quot;SAFTI&quot;,
+            &quot;etat&quot;: &quot;accessible&quot;,
+            &quot;retenus&quot;: 3
+          },
+          {
+            &quot;source&quot;: &quot;Superimmo&quot;,
+            &quot;etat&quot;: &quot;accessible&quot;,
+            &quot;retenus&quot;: 13
+          },
+          {
+            &quot;source&quot;: &quot;Bien’ici&quot;,
+            &quot;etat&quot;: &quot;accessible&quot;,
+            &quot;retenus&quot;: 29
+          }
+        ],
+        &quot;limites&quot;: &quot;Catalogues consultés à Lamalou-les-Bains : Roques Immobilier, IAD, SAFTI, Superimmo et Bien’ici. Résultats non exhaustifs ; autres communes par liens. Doublons résiduels possibles. Prix affichés, disponibilité à confirmer ; aucune intégration automatique au calcul DVF.&quot;
+      },
+      &quot;seconds&quot;: 10.47
+    }
+  ],
+  &quot;live_more&quot;: [
+    {
+      &quot;name&quot;: &quot;commune CP Combes&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;Combes&quot;,
+          &quot;code&quot;: &quot;34083&quot;,
+          &quot;postcode&quot;: &quot;34240&quot;
+        }
+      }
+    },
+    {
+      &quot;name&quot;: &quot;commune CP Le Pradal&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;Le Pradal&quot;,
+          &quot;code&quot;: &quot;34216&quot;,
+          &quot;postcode&quot;: &quot;34600&quot;
+        }
+      }
+    },
+    {
+      &quot;name&quot;: &quot;commune CP Les Aires&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;Les Aires&quot;,
+          &quot;code&quot;: &quot;34008&quot;,
+          &quot;postcode&quot;: &quot;34600&quot;
+        }
+      }
+    },
+    {
+      &quot;name&quot;: &quot;commune CP Saint-Geniès-de-Varensal&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;Saint-Geniès-de-Varensal&quot;,
+          &quot;code&quot;: &quot;34257&quot;,
+          &quot;postcode&quot;: &quot;34610&quot;
+        }
+      }
+    },
+    {
+      &quot;name&quot;: &quot;commune CP Taussac-la-Billière&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;Taussac-la-Billière&quot;,
+          &quot;code&quot;: &quot;34308&quot;,
+          &quot;postcode&quot;: &quot;34600&quot;
+        }
+      }
+    },
+    {
+      &quot;name&quot;: &quot;commune CP Saint-Gervais-sur-Mare&quot;,
+      &quot;result&quot;: {
+        &quot;result&quot;: {
+          &quot;name&quot;: &quot;Saint-Gervais-sur-Mare&quot;,
+          &quot;code&quot;: &quot;34260&quot;,
+          &quot;postcode&quot;: &quot;34610&quot;
+        }
+      }
+    },
+    {
+      &quot;name&quot;: &quot;cadastre plan&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;type&quot;: &quot;image/svg+xml&quot;,
+        &quot;bytes&quot;: 1249
+      }
+    },
+    {
+      &quot;name&quot;: &quot;cadastre carte&quot;,
+      &quot;result&quot;: {
+        &quot;http&quot;: 200,
+        &quot;type&quot;: &quot;image/png&quot;,
+        &quot;bytes&quot;: 114975,
+        &quot;size&quot;: [
+          760,
+          520
+        ]
+      }
+    }
+  ],
+  &quot;market&quot;: {
+    &quot;results&quot;: [
+      {
+        &quot;name&quot;: &quot;Même URL exclue&quot;,
+        &quot;pass&quot;: true
+      },
+      {
+        &quot;name&quot;: &quot;Communes différentes conservées&quot;,
+        &quot;pass&quot;: true
+      },
+      {
+        &quot;name&quot;: &quot;Pièces différentes conservées&quot;,
+        &quot;pass&quot;: true
+      },
+      {
+        &quot;name&quot;: &quot;Doublon probable prix et surface&quot;,
+        &quot;pass&quot;: true
+      },
+      {
+        &quot;name&quot;: &quot;Roques exclu de la seconde sélection&quot;,
+        &quot;pass&quot;: true
+      },
+      {
+        &quot;name&quot;: &quot;Doublon de Roques sur autre portail exclu&quot;,
+        &quot;pass&quot;: true
+      },
+      {
+        &quot;name&quot;: &quot;Six annonces maximum et prix les plus proches&quot;,
+        &quot;pass&quot;: true
+      },
+      {
+        &quot;name&quot;: &quot;Au moins trois comparables pour la médiane annonces&quot;,
+        &quot;pass&quot;: true
+      },
+      {
+        &quot;name&quot;: &quot;Médiane calculable sur trois comparables&quot;,
+        &quot;pass&quot;: true
+      },
+      {
+        &quot;name&quot;: &quot;Surfaces éloignées exclues de la médiane&quot;,
+        &quot;pass&quot;: true
+      },
+      {
+        &quot;name&quot;: &quot;Catalogue réel aucun Roques dans les six autres&quot;,
+        &quot;pass&quot;: true
+      },
+      {
+        &quot;name&quot;: &quot;Catalogue réel aucun doublon probable avec Roques retenu&quot;,
+        &quot;pass&quot;: true
+      }
+    ],
+    &quot;roques&quot;: 4,
+    &quot;other&quot;: 6
+  },
+  &quot;extra_exports&quot;: [
+    {
+      &quot;name&quot;: &quot;vide&quot;,
+      &quot;kind&quot;: &quot;word&quot;,
+      &quot;http&quot;: 200,
+      &quot;bytes&quot;: 37650,
+      &quot;error&quot;: &quot;&quot;
+    },
+    {
+      &quot;name&quot;: &quot;vide&quot;,
+      &quot;kind&quot;: &quot;pdf&quot;,
+      &quot;http&quot;: 200,
+      &quot;bytes&quot;: 1924,
+      &quot;error&quot;: &quot;&quot;
+    },
+    {
+      &quot;name&quot;: &quot;caracteres speciaux&quot;,
+      &quot;kind&quot;: &quot;word&quot;,
+      &quot;http&quot;: 200,
+      &quot;bytes&quot;: 37921,
+      &quot;error&quot;: &quot;&quot;
+    },
+    {
+      &quot;name&quot;: &quot;caracteres speciaux&quot;,
+      &quot;kind&quot;: &quot;pdf&quot;,
+      &quot;http&quot;: 200,
+      &quot;bytes&quot;: 2353,
+      &quot;error&quot;: &quot;&quot;
+    },
+    {
+      &quot;name&quot;: &quot;long descriptif&quot;,
+      &quot;kind&quot;: &quot;word&quot;,
+      &quot;http&quot;: 200,
+      &quot;bytes&quot;: 38001,
+      &quot;error&quot;: &quot;&quot;
+    },
+    {
+      &quot;name&quot;: &quot;long descriptif&quot;,
+      &quot;kind&quot;: &quot;pdf&quot;,
+      &quot;http&quot;: 500,
+      &quot;bytes&quot;: 21,
+      &quot;error&quot;: &quot;Internal Server Error&quot;
+    },
+    {
+      &quot;name&quot;: &quot;photo invalide&quot;,
+      &quot;kind&quot;: &quot;word&quot;,
+      &quot;http&quot;: 200,
+      &quot;bytes&quot;: 37725,
+      &quot;error&quot;: &quot;&quot;
+    },
+    {
+      &quot;name&quot;: &quot;photo invalide&quot;,
+      &quot;kind&quot;: &quot;pdf&quot;,
+      &quot;http&quot;: 200,
+      &quot;bytes&quot;: 1954,
+      &quot;error&quot;: &quot;&quot;
+    },
+    {
+      &quot;name&quot;: &quot;format invalide&quot;,
+      &quot;kind&quot;: &quot;word&quot;,
+      &quot;http&quot;: 422,
+      &quot;bytes&quot;: 119,
+      &quot;error&quot;: &quot;{\&quot;detail\&quot;:[{\&quot;type\&quot;:\&quot;string_type\&quot;,\&quot;loc\&quot;:[\&quot;body\&quot;,\&quot;surface\&quot;],\&quot;msg\&quot;:\&quot;Input should be a valid string\&quot;,\&quot;input\&quot;:{\&quot;bad\&quot;:100}}]}&quot;
+    },
+    {
+      &quot;name&quot;: &quot;format invalide&quot;,
+      &quot;kind&quot;: &quot;pdf&quot;,
+      &quot;http&quot;: 422,
+      &quot;bytes&quot;: 119,
+      &quot;error&quot;: &quot;{\&quot;detail\&quot;:[{\&quot;type\&quot;:\&quot;string_type\&quot;,\&quot;loc\&quot;:[\&quot;body\&quot;,\&quot;surface\&quot;],\&quot;msg\&quot;:\&quot;Input should be a valid string\&quot;,\&quot;input\&quot;:{\&quot;bad\&quot;:100}}]}&quot;
+    }
+  ],
+  &quot;surfaces&quot;: [
+    {
+      &quot;name&quot;: &quot;chambre sans de&quot;,
+      &quot;notes&quot;: &quot;Chambre 12 m².&quot;,
+      &quot;expected&quot;: 12,
+      &quot;actual&quot;: 0,
+      &quot;pass&quot;: false,
+      &quot;rows&quot;: []
+    },
+    {
+      &quot;name&quot;: &quot;chambre avec de&quot;,
+      &quot;notes&quot;: &quot;Chambre de 12 m².&quot;,
+      &quot;expected&quot;: 12,
+      &quot;actual&quot;: 12,
+      &quot;pass&quot;: true,
+      &quot;rows&quot;: [
+        {
+          &quot;lvl&quot;: &quot;Rez-de-chaussée&quot;,
+          &quot;name&quot;: &quot;Chambre&quot;,
+          &quot;val&quot;: 12,
+          &quot;cat&quot;: &quot;Intérieur&quot;
+        }
+      ]
+    },
+    {
+      &quot;name&quot;: &quot;chambre numérotée&quot;,
+      &quot;notes&quot;: &quot;Chambre 1 de 12 m².&quot;,
+      &quot;expected&quot;: 12,
+      &quot;actual&quot;: 12,
+      &quot;pass&quot;: true,
+      &quot;rows&quot;: [
+        {
+          &quot;lvl&quot;: &quot;Rez-de-chaussée&quot;,
+          &quot;name&quot;: &quot;Chambre 1&quot;,
+          &quot;val&quot;: 12,
+          &quot;cat&quot;: &quot;Intérieur&quot;
+        }
+      ]
+    },
+    {
+      &quot;name&quot;: &quot;total trois pièces&quot;,
+      &quot;notes&quot;: &quot;Séjour 30 m². Cuisine 10 m². Chambre 12 m².&quot;,
+      &quot;expected&quot;: 52,
+      &quot;actual&quot;: 40,
+      &quot;pass&quot;: false,
+      &quot;rows&quot;: [
+        {
+          &quot;lvl&quot;: &quot;Rez-de-chaussée&quot;,
+          &quot;name&quot;: &quot;Séjour&quot;,
+          &quot;val&quot;: 30,
+          &quot;cat&quot;: &quot;Intérieur&quot;
+        },
+        {
+          &quot;lvl&quot;: &quot;Rez-de-chaussée&quot;,
+          &quot;name&quot;: &quot;Cuisine&quot;,
+          &quot;val&quot;: 10,
+          &quot;cat&quot;: &quot;Intérieur&quot;
+        }
+      ]
+    },
+    {
+      &quot;name&quot;: &quot;décimales virgule&quot;,
+      &quot;notes&quot;: &quot;Chambre de 12,45 m².&quot;,
+      &quot;expected&quot;: 12.45,
+      &quot;actual&quot;: 12.45,
+      &quot;pass&quot;: true,
+      &quot;rows&quot;: [
+        {
+          &quot;lvl&quot;: &quot;Rez-de-chaussée&quot;,
+          &quot;name&quot;: &quot;Chambre&quot;,
+          &quot;val&quot;: 12.45,
+          &quot;cat&quot;: &quot;Intérieur&quot;
+        }
+      ]
+    },
+    {
+      &quot;name&quot;: &quot;deux chambres groupées&quot;,
+      &quot;notes&quot;: &quot;Deux chambres de 12 et 9 m².&quot;,
+      &quot;expected&quot;: 21,
+      &quot;actual&quot;: 21,
+      &quot;pass&quot;: true,
+      &quot;rows&quot;: [
+        {
+          &quot;lvl&quot;: &quot;Rez-de-chaussée&quot;,
+          &quot;name&quot;: &quot;Chambre 1&quot;,
+          &quot;val&quot;: 12,
+          &quot;cat&quot;: &quot;Intérieur&quot;
+        },
+        {
+          &quot;lvl&quot;: &quot;Rez-de-chaussée&quot;,
+          &quot;name&quot;: &quot;Chambre 2&quot;,
+          &quot;val&quot;: 9,
+          &quot;cat&quot;: &quot;Intérieur&quot;
+        }
+      ]
+    },
+    {
+      &quot;name&quot;: &quot;couloir addition&quot;,
+      &quot;notes&quot;: &quot;Couloir de 3,84 m² + 2,5 m².&quot;,
+      &quot;expected&quot;: 6.34,
+      &quot;actual&quot;: 6.34,
+      &quot;pass&quot;: true,
+      &quot;rows&quot;: [
+        {
+          &quot;lvl&quot;: &quot;Rez-de-chaussée&quot;,
+          &quot;name&quot;: &quot;Couloir&quot;,
+          &quot;val&quot;: 6.34,
+          &quot;cat&quot;: &quot;Intérieur&quot;
+        }
+      ]
+    },
+    {
+      &quot;name&quot;: &quot;correction&quot;,
+      &quot;notes&quot;: &quot;Séjour de 30 m². Finalement le séjour fait 28 m².&quot;,
+      &quot;expected&quot;: 28,
+      &quot;actual&quot;: 28,
+      &quot;pass&quot;: true,
+      &quot;rows&quot;: [
+        {
+          &quot;lvl&quot;: &quot;Rez-de-chaussée&quot;,
+          &quot;name&quot;: &quot;séjour&quot;,
+          &quot;val&quot;: 28,
+          &quot;cat&quot;: &quot;Intérieur&quot;
+        }
+      ]
+    },
+    {
+      &quot;name&quot;: &quot;grande pièce&quot;,
+      &quot;notes&quot;: &quot;Séjour de 300 m².&quot;,
+      &quot;expected&quot;: 300,
+      &quot;actual&quot;: 0,
+      &quot;pass&quot;: false,
+      &quot;rows&quot;: []
+    },
+    {
+      &quot;name&quot;: &quot;annexes exclues&quot;,
+      &quot;notes&quot;: &quot;Séjour de 30 m². Garage de 20 m². Cave de 8 m². Terrasse de 15 m².&quot;,
+      &quot;expected&quot;: 30,
+      &quot;actual&quot;: 30,
+      &quot;pass&quot;: true,
+      &quot;rows&quot;: [
+        {
+          &quot;lvl&quot;: &quot;Rez-de-chaussée&quot;,
+          &quot;name&quot;: &quot;Séjour&quot;,
+          &quot;val&quot;: 30,
+          &quot;cat&quot;: &quot;Intérieur&quot;
+        },
+        {
+          &quot;lvl&quot;: &quot;Rez-de-chaussée&quot;,
+          &quot;name&quot;: &quot;Garage&quot;,
+          &quot;val&quot;: 20,
+          &quot;cat&quot;: &quot;Annexe&quot;
+        },
+        {
+          &quot;lvl&quot;: &quot;Rez-de-chaussée&quot;,
+          &quot;name&quot;: &quot;Cave&quot;,
+          &quot;val&quot;: 8,
+          &quot;cat&quot;: &quot;Annexe&quot;
+        },
+        {
+          &quot;lvl&quot;: &quot;Rez-de-chaussée&quot;,
+          &quot;name&quot;: &quot;Terrasse&quot;,
+          &quot;val&quot;: 15,
+          &quot;cat&quot;: &quot;Extérieur&quot;
+        }
+      ]
+    },
+    {
+      &quot;name&quot;: &quot;mètres carrés en toutes lettres&quot;,
+      &quot;notes&quot;: &quot;Séjour de 30 mètres carrés.&quot;,
+      &quot;expected&quot;: 30,
+      &quot;actual&quot;: 30,
+      &quot;pass&quot;: true,
+      &quot;rows&quot;: [
+        {
+          &quot;lvl&quot;: &quot;Rez-de-chaussée&quot;,
+          &quot;name&quot;: &quot;Séjour&quot;,
+          &quot;val&quot;: 30,
+          &quot;cat&quot;: &quot;Intérieur&quot;
+        }
+      ]
+    },
+    {
+      &quot;name&quot;: &quot;mezzanine et garage&quot;,
+      &quot;notes&quot;: &quot;Garage de 30 m² avec mezzanine de 15 m².&quot;,
+      &quot;expected&quot;: 0,
+      &quot;actual&quot;: 15,
+      &quot;pass&quot;: false,
+      &quot;rows&quot;: [
+        {
+          &quot;lvl&quot;: &quot;Rez-de-chaussée&quot;,
+          &quot;name&quot;: &quot;Garage&quot;,
+          &quot;val&quot;: 30,
+          &quot;cat&quot;: &quot;Annexe&quot;
+        },
+        {
+          &quot;lvl&quot;: &quot;Rez-de-chaussée&quot;,
+          &quot;name&quot;: &quot;mezzanine&quot;,
+          &quot;val&quot;: 15,
+          &quot;cat&quot;: &quot;Intérieur&quot;
+        }
+      ]
+    }
+  ],
+  &quot;restauration&quot;: {
+    &quot;notes&quot;: &quot;Maison de 120 m². Adresse : 2 Impasse de Saint-Pierre de Rhèdes 34240 Lamalou-les-Bains. 1 cheminée ouverte.&quot;,
+    &quot;photosBefore&quot;: 1,
+    &quot;photosAfter&quot;: 0,
+    &quot;estimationHTML&quot;: &quot;&quot;,
+    &quot;validatedPrice&quot;: &quot;&quot;
+  }
+}</pre></details><details><summary>Empreintes des sources auditées</summary><pre>estimia/server.py 054b08609cba46247a599d2a82d5c4717681437c449380208abe6add6712f286
+estimia/static/v13_visite.js bdf98c78d5cd4ea34e54b98e769f52fda226af5864e46d8fc390cb6258aa82f1
+estimia/static/index.html 842616cd93214954c1e02491ffc55b82f32599b2bdeb52c36c22af266d23af6c
+estimia/static/estimation_v13_44.js 97909b73c898f9d8d7a5d0ed2f5ad93b6332a062852b8d67ecad2213c987377b
+estimia/static/v13_dossiers_pro.js f2d8ea713d0f512be961a6297905d4ac711ab8132ff75ec341cc790babaea8ab</pre></details></html>
