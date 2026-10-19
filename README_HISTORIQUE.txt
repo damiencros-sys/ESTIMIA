@@ -51,3 +51,36 @@ ESTIM'IA V5 - DICTÉE PRO (GRATUITE)
 - informations « à vérifier »
 - aucune clé API payante
 Limite : SpeechRecognition dépend du navigateur/service vocal disponible ; le fonctionnement hors-ligne n'est pas garanti.
+
+
+README_V5_1.txt
+ESTIM'IA V5.1 — CORRECTIF DICTÉE
+Cette version repart de V4, dont la dictée fonctionnait sur Samsung/Chrome.
+Le bloc SpeechRecognition de V4 n'a pas été remplacé.
+Ajouts autour du moteur existant :
+- nettoyage prudent euh/heu/hum
+- répétitions immédiates
+- correction chiffrée simple
+- historique
+- annuler dernière dictée
+- effacer toute la dictée
+Toujours sans API payante.
+
+
+README_V6.txt
+ESTIM'IA V6 — DICTÉE PROFESSIONNELLE
+Base micro : V5.1/V4 conservée, car validée sur Samsung + Chrome.
+Le moteur vocal n'a pas été remplacé.
+
+Nouveautés d'interprétation :
+- corrections "3 chambres pardon 2"
+- corrections "terrasse 30 m² non je corrige 25 m²"
+- corrections simples de chauffage
+- surfaces individualisées par pièce
+- vue détaillée (dégagée, montagnes, mer, panoramique)
+- catégorie À vérifier (assainissement, toiture, surface, taxe foncière, urbanisme, électricité)
+- prudence sur les déclarations propriétaire/vendeur
+- historique, annulation dernière dictée et effacement conservés
+
+Principe : en cas d'information absente, ne rien inventer.
+Toujours sans clé API payante.

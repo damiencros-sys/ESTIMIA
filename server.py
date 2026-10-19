@@ -1349,3 +1349,75 @@ def email_draft(p:EmailDraftPayload):
     raw=_email_draft_bytes(p)
     return StreamingResponse(io.BytesIO(raw),media_type='message/rfc822',headers={
         'Content-Disposition':'attachment; filename="Email_dossier_estimation.eml"','Cache-Control':'no-store'})
+
+# Relais Windows : transfert temporaire, secret aleatoire, jamais d'envoi de mail.
+import secrets as _mail_secrets
+import time as _mail_time
+_mail_bridge_store={}
+_mail_bridge_lock=threading.Lock()
+
+
+def _mail_bridge_prune(now):
+    for key,entry in list(_mail_bridge_store.items()):
+        if entry['expires']<=now:_mail_bridge_store.pop(key,None)
+
+
+@app.post('/api/email/bridge')
+def email_bridge_create(p:EmailDraftPayload):
+    import base64
+    from email.parser import BytesParser
+    from email.policy import default
+    message=BytesParser(policy=default).parsebytes(_email_draft_bytes(p))
+    attachment=next(message.iter_attachments())
+    raw=attachment.get_payload(decode=True)
+    payload={'filename':attachment.get_filename(),'kind':p.kind,'subject':str(message['Subject']),
+             'body':p.body[:20000],'document_base64':base64.b64encode(raw).decode('ascii')}
+    token=_mail_secrets.token_urlsafe(32)
+    with _mail_bridge_lock:
+        _mail_bridge_prune(_mail_time.time())
+        if len(_mail_bridge_store)>=20 or sum(e['size'] for e in _mail_bridge_store.values())+len(raw)>75_000_000:
+            raise HTTPException(503,'Relais occupe. Reessayez dans quelques minutes.')
+        _mail_bridge_store[token]={'expires':_mail_time.time()+600,'payload':payload,'size':len(raw)}
+    def expire():
+        with _mail_bridge_lock:_mail_bridge_store.pop(token,None)
+    timer=threading.Timer(600,expire);timer.daemon=True;timer.start()
+    return Response(json.dumps({'uri':'estimia-mail://draft/'+token,'expires_in':600}),
+                    media_type='application/json',headers={'Cache-Control':'no-store'})
+
+
+@app.get('/api/email/bridge-installer')
+def email_bridge_installer():
+    bundle=io.BytesIO()
+    with zipfile.ZipFile(bundle,'w',zipfile.ZIP_DEFLATED) as z:
+        for name in ('Installer_Thunderbird.cmd','EstimiaMail.ps1'):
+            z.write(BASE/'static'/'windows'/name,name)
+        z.writestr('LIRE_AVANT_INSTALLATION.txt',r"""ESTIM IA - Relais Thunderbird Windows gratuit
+1. Extraire TOUT le ZIP dans un dossier (ne pas lancer depuis le ZIP).
+2. Double-cliquer Installer_Thunderbird.cmd. Aucun droit administrateur requis.
+3. Coller l'adresse HTTPS de votre application ESTIM IA sur Render.
+4. Retourner dans ESTIM IA, preparer Word ou PDF, cliquer Ouvrir Thunderbird avec la piece jointe.
+5. Autoriser le navigateur a ouvrir ESTIM IA si cette question apparait.
+Un nouveau message est prepare avec le document et la signature. Rien n'est envoye.
+Si les scripts sont bloques par votre organisation, demander au service informatique.
+Pour desinstaller : dans PowerShell, executer :
+Remove-Item 'HKCU:\Software\Classes\estimia-mail' -Recurse
+Puis supprimer le dossier EstimiaMail de votre LocalAppData.
+Les fichiers de preparation restent sur votre PC ; les dossiers de plus de 7 jours sont nettoyes au prochain usage.
+Le transfert temporaire cote Render expire apres 10 minutes (ou au redemarrage du serveur).
+Sur telephone, utiliser Partager avec la piece jointe puis Outlook si propose.
+""")
+    bundle.seek(0)
+    return StreamingResponse(bundle,media_type='application/zip',headers={'Content-Disposition':'attachment; filename="Installer_ESTIMIA_Thunderbird_Windows.zip"'})
+
+
+@app.post('/api/email/bridge-download')
+def email_bridge_get(p:dict):
+    token=p.get('token','')
+    if not isinstance(token,str):raise HTTPException(404,'Lien invalide')
+    if not re.fullmatch(r'[A-Za-z0-9_-]{43}',token):raise HTTPException(404,'Lien invalide')
+    with _mail_bridge_lock:
+        _mail_bridge_prune(_mail_time.time())
+        entry=_mail_bridge_store.get(token)
+        if not entry:raise HTTPException(410,'Preparation expiree. Repreparez le document dans ESTIM’IA.')
+        payload=entry['payload']
+    return Response(json.dumps(payload),media_type='application/json',headers={'Cache-Control':'no-store','Referrer-Policy':'no-referrer'})

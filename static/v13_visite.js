@@ -1077,13 +1077,14 @@ async function downloadWord(){
 }
 
 let preparedEmail=null;
+if($('#emailSiteAddress'))$('#emailSiteAddress').textContent=location.origin;
 function downloadEmailBlob(blob,name){
  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;
  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
 }
 async function prepareEmailDocument(kind){
  const status=$('#emailStatus'),actions=$('#emailActions');actions.hidden=false;preparedEmail=null;
- $('#emailOpen').hidden=true;$('#emailShare').hidden=true;$('#emailEml').hidden=true;$('#emailAttachment').hidden=true;
+ $('#emailThunderbird').hidden=true;$('#emailOpen').hidden=true;$('#emailShare').hidden=true;$('#emailEml').hidden=true;$('#emailAttachment').hidden=true;
  $('#emailWord').disabled=true;$('#emailPdf').disabled=true;
  status.textContent='Création du dossier '+(kind==='word'?'Word':'PDF')+' avec les photos et l’estimation…';
  try{
@@ -1095,21 +1096,40 @@ async function prepareEmailDocument(kind){
   const blob=await response.blob(),name='Dossier_estimation_'+String(payload.owner||payload.address||'bien').replace(/[^\p{L}\p{N}-]+/gu,'_')+(kind==='word'?'.docx':'.pdf');
   const format=kind==='word'?'Word':'PDF';
   const file=new File([blob],name.replace(/(\.docx|\.pdf)$/i,'_'+Date.now()+'$1'),{type:mime});
-  preparedEmail={file,kind,subject:'Dossier d’estimation immobilière'+(payload.address?' — '+payload.address:''),body:'Bonjour,\n\nVous trouverez en pièce jointe le dossier d’estimation immobilière'+(payload.address?' du bien situé '+payload.address:'')+'.\n\nCordialement.'};
+  preparedEmail={file,kind,subject:'Dossier d’estimation immobilière'+(payload.address?' — '+payload.address:''),body:'Bonjour,\n\nVous trouverez en pièce jointe le dossier d’estimation immobilière'+(payload.address?' du bien situé '+payload.address:'')+'.\n\nCordialement,\n\nDamien CROS\nAgence ROQUES IMMOBILIER\n06 66 87 24 46'};
+  const windows=/Win/i.test(navigator.platform||navigator.userAgent||'');
+  let bridgeError='';
+  if(windows){
+   try{
+    const data=String(await fileToDataURL(file)).split(',')[1];
+    const result=await fetch('/api/email/bridge',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({document_base64:data,kind,filename:file.name,subject:preparedEmail.subject,body:preparedEmail.body})});
+    const transfer=await result.json();if(!result.ok)throw Error(transfer.detail||'Relais indisponible');
+    if(!/^estimia-mail:\/\/draft\/[A-Za-z0-9_-]{43}$/.test(transfer.uri))throw Error('Lien du relais invalide');
+    preparedEmail.bridgeURI=transfer.uri;preparedEmail.bridgeExpires=Date.now()+Math.min(Number(transfer.expires_in)||600,600)*1000;
+    $('#emailThunderbird').hidden=false;
+   }catch(error){bridgeError=' Relais Thunderbird indisponible : '+error.message;}
+  }
   let shareable=false;try{shareable=!!(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]}))}catch{}
   $('#emailOpen').hidden=false;$('#emailShare').hidden=!shareable;
   $('#emailAttachment').textContent='1 · Télécharger le '+format+' à joindre';
-  $('#emailOpen').textContent='2 · Ouvrir ma messagerie pour le '+format;
+  $('#emailOpen').textContent='Ouvrir la messagerie — '+format+' à joindre manuellement';
   $('#emailShare').textContent='Partager le '+format+' avec sa pièce jointe';
-  $('#emailEml').textContent='Autre méthode : message .eml avec le '+format;$('#emailEml').hidden=false;$('#emailAttachment').hidden=false;
-  status.textContent=format+' prêt : '+file.name+' ('+(blob.size/1024/1024).toFixed(1)+' Mo). '+(shareable?'Choisissez « Partager avec la messagerie », puis votre application de mail.':'Téléchargez ce fichier, puis cliquez sur « Ouvrir ma messagerie » et joignez-le au message.');
+  $('#emailEml').textContent='Télécharger le message avec le '+format+' déjà joint (.eml)';$('#emailEml').hidden=false;$('#emailAttachment').hidden=false;
+  $('#emailThunderbird').textContent='Ouvrir Thunderbird avec le '+format+' déjà joint';
+  status.textContent=format+' prêt : '+file.name+' ('+(blob.size/1024/1024).toFixed(1)+' Mo). '+(preparedEmail.bridgeURI?'Cliquez sur « Ouvrir Thunderbird » après installation du relais Windows. ':shareable?'Choisissez « Partager avec la messagerie », puis votre application de mail.':'Pour inclure la pièce jointe, téléchargez le message .eml puis ouvrez ce téléchargement dans votre messagerie. Le bouton MAILTO ouvre uniquement le texte : pièce jointe à ajouter manuellement.')+bridgeError;
  }catch(error){status.textContent='Préparation impossible : '+error.message;}
  finally{$('#emailWord').disabled=false;$('#emailPdf').disabled=false;}
 }
 $('#emailWord')?.addEventListener('click',()=>prepareEmailDocument('word'));
 $('#emailPdf')?.addEventListener('click',()=>prepareEmailDocument('pdf'));
+$('#emailThunderbird')?.addEventListener('click',()=>{
+ const email=preparedEmail;if(!email?.bridgeURI)return;
+ if(Date.now()>=email.bridgeExpires){$('#emailThunderbird').hidden=true;$('#emailStatus').textContent='Préparation expirée après 10 minutes. Cliquez à nouveau sur Préparer le Word ou le PDF.';return;}
+ const link=document.createElement('a');link.href=email.bridgeURI;document.body.appendChild(link);link.click();link.remove();
+ $('#emailStatus').textContent='Demande transmise au relais Windows. Autorisez son ouverture si le navigateur le demande. Thunderbird doit afficher un nouveau message avec le document joint et la signature. Si rien ne se passe, installez le relais Windows ci-dessous. Rien n’est envoyé automatiquement.';
+});
 function emailComposeURL(email){
- return 'mailto:?subject='+encodeURIComponent(email.subject)+'&body='+encodeURIComponent(email.body+'\n\nDocument à joindre : '+email.file.name);
+ return 'mailto:?subject='+encodeURIComponent(email.subject)+'&body='+encodeURIComponent(email.body);
 }
 $('#emailOpen')?.addEventListener('click',()=>{
  const email=preparedEmail;if(!email)return;
@@ -1123,7 +1143,7 @@ $('#emailShare')?.addEventListener('click',async()=>{
  try{await navigator.share({files:[email.file],title:email.subject,text:email.body});$('#emailStatus').textContent='Document transmis à l’application choisie. Complétez et envoyez votre message dans la messagerie.';}
  catch(error){$('#emailStatus').textContent=error.name==='AbortError'?'Partage annulé. Le document reste prêt.':'Partage indisponible. Vous pouvez préparer le fichier .eml ou télécharger la pièce jointe.';}
 });
-$('#emailAttachment')?.addEventListener('click',()=>{if(preparedEmail){downloadEmailBlob(preparedEmail.file,preparedEmail.file.name);$('#emailStatus').textContent='Téléchargement demandé : '+preparedEmail.file.name+'. Ouvrez ensuite votre messagerie avec le bouton 2 et ajoutez ce fichier en pièce jointe.';}});
+$('#emailAttachment')?.addEventListener('click',()=>{if(preparedEmail){downloadEmailBlob(preparedEmail.file,preparedEmail.file.name);$('#emailStatus').textContent='Téléchargement demandé : '+preparedEmail.file.name+'. Ouvrez ensuite votre messagerie et ajoutez ce fichier en pièce jointe.';}});
 $('#emailEml')?.addEventListener('click',async()=>{
  const email=preparedEmail;if(!email)return;const button=$('#emailEml');button.disabled=true;
  $('#emailStatus').textContent='Préparation du message avec sa pièce jointe…';
@@ -1133,7 +1153,7 @@ $('#emailEml')?.addEventListener('click',async()=>{
   if(!response.ok){let e={};try{e=await response.json()}catch{}throw Error(e.detail||'Création du message impossible');}
   if(!(response.headers.get('content-type')||'').includes('message/rfc822'))throw Error('Format de message inattendu');
   downloadEmailBlob(await response.blob(),'Email_'+email.file.name.replace(/\.(?:pdf|docx)$/i,'')+'.eml');
-  $('#emailStatus').textContent='E-mail téléchargé avec sa pièce jointe. Ouvrez le fichier .eml dans votre messagerie, renseignez le destinataire puis envoyez.';
+  $('#emailStatus').textContent='Message .eml téléchargé avec le document joint et la signature. Ouvrez ce fichier depuis les téléchargements dans votre messagerie. Vérifiez la pièce jointe avant envoi. Si le logiciel ouvre le message en lecture seule, utilisez Modifier le message ou Transférer en conservant la pièce jointe.';
  }catch(error){$('#emailStatus').textContent='Préparation du mail impossible : '+error.message;}
  finally{button.disabled=false;}
 });
