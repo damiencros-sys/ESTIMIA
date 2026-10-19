@@ -481,7 +481,7 @@ def word_export(p:WordPayload):
     else:
         heading('ESTIMATION DU BIEN')
         doc.add_paragraph('Estimation non calculée dans ce dossier.')
-    for group_title,group_items in [('ANNONCES COMPARABLES',p.annonces),('ANNONCES SIMILAIRES ROQUES IMMOBILIER',p.roques_annonces[:4])]:
+    for group_title,group_items in [('ANNONCES SIMILAIRES ROQUES IMMOBILIER',p.roques_annonces[:4]),('AUTRES ANNONCES SIMILAIRES',p.annonces)]:
         if not group_items:continue
         heading(group_title)
         doc.add_paragraph('Biens proposés à la vente sélectionnés par proximité du prix central. Prix affichés et disponibilité à confirmer auprès des agences.')
@@ -592,7 +592,7 @@ def pdf_export(p:WordPayload):
         add_table([('Valeur centrale',text(p.estimation.get('centrale'))),('Fourchette basse',text(p.estimation.get('basse'))),('Fourchette haute',text(p.estimation.get('haute')))])
         story.append(Paragraph(text(p.estimation.get('texte') or 'Valeur statistique indicative issue des ventes DVF, sans ajustement qualitatif.'),normal))
     else:story.append(Paragraph('Estimation non calculée dans ce dossier.',normal))
-    for group_title,group_items in [('ANNONCES COMPARABLES',p.annonces),('ANNONCES SIMILAIRES ROQUES IMMOBILIER',p.roques_annonces[:4])]:
+    for group_title,group_items in [('ANNONCES SIMILAIRES ROQUES IMMOBILIER',p.roques_annonces[:4]),('AUTRES ANNONCES SIMILAIRES',p.annonces)]:
         if not group_items:continue
         story.append(Paragraph(group_title,h))
         story.append(Paragraph('Biens proposés à la vente sélectionnés par proximité du prix central. Prix affichés et disponibilité à confirmer auprès des agences.',normal))

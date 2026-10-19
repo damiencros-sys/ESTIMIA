@@ -44,10 +44,32 @@ q('#dvfImport')?.addEventListener('click',async()=>{
 
 const annoncesBtn=q('#launchAnnonces');
 const manual=[];let found=[];
+let roquesFound=[],roquesReady=false;
 function estimationReference(){
  const value=q('#estimationResults .estimationValueAmount')?.textContent||'';
  const amount=Number(value.replace(/[^0-9,.-]/g,'').replace(',','.'));
  return Number.isFinite(amount)&&amount>0?amount:0;
+}
+function sameProperty(a,b){
+ const normalize=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+ if(a.url&&a.url===b.url)return true;
+ const ref=x=>{const u=decodeURIComponent(String(x.url||''));return u.match(/roques[^/]*?-(\d+)(?:$|[/?#])/i)?.[1]||u.match(/roques-immobilier\.com\/vente\/[^/]+\/[^/]+\/(\d+)-/i)?.[1]||'';};
+ const ra=ref(a),rb=ref(b);if(ra&&rb&&ra===rb)return true;
+ if(a.commune&&b.commune&&normalize(a.commune)!==normalize(b.commune))return false;
+ const rooms=x=>String(x.titre||'').match(/(\d+)\s*pi[eè]ce(?:\(s\)|s)?/i)?.[1]||'';
+ const roomsA=rooms(a),roomsB=rooms(b);if(roomsA&&roomsB&&roomsA!==roomsB)return false;
+ const sa=Number(a.surface),sb=Number(b.surface),pa=Number(a.prix),pb=Number(b.prix);
+ // Les surfaces peuvent différer d'un ou deux m² selon le portail.
+ return sa>0&&sb>0&&pa>0&&pb>0&&Math.abs(sa-sb)<=Math.max(2,Math.min(sa,sb)*.015)&&Math.abs(pa-pb)<=Math.min(pa,pb)*.02;
+}
+function otherProperties(rows,roques){
+ const kept=[];
+ for(const row of rows){
+  if(/roques/i.test(String(row.site||'')+' '+String(row.url||'')))continue;
+  if(roques.some(r=>sameProperty(row,r))||kept.some(r=>sameProperty(row,r)))continue;
+  kept.push(row);
+ }
+ return kept;
 }
 function closestAnnonces(rows,price,surface){
  const unique=[...new Map(rows.filter(a=>Number(a.prix)>0).map(a=>[a.url,a])).values()];
@@ -62,8 +84,10 @@ function displayAnnonces(){
  const all=[...found,...manual],price=estimationReference();
  if(!all.length){target.textContent='Aucun comparable affichable.';return;}
  if(!price){target.textContent='Calculez d’abord l’estimation du bien pour sélectionner les 6 annonces les plus proches de sa valeur centrale.';return;}
- const rows=closestAnnonces(all,price,Number(q('#surfaceHab')?.value||0));
- target.innerHTML=`<p class="small">${rows.length} annonce(s) sélectionnée(s) sur ${all.length} — prix les plus proches de l’estimation centrale de ${fmt(price)}.</p><div class="annoncesCards">${rows.map(a=>{
+ if(!roquesReady){target.textContent='La comparaison attend la fin de la recherche Roques. Relancez la recherche Roques si elle a échoué.';return;}
+ const eligible=otherProperties(all,roquesFound);
+ const rows=closestAnnonces(eligible,price,Number(q('#surfaceHab')?.value||0));
+ target.innerHTML=`<p class="small">${rows.length} autre(s) annonce(s) sélectionnée(s) après comparaison avec les annonces Roques et retrait des doublons probables — prix les plus proches de l’estimation centrale de ${fmt(price)}.</p><div class="annoncesCards">${rows.map(a=>{
   const photo=safeAnnonceUrl(a.photo),url=safeAnnonceUrl(a.url);
   return `<article class="annonceCard"><div class="annoncePhoto">${photo?`<img src="${esc(photo)}" alt="${esc(a.titre||'Photo du bien')}" loading="lazy" referrerpolicy="no-referrer">`:''}<span class="annonceNoPhoto" ${photo?'hidden':''}>Photo non disponible</span></div><div class="annonceBody"><div class="annonceAgency">${esc(a.site||'Ajout manuel')}</div><h4>${esc(a.titre||'Bien proposé à la vente')}</h4><p class="annonceDescription">${esc(a.description||'Caractéristiques à consulter dans l’annonce.')}</p><div class="annoncePrice">${fmt(a.prix)}</div><div class="small">Prix affiché${a.surface?' · '+esc(a.surface)+' m²':''}</div>${url?`<a class="annonceLink" href="${esc(url)}" target="_blank" rel="noopener noreferrer">Voir l’annonce ↗</a>`:''}</div></article>`;
  }).join('')}</div><p class="small">Annonces proposées à la vente ; disponibilité à confirmer. Les prix affichés ne sont pas des prix de vente constatés.</p>`;
@@ -88,7 +112,8 @@ annoncesBtn?.addEventListener('click',async()=>{
 
  if(!commune||!type_bien){status.textContent='Renseigne la commune (nom), et le type maison/appartement. Si le cadastre contient seulement un code INSEE, saisis le nom de la commune dans l’adresse.';return;}
  if(/^\d{5}$/.test(commune)){status.textContent='Nom de commune nécessaire pour rechercher les annonces (le code INSEE seul ne suffit pas).';return;}
- annoncesBtn.disabled=true;status.textContent='Lecture des catalogues publics…';
+ annoncesBtn.disabled=true;status.textContent='Recherche Roques puis comparaison avec les autres catalogues…';
+ await loadRoques();
  const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),22000);
  try{const res=await fetch('/api/estimation/annonces?'+new URLSearchParams({commune,type_bien,surface}),{signal:controller.signal});const d=await res.json();if(!res.ok)throw Error(d.detail||'Erreur serveur');found=d.annonces||[];
  if(links && d.recherches_agences?.length){
@@ -110,7 +135,6 @@ q('#addAnnonce')?.addEventListener('click',()=>{
  q('#annoncesStatus').textContent='Comparable ajouté au tableau pour cette session.';
 });
 
-let roquesFound=[];
 function displayRoques(){
  const target=q('#roquesResults');if(!target)return;
  target.innerHTML=`<div class="annoncesCards">${roquesFound.map(a=>{
@@ -129,14 +153,15 @@ async function loadRoques(){
  if(!commune&&/lamalou/i.test(q('#address')?.value||''))commune='Lamalou-les-Bains';
  const type=(q('#type')?.value||'').toLowerCase(),type_bien=type.includes('appartement')?'appartement':/maison|villa/.test(type)?'maison':'';
  if(!commune||!type_bien){status.textContent='Renseignez la commune et le type du bien.';return;}
+ roquesReady=false;roquesFound=[];displayRoques();displayAnnonces();
  button.disabled=true;status.textContent='Recherche Roques : commune du bien puis communes voisines…';
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),90000);
  try{
   const r=await fetch('/api/estimation/roques?'+new URLSearchParams({commune,type_bien,prix:price,surface:Number(q('#surfaceHab')?.value||0)}),{signal:controller.signal});const d=await r.json();
-  if(!r.ok)throw Error(d.detail||'Catalogue inaccessible');roquesFound=d.annonces||[];displayRoques();status.textContent=d.message;
+  if(!r.ok)throw Error(d.detail||'Catalogue inaccessible');roquesFound=d.annonces||[];roquesReady=true;displayRoques();status.textContent=d.message;
  }catch(e){roquesFound=[];displayRoques();status.textContent=e.name==='AbortError'?'Recherche trop longue. Réessayez.':'Recherche Roques indisponible : '+e.message;}
- finally{clearTimeout(timer);button.disabled=false;}
+ finally{clearTimeout(timer);button.disabled=false;displayAnnonces();}
 }
 q('#launchRoques')?.addEventListener('click',loadRoques);
-annoncesBtn?.addEventListener('click',loadRoques);
+
 })();
