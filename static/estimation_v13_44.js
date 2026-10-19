@@ -3,35 +3,44 @@ const q=s=>document.querySelector(s);
 const fmt=n=>Number(n).toLocaleString('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0});
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const btn=q('#launchEstimation');if(!btn)return;
-btn.addEventListener('click',async()=>{
+let estimateTask=null;
+function calculateEstimate(){
+ if(estimateTask)return estimateTask;
+ estimateTask=performEstimate().finally(()=>{estimateTask=null;});return estimateTask;
+}
+btn.addEventListener('click',calculateEstimate);
+async function performEstimate(){
  const commune=(q('#cadCommune')?.value||'').trim();
  const addr=(q('#address')?.value||'').trim();
  const typ=(q('#type')?.value||'').toLowerCase();
- const type_bien=typ.includes('appartement')?'appartement':typ.includes('maison')||typ.includes('villa')?'maison':'';
+ const type_bien=(/appartement|studio/.test(typ))?'appartement':typ.includes('maison')||typ.includes('villa')?'maison':'';
  const surface=Number(q('#surfaceHab')?.value||0);
  const status=q('#estimationStatus'),result=q('#estimationResults');result.replaceChildren();result.dataset.dvfMedian='';result.dataset.dvfCount='';if(q('#validatedPrice'))q('#validatedPrice').value='';
- if(!type_bien||!surface){status.textContent='Renseigne le type (maison/appartement) et la surface habitable dans la fiche.';return;}
+ if(!type_bien||!Number.isFinite(surface)||surface<=0){status.textContent=!surface&&q('#surfaceHab')?.dataset.needsReview==='true'?'Une surface de pièce est à vérifier : renseignez une surface habitable globale confirmée dans la fiche, puis relancez le calcul. Aucun total partiel n’est utilisé.':'Renseignez le type maison/appartement et une surface habitable positive dans la fiche.';return false;}
  let code=(q('#cadCommune')?.dataset.insee||'').trim();
  if(!/^\d{5}$/.test(code))code=commune;
  if(!code && /lamalou/i.test(addr))code='34126';
- if(!code){status.textContent='Renseigne la commune dans le champ Cadastre (ex. Lamalou-les-Bains ou 34126).';return;}
+ if(!code){status.textContent='Renseigne la commune dans le champ Cadastre (ex. Lamalou-les-Bains ou 34126).';return false;}
  // Le serveur accepte le nom et le résout en code INSEE avant toute requête DVF.
  if((code==='34240'||/lamalou/i.test(code)) && (/lamalou/i.test(addr)||/lamalou/i.test(commune)))code='34126';
  btn.disabled=true;status.textContent='Recherche des ventes réelles en cours…';
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),65000);
  try{
   const u='/api/estimation/dvf?'+new URLSearchParams({commune:code,type_bien,surface});
-  const resp=await fetch(u);const d=await resp.json();if(!resp.ok)throw Error(d.detail||'Erreur du service');
+  const resp=await fetch(u,{signal:controller.signal});const d=await resp.json();if(!resp.ok)throw Error(d.detail||'Erreur du service');
   if(d.status!=='indicatif'){
-   status.textContent=(d.message||'Données insuffisantes')+(d.diagnostic?' (Diagnostic : '+d.diagnostic+')':'');return;
+   status.textContent=(d.message||'Données insuffisantes')+(d.diagnostic?' (Diagnostic : '+d.diagnostic+')':'');return false;
   }
   result.dataset.dvfMedian=String(d.prix_m2_median||'');result.dataset.dvfCount=String(d.nombre||'');result.dataset.periodStart=d.periode_debut||'';result.dataset.periodEnd=d.periode_fin||'';
   if(q('#validatedPrice'))q('#validatedPrice').value='';if(q('#validatedReason'))q('#validatedReason').value='';if(q('#retainedEstimateText'))q('#retainedEstimateText').textContent='';
   status.textContent=`${d.nombre} ventes filtrées — valeur statistique indicative (sans ajustement qualitatif).`;
   const table=d.comparables.map(c=>`<tr><td>${esc(c.date)}</td><td>${esc(c.surface)} m²</td><td>${fmt(c.prix)}</td><td>${fmt(c.prix_m2)}/m²</td></tr>`).join('');
   result.innerHTML=`<div class="estimationValueMain"><div class="estimationValueLabel">Estimation du bien — valeur centrale</div><div class="estimationValueAmount">${fmt(d.centrale)}</div><div class="small">Valeur statistique indicative issue des ventes DVF retenues</div></div><div class="estimationRange"><div><strong>Fourchette basse</strong><div class="estimationRangeAmount">${fmt(d.basse)}</div></div><div><strong>Fourchette haute</strong><div class="estimationRangeAmount">${fmt(d.haute)}</div></div></div><p>${esc(d.avertissement)}</p><details><summary>Voir les ventes retenues</summary><div style="overflow:auto"><table><thead><tr><th>Date</th><th>Surface</th><th>Prix</th><th>Prix/m²</th></tr></thead><tbody>${table}</tbody></table></div></details><p><a href="${esc(d.source)}" target="_blank" rel="noopener">Source des transactions</a></p>`;
- }catch(e){status.textContent='Impossible de consulter les transactions : '+e.message+'. Aucun montant calculé.';}
- finally{btn.disabled=false;}
-});
+  return true;
+ }catch(e){status.textContent=e.name==='AbortError'?'La recherche DVF dépasse le délai prévu. Réessayez ou utilisez l’import DVF manuel. Aucun prix n’est inventé.':'Impossible de consulter les transactions : '+e.message+'. Aucun montant calculé.';return false;}
+ finally{clearTimeout(timer);btn.disabled=false;}
+}
+
 
 q('#dvfImport')?.addEventListener('click',async()=>{
  const f=q('#dvfZip')?.files?.[0],status=q('#dvfImportStatus');
@@ -145,11 +154,12 @@ function displayAnnonces(){
  const target=q('#annoncesResults');if(!target)return;
  const all=[...found,...manual],price=estimationReference();
  if(!all.length){target.textContent='Aucun comparable affichable.';return;}
- if(!price){target.textContent='Calculez d’abord l’estimation du bien pour sélectionner les 6 annonces les plus proches de sa valeur centrale.';return;}
  if(!roquesReady){target.textContent='La comparaison attend la fin de la recherche Roques. Relancez la recherche Roques si elle a échoué.';return;}
  const eligible=otherProperties(all,roquesFound);
- const rows=closestAnnonces(eligible,price,Number(q('#surfaceHab')?.value||0));
- target.innerHTML=`<p class="small">${rows.length} autre(s) annonce(s) sélectionnée(s) après comparaison avec les annonces Roques et retrait des doublons probables — prix les plus proches de l’estimation centrale de ${fmt(price)}.</p><div class="annoncesCards">${rows.map(a=>{
+ const surface=Number(q('#surfaceHab')?.value||0);
+ const rows=price?closestAnnonces(eligible,price,surface):eligible.slice().sort((a,b)=>Math.abs((Number(a.surface)||0)-surface)-Math.abs((Number(b.surface)||0)-surface)||String(a.url).localeCompare(String(b.url))).slice(0,6);
+ const selection=price?`${rows.length} autre(s) annonce(s) après retrait des doublons probables — prix les plus proches de l’estimation centrale de ${fmt(price)}.`:`${rows.length} annonce(s) provisoires ${surface>0?'par proximité de surface':'sans surface de référence'} : estimation indisponible, aucun classement par prix d’estimation.`;
+ target.innerHTML=`<p class="small">${esc(selection)}</p><div class="annoncesCards">${rows.map(a=>{
   const photo=safeAnnonceUrl(a.photo),url=safeAnnonceUrl(a.url);
   return `<article class="annonceCard"><div class="annoncePhoto">${photo?`<img src="${esc(photo)}" alt="${esc(a.titre||'Photo du bien')}" loading="lazy" referrerpolicy="no-referrer">`:''}<span class="annonceNoPhoto" ${photo?'hidden':''}>Photo non disponible</span></div><div class="annonceBody"><div class="annonceAgency">${esc(a.site||'Ajout manuel')}</div><h4>${esc(a.titre||'Bien proposé à la vente')}</h4><p class="annonceDescription">${esc(a.description||'Caractéristiques à consulter dans l’annonce.')}</p><div class="annoncePrice">${fmt(a.prix)}</div><div class="small">Prix affiché${a.surface?' · '+esc(a.surface)+' m²':''}</div>${url?`<a class="annonceLink" href="${esc(url)}" target="_blank" rel="noopener noreferrer">Voir l’annonce ↗</a>`:''}</div></article>`;
  }).join('')}</div><p class="small">Annonces proposées à la vente ; disponibilité à confirmer. Les prix affichés ne sont pas des prix de vente constatés.</p>`;
@@ -162,7 +172,7 @@ if(q('#estimationResults'))new MutationObserver(()=>displayAnnonces()).observe(q
 annoncesBtn?.addEventListener('click',async()=>{
  const raw=(q('#cadCommune')?.value||'').trim();const addr=(q('#address')?.value||'').trim();
  const commune=/^\d{5}$/.test(raw)?(raw==='34126'?'Lamalou-les-Bains':raw):raw||(/lamalou/i.test(addr)?'Lamalou-les-Bains':'');
- const typ=(q('#type')?.value||'').toLowerCase();const type_bien=typ.includes('appartement')?'appartement':typ.includes('maison')||typ.includes('villa')?'maison':'';
+ const typ=(q('#type')?.value||'').toLowerCase();const type_bien=(/appartement|studio/.test(typ))?'appartement':typ.includes('maison')||typ.includes('villa')?'maison':'';
  const surface=Number(q('#surfaceHab')?.value||0);const status=q('#annoncesStatus');
  const links=q('#annoncesLinks');
  if(links){
@@ -174,17 +184,20 @@ annoncesBtn?.addEventListener('click',async()=>{
 
  if(!commune||!type_bien){status.textContent='Renseigne la commune (nom), et le type maison/appartement. Si le cadastre contient seulement un code INSEE, saisis le nom de la commune dans l’adresse.';return;}
  if(/^\d{5}$/.test(commune)){status.textContent='Nom de commune nécessaire pour rechercher les annonces (le code INSEE seul ne suffit pas).';return;}
- annoncesBtn.disabled=true;status.textContent='Recherche Roques puis comparaison avec les autres catalogues…';
- await loadRoques();
- const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),22000);
- try{const res=await fetch('/api/estimation/annonces?'+new URLSearchParams({commune,type_bien,surface}),{signal:controller.signal});const d=await res.json();if(!res.ok)throw Error(d.detail||'Erreur serveur');found=d.annonces||[];
+ annoncesBtn.disabled=true;status.textContent='Préparation de l’estimation et recherche des catalogues…';
+ const controller=new AbortController();let timer;
+ try{
+  if(!estimationReference())await calculateEstimate();
+  const roquesTask=loadRoques({calculate:false});
+  timer=setTimeout(()=>controller.abort(),25000);
+  const res=await fetch('/api/estimation/annonces?'+new URLSearchParams({commune,type_bien,surface}),{signal:controller.signal});const d=await res.json();if(!res.ok)throw Error(d.detail||'Erreur serveur');found=d.annonces||[];
  if(links && d.recherches_agences?.length){
   links.replaceChildren(document.createTextNode('Agences et réseaux — recherches directes (liens de recherche, annonces à vérifier) : '));
   for(const item of d.recherches_agences){
    const a=document.createElement('a');a.href=item.url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=item.nom;a.style.marginRight='12px';links.append(a);
   }
  }
- status.textContent=d.message+(d.limites?' '+d.limites:'')+'';displayAnnonces();}
+ status.textContent=(d.message||'Recherche terminée.')+(d.limites?' '+d.limites:'');displayAnnonces();await roquesTask;}
  catch(e){status.textContent=(e.name==='AbortError'?'Le catalogue ne répond pas dans le délai prévu. Utilisez les liens de recherche.':'Recherche indisponible : '+e.message);found=[];displayAnnonces();}
  finally{clearTimeout(timer);annoncesBtn.disabled=false;}
 });
@@ -208,20 +221,22 @@ function displayRoques(){
 q('#roquesResults')?.addEventListener('error',event=>{
  if(event.target.tagName==='IMG'){event.target.hidden=true;event.target.parentElement.querySelector('.annonceNoPhoto').hidden=false;}
 },true);
-async function loadRoques(){
+async function loadRoques(options={}){
  const status=q('#roquesStatus'),button=q('#launchRoques');if(!status||button.disabled)return;
- const price=estimationReference();if(!price){status.textContent='Calculez d’abord l’estimation pour rechercher les biens Roques similaires.';return;}
+ let price=estimationReference();
+ if(!price&&options.calculate!==false){await calculateEstimate();price=estimationReference();}
+ if(!price){roquesFound=[];roquesReady=true;displayRoques();displayAnnonces();status.textContent='La sélection Roques par prix attend une estimation calculable. Les autres catalogues peuvent être affichés provisoirement par surface.';return;}
  let commune=(q('#cadCommune')?.value||'').trim();
  if(!commune&&/lamalou/i.test(q('#address')?.value||''))commune='Lamalou-les-Bains';
- const type=(q('#type')?.value||'').toLowerCase(),type_bien=type.includes('appartement')?'appartement':/maison|villa/.test(type)?'maison':'';
- if(!commune||!type_bien){status.textContent='Renseignez la commune et le type du bien.';return;}
+ const type=(q('#type')?.value||'').toLowerCase(),type_bien=(/appartement|studio/.test(type))?'appartement':/maison|villa/.test(type)?'maison':'';
+ if(!commune||!type_bien){roquesReady=true;status.textContent='Renseignez la commune et le type du bien.';return;}
  roquesReady=false;roquesFound=[];displayRoques();displayAnnonces();
  button.disabled=true;status.textContent='Recherche Roques : commune du bien puis communes voisines…';
- const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),90000);
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),25000);
  try{
   const r=await fetch('/api/estimation/roques?'+new URLSearchParams({commune,type_bien,prix:price,surface:Number(q('#surfaceHab')?.value||0)}),{signal:controller.signal});const d=await r.json();
   if(!r.ok)throw Error(d.detail||'Catalogue inaccessible');roquesFound=d.annonces||[];roquesReady=true;displayRoques();status.textContent=d.message;
- }catch(e){roquesFound=[];displayRoques();status.textContent=e.name==='AbortError'?'Recherche trop longue. Réessayez.':'Recherche Roques indisponible : '+e.message;}
+ }catch(e){roquesFound=[];roquesReady=true;displayRoques();status.textContent=e.name==='AbortError'?'Recherche trop longue. Réessayez.':'Recherche Roques indisponible : '+e.message;}
  finally{clearTimeout(timer);button.disabled=false;displayAnnonces();}
 }
 q('#launchRoques')?.addEventListener('click',loadRoques);

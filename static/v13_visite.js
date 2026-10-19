@@ -989,6 +989,7 @@ async function render(){
  const surfaceAlerts=sanitarySurfaceWarnings(t);
  const ss=surfaces(t), habRows=habitableRows(ss,t), total=habRows.reduce((a,x)=>a+x.val,0);
  const habDeclared=explicitHabitable(t), announced=declaredPropertySurface(t), carrez=explicitCarrez(t);
+ $('#surfaceHab').dataset.needsReview=String(surfaceAlerts.length>0&&habDeclared==null);
  if(habDeclared!=null)$('#surfaceHab').value=habDeclared.toFixed(2);
  else if(total&&!surfaceAlerts.length)$('#surfaceHab').value=total.toFixed(2);
  else $('#surfaceHab').value='';
