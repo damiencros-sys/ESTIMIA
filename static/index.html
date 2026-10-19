@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#15324a">
   <title>ESTIM’IA — Assistant d’Estimation</title>
   <link rel="manifest" href="/static/manifest.json">
-  <!-- Tailwind CSS & html2pdf via CDN gratuit -->
+  <!-- Tailwind CSS & html2pdf -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <link rel="stylesheet" href="/static/style.css?v=13.2">
@@ -14,206 +14,238 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 </head>
-<body class="bg-slate-50 text-slate-800 font-sans min-h-screen pb-12">
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen pb-6">
 
-  <!-- Entête -->
-  <header class="bg-slate-900 text-white p-4 shadow-md sticky top-0 z-50 flex justify-between items-center">
-    <div class="flex items-center gap-3">
-      <span class="text-xl font-bold bg-emerald-500 text-white px-2 py-1 rounded">ESTIM’IA</span>
+  <!-- En-tête compact -->
+  <header class="bg-slate-900 text-white px-4 py-2.5 shadow-md sticky top-0 z-50 flex justify-between items-center">
+    <div class="flex items-center gap-2">
+      <span class="text-lg font-bold bg-emerald-600 text-white px-2 py-0.5 rounded">ESTIM’IA</span>
       <span class="text-xs text-slate-400 hidden sm:inline">Assistant d’estimation immobilière</span>
     </div>
-    <button id="new" class="bg-slate-800 hover:bg-slate-700 text-white text-sm px-3 py-1.5 rounded-lg transition border border-slate-700">+ Nouveau dossier</button>
+    <button id="new" class="bg-slate-800 hover:bg-slate-700 text-white text-xs px-3 py-1 rounded-lg border border-slate-700 transition">+ Nouveau dossier</button>
   </header>
 
-  <main class="max-w-4xl mx-auto px-4 mt-6">
+  <main class="max-w-5xl mx-auto px-2 sm:px-4 mt-3">
     
-    <!-- Barre de Navigation (Wizard par Étapes) -->
-    <nav class="flex border-b border-slate-200 mb-6 bg-white rounded-xl p-2 shadow-sm gap-1 overflow-x-auto">
-      <button onclick="switchStep(1)" id="tab-step-1" class="step-tab flex-1 py-2.5 px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition text-center whitespace-nowrap bg-emerald-50 text-emerald-700 font-semibold">
-        1. Infos & Dictée
+    <!-- Barre d'onglets compacte -->
+    <nav class="flex border-b border-slate-200 mb-3 bg-white rounded-lg p-1 shadow-sm gap-1 overflow-x-auto text-xs">
+      <button onclick="switchStep(1)" id="tab-step-1" class="step-tab flex-1 py-1.5 px-2 rounded-md font-medium text-slate-600 hover:bg-slate-100 transition whitespace-nowrap bg-emerald-50 text-emerald-700 font-semibold">
+        1. Dictée
       </button>
-      <button onclick="switchStep(2)" id="tab-step-2" class="step-tab flex-1 py-2.5 px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition text-center whitespace-nowrap">
-        2. Photos
+      <button onclick="switchStep(2)" id="tab-step-2" class="step-tab flex-1 py-1.5 px-2 rounded-md font-medium text-slate-600 hover:bg-slate-100 transition whitespace-nowrap">
+        2. Infos & Cadastre
       </button>
-      <button onclick="switchStep(3)" id="tab-step-3" class="step-tab flex-1 py-2.5 px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition text-center whitespace-nowrap">
-        3. Fiche IA
+      <button onclick="switchStep(3)" id="tab-step-3" class="step-tab flex-1 py-1.5 px-2 rounded-md font-medium text-slate-600 hover:bg-slate-100 transition whitespace-nowrap">
+        3. Photos & Fiche IA
       </button>
-      <button onclick="switchStep(4)" id="tab-step-4" class="step-tab flex-1 py-2.5 px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition text-center whitespace-nowrap">
-        4. Dossier & Export
+      <button onclick="switchStep(4)" id="tab-step-4" class="step-tab flex-1 py-1.5 px-2 rounded-md font-medium text-slate-600 hover:bg-slate-100 transition whitespace-nowrap">
+        4. Comparables & DVF
+      </button>
+      <button onclick="switchStep(5)" id="tab-step-5" class="step-tab flex-1 py-1.5 px-2 rounded-md font-medium text-slate-600 hover:bg-slate-100 transition whitespace-nowrap">
+        5. Export & PDF
       </button>
     </nav>
 
-    <!-- ÉTAPE 1 : Infos Dossier & Dictée -->
-    <div id="step-panel-1" class="step-panel space-y-6">
-      
-      <!-- Section Propriétaire / Adresse / Cadastre -->
-      <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-        <h2 class="text-lg font-semibold text-slate-900 flex items-center gap-2">👤 Propriétaire & Localisation</h2>
+    <!-- ÉTAPE 1 : Dictée (Raconte ta visite) -->
+    <div id="step-panel-1" class="step-panel space-y-3">
+      <section class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
+        <div class="flex justify-between items-center">
+          <h2 class="text-base font-bold text-slate-900 flex items-center gap-1.5">🎙️ Raconte ta visite</h2>
+          <span class="text-[11px] text-slate-400">Étape 1 / 5</span>
+        </div>
+        <p class="text-xs text-slate-500">Appuie sur le micro et parle normalement. L'IA structurera l'ensemble du bien.</p>
         
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label class="block text-xs font-medium text-slate-500 mb-1">Propriétaire</label>
-            <input id="owner" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Nom et prénom">
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-slate-500 mb-1">Téléphone</label>
-            <input id="ownerPhone" inputmode="tel" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Téléphone">
-          </div>
-        </div>
-
-        <div>
-          <label class="block text-xs font-medium text-slate-500 mb-1">Adresse du bien</label>
-          <div class="flex gap-2">
-            <input id="address" class="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Dicte l’adresse ou commence à la saisir">
-            <button id="checkAddress" type="button" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm px-3 py-2 rounded-lg font-medium transition">🔎 Vérifier</button>
-          </div>
-          <div id="addressSuggestions" class="suggestions"></div>
-          <div id="addressStatus" class="status text-xs mt-1"></div>
-        </div>
-
-        <!-- Bloc Cadastre -->
-        <div class="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-3">
-          <span class="text-xs font-bold text-slate-700 block">🗺️ CADASTRE</span>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label class="block text-xs text-slate-500 mb-1">Commune / INSEE</label>
-              <input id="cadCommune" class="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white" placeholder="Ex. Lamalou-les-Bains">
-            </div>
-            <div>
-              <label class="block text-xs text-slate-500 mb-1">Section</label>
-              <input id="cadSection" maxlength="3" class="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white" placeholder="Ex. AB">
-            </div>
-            <div>
-              <label class="block text-xs text-slate-500 mb-1">Parcelle</label>
-              <input id="cadParcel" inputmode="numeric" class="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white" placeholder="Ex. 152">
-            </div>
-          </div>
-          <button id="findParcel" type="button" class="bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-medium px-3 py-1.5 rounded-lg transition">🔎 Rechercher parcelle</button>
-          <div id="cadStatus" class="status text-xs"></div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="block text-xs font-medium text-slate-500 mb-1">Type de bien</label>
-            <input id="type" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Appartement, maison…">
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-slate-500 mb-1">Surface Carrez / Habitable (m²)</label>
-            <input id="surface" type="number" step=".01" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="80">
-          </div>
-        </div>
-      </section>
-
-      <!-- Section Dictée -->
-      <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-        <h2 class="text-lg font-semibold text-slate-900 flex items-center gap-2">🎙️ Dictée de visite</h2>
-        <p class="text-xs text-slate-500">Appuie sur le micro et parle normalement. L'IA structurera tes propos.</p>
-        
-        <button id="record" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-xl transition flex items-center justify-center gap-2 shadow-sm">
+        <button id="record" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition flex items-center justify-center gap-2 shadow-sm">
           🎙️ Démarrer la dictée
         </button>
-        <div id="recordStatus" class="text-xs text-slate-500 min-h-[16px]"></div>
+        <div id="recordStatus" class="text-xs text-slate-500 min-h-[14px]"></div>
         
         <div class="flex gap-2">
-          <button id="undoDictation" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg transition" type="button">↩️ Annuler dernière dictée</button>
-          <button id="clearDictation" class="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded-lg transition" type="button">🗑️ Effacer toute la dictée</button>
+          <button id="undoDictation" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-md transition" type="button">↩️ Annuler dernière dictée</button>
+          <button id="clearDictation" class="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-2.5 py-1 rounded-md transition" type="button">🗑️ Effacer la dictée</button>
         </div>
 
-        <textarea id="notes" rows="6" class="w-full p-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="La dictée apparaîtra ici. Tu peux aussi écrire ou corriger le texte."></textarea>
+        <textarea id="notes" rows="7" class="w-full p-2.5 border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 outline-none font-sans" placeholder="La dictée apparaîtra ici. Tu peux aussi écrire ou corriger le texte."></textarea>
         
-        <details class="text-xs text-slate-500"><summary class="cursor-pointer font-medium">Historique des dictées</summary><div id="dictationHistory" class="p-2 bg-slate-50 rounded mt-2"></div></details>
+        <details class="text-xs text-slate-500"><summary class="cursor-pointer font-medium">Historique des dictées</summary><div id="dictationHistory" class="p-2 bg-slate-50 rounded mt-1"></div></details>
 
-        <div class="flex justify-between items-center pt-2">
-          <button id="analyse" class="bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition">✨ Transformer en fiche gratuitement</button>
-          <button onclick="switchStep(2)" class="text-sm font-medium text-emerald-600 hover:text-emerald-700">Étape suivante : Photos →</button>
-        </div>
-      </section>
-    </div>
-
-    <!-- ÉTAPE 2 : Photos -->
-    <div id="step-panel-2" class="step-panel hidden space-y-6">
-      <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-        <h2 class="text-lg font-semibold text-slate-900">📷 Photos de la visite</h2>
-        <p class="text-xs text-slate-500">Ajoute toutes les photos de la visite pour le dossier.</p>
-        
-        <label class="border-2 border-dashed border-slate-200 hover:border-emerald-500 rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer transition bg-slate-50 hover:bg-white">
-          <span class="text-3xl mb-2">📷</span>
-          <span class="text-sm font-medium text-slate-700">Ajouter des photos</span>
-          <span class="text-xs text-slate-400 mt-1">Sélectionne tes fichiers image</span>
-          <input id="photos" type="file" accept="image/*" multiple hidden>
-        </label>
-        
-        <div id="gallery" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4"></div>
-        <div id="photoStatus" class="text-xs text-slate-500"></div>
-
-        <div class="flex justify-between items-center pt-4 border-t border-slate-100">
-          <button onclick="switchStep(1)" class="text-sm font-medium text-slate-600 hover:text-slate-900">← Retour</button>
-          <button onclick="switchStep(3)" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition">Étape suivante : Fiche IA →</button>
+        <div class="flex justify-between items-center pt-1 border-t border-slate-100">
+          <button id="analyse" class="bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium px-3 py-2 rounded-lg transition">✨ Transformer en fiche gratuitement</button>
+          <button onclick="switchStep(2)" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700">Suivant : Infos & Cadastre →</button>
         </div>
       </section>
     </div>
 
-    <!-- ÉTAPE 3 : Fiche IA -->
-    <div id="step-panel-3" class="step-panel hidden space-y-6">
-      <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-        <h2 class="text-lg font-semibold text-slate-900">📋 Fiche extraite par l'IA</h2>
+    <!-- ÉTAPE 2 : Dossier, Propriétaire & Cadastre -->
+    <div id="step-panel-2" class="step-panel hidden space-y-3">
+      <section class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
+        <div class="flex justify-between items-center">
+          <h2 class="text-base font-bold text-slate-900 flex items-center gap-1.5">👤 Propriétaire & Localisation</h2>
+          <span class="text-[11px] text-slate-400">Étape 2 / 5</span>
+        </div>
         
-        <div id="facts" class="bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm min-h-[120px]">
-          <div class="text-slate-400 italic">Dicte ta visite puis clique sur « Transformer en fiche ».</div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div>
+            <label class="block text-[11px] font-medium text-slate-500 mb-0.5">Propriétaire</label>
+            <input id="owner" class="w-full px-2.5 py-1.5 border border-slate-200 rounded-md text-xs focus:ring-1 focus:ring-emerald-500 outline-none" placeholder="Nom et prénom">
+          </div>
+          <div>
+            <label class="block text-[11px] font-medium text-slate-500 mb-0.5">Téléphone</label>
+            <input id="ownerPhone" inputmode="tel" class="w-full px-2.5 py-1.5 border border-slate-200 rounded-md text-xs focus:ring-1 focus:ring-emerald-500 outline-none" placeholder="Téléphone">
+          </div>
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-slate-500 mb-1">Correction libre</label>
-          <textarea id="correction" rows="2" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Ex. la terrasse fait 25 m² et non 30 m²"></textarea>
+          <label class="block text-[11px] font-medium text-slate-500 mb-0.5">Adresse du bien</label>
+          <div class="flex gap-1.5">
+            <input id="address" class="flex-1 px-2.5 py-1.5 border border-slate-200 rounded-md text-xs focus:ring-1 focus:ring-emerald-500 outline-none" placeholder="Adresse du bien">
+            <button id="checkAddress" type="button" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs px-2.5 py-1.5 rounded-md font-medium transition">🔎 Vérifier</button>
+          </div>
+          <div id="addressSuggestions" class="suggestions"></div>
+          <div id="addressStatus" class="status text-[11px] mt-0.5"></div>
         </div>
 
-        <div class="flex justify-between items-center pt-4 border-t border-slate-100">
-          <button onclick="switchStep(2)" class="text-sm font-medium text-slate-600 hover:text-slate-900">← Retour</button>
-          <button onclick="switchStep(4)" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition">Étape suivante : Export & PDF →</button>
+        <!-- Cadastre -->
+        <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
+          <span class="text-xs font-bold text-slate-700 block">🗺️ Cadastre</span>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div>
+              <label class="block text-[10px] text-slate-500 mb-0.5">Commune / INSEE</label>
+              <input id="cadCommune" class="w-full px-2 py-1 border border-slate-200 rounded text-xs bg-white" placeholder="Ex. Lamalou-les-Bains">
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-500 mb-0.5">Section</label>
+              <input id="cadSection" maxlength="3" class="w-full px-2 py-1 border border-slate-200 rounded text-xs bg-white" placeholder="Ex. AB">
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-500 mb-0.5">Parcelle</label>
+              <input id="cadParcel" inputmode="numeric" class="w-full px-2 py-1 border border-slate-200 rounded text-xs bg-white" placeholder="Ex. 152">
+            </div>
+          </div>
+          <button id="findParcel" type="button" class="bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-medium px-2.5 py-1 rounded transition">🔎 Rechercher parcelle</button>
+          <div id="cadStatus" class="status text-[11px]"></div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2.5">
+          <div>
+            <label class="block text-[11px] font-medium text-slate-500 mb-0.5">Type de bien</label>
+            <input id="type" class="w-full px-2.5 py-1.5 border border-slate-200 rounded-md text-xs focus:ring-1 focus:ring-emerald-500 outline-none" placeholder="Maison, Appartement…">
+          </div>
+          <div>
+            <label class="block text-[11px] font-medium text-slate-500 mb-0.5">Surface (m²)</label>
+            <input id="surface" type="number" step=".01" class="w-full px-2.5 py-1.5 border border-slate-200 rounded-md text-xs focus:ring-1 focus:ring-emerald-500 outline-none" placeholder="80.41">
+          </div>
+        </div>
+
+        <div class="flex justify-between items-center pt-2 border-t border-slate-100">
+          <button onclick="switchStep(1)" class="text-xs font-medium text-slate-600 hover:text-slate-900">← Retour Dictée</button>
+          <button onclick="switchStep(3)" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700">Suivant : Photos & Fiche →</button>
         </div>
       </section>
     </div>
 
-    <!-- ÉTAPE 4 : Dossier & Export PDF -->
-    <div id="step-panel-4" class="step-panel hidden space-y-6">
-      <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-        <h2 class="text-lg font-semibold text-slate-900">💾 Enregistrement & Exportation</h2>
+    <!-- ÉTAPE 3 : Photos & Fiche IA (Surfaces, Équipements) -->
+    <div id="step-panel-3" class="step-panel hidden space-y-3">
+      <section class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
+        <div class="flex justify-between items-center">
+          <h2 class="text-base font-bold text-slate-900">📷 Photos de la visite</h2>
+          <span class="text-[11px] text-slate-400">Étape 3 / 5</span>
+        </div>
+        <label class="border border-dashed border-slate-300 hover:border-emerald-500 rounded-lg p-3 flex flex-col items-center justify-center cursor-pointer transition bg-slate-50 hover:bg-white text-center">
+          <span class="text-xs font-semibold text-slate-700">📷 Ajouter les photos du dossier</span>
+          <input id="photos" type="file" accept="image/*" multiple hidden>
+        </label>
+        <div id="gallery" class="grid grid-cols-3 sm:grid-cols-6 gap-2 mt-2"></div>
+        <div id="photoStatus" class="text-[11px] text-slate-500"></div>
+      </section>
+
+      <section class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
+        <h2 class="text-base font-bold text-slate-900">📋 Ce que j'ai compris (Fiche IA & Surfaces)</h2>
         
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <button id="save" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-xl transition shadow-sm">💾 Enregistrer le dossier</button>
-          <button onclick="generatePDF()" class="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-medium rounded-xl transition shadow-sm flex items-center justify-center gap-2">📄 Télécharger le PDF Client</button>
+        <div id="facts" class="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs min-h-[80px]">
+          <div class="text-slate-400 italic">Aucune information structurée pour le moment.</div>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-medium text-slate-500 mb-0.5">Correction libre</label>
+          <textarea id="correction" rows="2" class="w-full p-2 border border-slate-200 rounded-md text-xs focus:ring-1 focus:ring-emerald-500 outline-none" placeholder="Ex. la terrasse fait 25 m² et non 30 m²"></textarea>
+        </div>
+
+        <div class="flex justify-between items-center pt-2 border-t border-slate-100">
+          <button onclick="switchStep(2)" class="text-xs font-medium text-slate-600 hover:text-slate-900">← Retour Infos</button>
+          <button onclick="switchStep(4)" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700">Suivant : Comparables & DVF →</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- ÉTAPE 4 : Biens similaires & Estimation DVF -->
+    <div id="step-panel-4" class="step-panel hidden space-y-3">
+      <!-- Section Annonces comparables -->
+      <section class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
+        <div class="flex justify-between items-center">
+          <h2 class="text-base font-bold text-slate-900">🏡 Biens actuellement similaires proposés à la vente</h2>
+          <span class="text-[11px] text-slate-400">Étape 4 / 5</span>
+        </div>
+        <button id="searchComparables" type="button" class="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium rounded-lg transition">🔍 Rechercher les annonces comparables</button>
+        <div id="comparablesResults" class="space-y-2 mt-2"></div>
+      </section>
+
+      <!-- Section Estimation DVF -->
+      <section class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
+        <h2 class="text-base font-bold text-slate-900">📊 Estimation (ventes DVF & annonces)</h2>
+        <button id="calculateEstimation" type="button" class="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg transition">📊 Rechercher les ventes et calculer</button>
+        <div id="estimationResults" class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs min-h-[60px]">
+          <div class="text-slate-400 italic">Cliquez sur « Rechercher les ventes et calculer ».</div>
+        </div>
+
+        <div class="flex justify-between items-center pt-2 border-t border-slate-100">
+          <button onclick="switchStep(3)" class="text-xs font-medium text-slate-600 hover:text-slate-900">← Retour Fiche IA</button>
+          <button onclick="switchStep(5)" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700">Suivant : Export & PDF →</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- ÉTAPE 5 : Exportation & Dossier Final -->
+    <div id="step-panel-5" class="step-panel hidden space-y-3">
+      <section class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
+        <div class="flex justify-between items-center">
+          <h2 class="text-base font-bold text-slate-900">💾 Enregistrer & Exporter</h2>
+          <span class="text-[11px] text-slate-400">Étape 5 / 5</span>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <button id="save" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg transition">💾 Enregistrer le dossier</button>
+          <button onclick="generatePDF()" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium rounded-lg transition flex items-center justify-center gap-1.5">📄 Télécharger le PDF Client</button>
         </div>
 
         <div class="flex gap-2">
-          <button id="printVisit" type="button" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg transition flex-1">🖨️ Impression standard</button>
-          <button id="downloadVisit" type="button" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg transition flex-1">💾 Sauvegarde locale</button>
+          <button id="printVisit" type="button" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 py-1.5 rounded-lg transition flex-1">🖨️ Imprimer / Enregistrer en PDF</button>
+          <button id="downloadVisit" type="button" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 py-1.5 rounded-lg transition flex-1">💾 Sauvegarde locale de la fiche</button>
         </div>
 
-        <div id="saveStatus" class="text-xs text-slate-500"></div>
+        <div id="saveStatus" class="text-[11px] text-slate-500"></div>
       </section>
 
-      <!-- Aperçu Live du Rapport PDF -->
-      <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Aperçu du document PDF</h3>
-        <div id="pdf-preview" class="p-8 bg-white border border-slate-200 rounded-xl text-slate-800 space-y-4">
-          <div class="flex justify-between items-center border-b pb-4">
+      <!-- Aperçu compact du document PDF -->
+      <section class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-2">
+        <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Aperçu du rapport PDF</h3>
+        <div id="pdf-preview" class="p-4 bg-white border border-slate-200 rounded-lg text-slate-800 space-y-3">
+          <div class="flex justify-between items-center border-b pb-2">
             <div>
-              <h1 class="text-2xl font-bold text-slate-900">RAPPORT VISITE & ESTIMATION</h1>
-              <p id="pdf-address" class="text-sm text-slate-500">Adresse du bien</p>
+              <h1 class="text-lg font-bold text-slate-900">RAPPORT D'ESTIMATION</h1>
+              <p id="pdf-address" class="text-xs text-slate-500">Adresse du bien</p>
             </div>
-            <div class="text-right">
-              <span class="text-xs bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded-full">ESTIM'IA</span>
-            </div>
+            <span class="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">ESTIM'IA</span>
           </div>
-          <div class="grid grid-cols-2 gap-4 text-sm py-2 bg-slate-50 p-3 rounded-lg">
+          <div class="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2 rounded">
             <div><strong>Client :</strong> <span id="pdf-owner">-</span></div>
             <div><strong>Téléphone :</strong> <span id="pdf-phone">-</span></div>
             <div><strong>Type :</strong> <span id="pdf-type">-</span></div>
             <div><strong>Surface :</strong> <span id="pdf-surface">-</span> m²</div>
           </div>
-          <div class="border-t pt-4">
-            <h4 class="font-semibold text-sm mb-2 text-slate-700">Synthèse des caractéristiques</h4>
-            <div id="pdf-facts-content" class="text-xs text-slate-600 space-y-1">
+          <div class="border-t pt-2">
+            <h4 class="font-semibold text-xs mb-1 text-slate-700">Synthèse des caractéristiques</h4>
+            <div id="pdf-facts-content" class="text-[11px] text-slate-600 space-y-0.5">
               Les détails de la fiche apparaîtront ici.
             </div>
           </div>
@@ -229,7 +261,7 @@
   <script src="/static/v8_fiche_pro.js"></script>
   <script src="/static/v13_visite.js?v=13.2"></script>
 
-  <!-- Script pour le Wizard et l'export PDF -->
+  <!-- Navigation et export PDF -->
   <script>
     function switchStep(stepNumber) {
       document.querySelectorAll('.step-panel').forEach(el => el.classList.add('hidden'));
@@ -241,7 +273,7 @@
       const activeTab = document.getElementById(`tab-step-${stepNumber}`);
       activeTab.classList.add('bg-emerald-50', 'text-emerald-700', 'font-semibold');
 
-      if(stepNumber === 4) updatePDFPreview();
+      if(stepNumber === 5) updatePDFPreview();
     }
 
     function updatePDFPreview() {
@@ -261,7 +293,7 @@
       updatePDFPreview();
       const element = document.getElementById('pdf-preview');
       const opt = {
-        margin:       10,
+        margin:       8,
         filename:     'estimation-immo.pdf',
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { scale: 2 },
