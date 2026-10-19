@@ -109,4 +109,34 @@ q('#addAnnonce')?.addEventListener('click',()=>{
  manual.push({url,prix:price,surface,prix_m2:Math.round(price/surface),site:parsed.hostname,titre:'Comparable ajouté et vérifié manuellement'});displayAnnonces();
  q('#annoncesStatus').textContent='Comparable ajouté au tableau pour cette session.';
 });
+
+let roquesFound=[];
+function displayRoques(){
+ const target=q('#roquesResults');if(!target)return;
+ target.innerHTML=`<div class="annoncesCards">${roquesFound.map(a=>{
+ const photo=safeAnnonceUrl(a.photo),url=safeAnnonceUrl(a.url);
+  return `<article class="annonceCard"><div class="annoncePhoto">${photo?`<img src="${esc(photo)}" alt="${esc(a.titre||'Photo du bien')}" loading="lazy" referrerpolicy="no-referrer">`:''}<span class="annonceNoPhoto" ${photo?'hidden':''}>Photo non disponible</span></div><div class="annonceBody"><div class="annonceAgency">${esc(a.site||'Ajout manuel')}</div><h4>${esc(a.titre||'Bien proposé à la vente')}</h4><p class="annonceDescription">${esc(a.description||'Caractéristiques à consulter dans l’annonce.')}</p><div class="annoncePrice">${fmt(a.prix)}</div><div class="small">Prix affiché${a.surface?' · '+esc(a.surface)+' m²':''}</div>${url?`<a class="annonceLink" href="${esc(url)}" target="_blank" rel="noopener noreferrer">Voir l’annonce ↗</a>`:''}</div></article>`;
+
+ }).join('')}</div>`;
+}
+q('#roquesResults')?.addEventListener('error',event=>{
+ if(event.target.tagName==='IMG'){event.target.hidden=true;event.target.parentElement.querySelector('.annonceNoPhoto').hidden=false;}
+},true);
+async function loadRoques(){
+ const status=q('#roquesStatus'),button=q('#launchRoques');if(!status||button.disabled)return;
+ const price=estimationReference();if(!price){status.textContent='Calculez d’abord l’estimation pour rechercher les biens Roques similaires.';return;}
+ let commune=(q('#cadCommune')?.value||'').trim();
+ if(!commune&&/lamalou/i.test(q('#address')?.value||''))commune='Lamalou-les-Bains';
+ const type=(q('#type')?.value||'').toLowerCase(),type_bien=type.includes('appartement')?'appartement':/maison|villa/.test(type)?'maison':'';
+ if(!commune||!type_bien){status.textContent='Renseignez la commune et le type du bien.';return;}
+ button.disabled=true;status.textContent='Recherche Roques : commune du bien puis communes voisines…';
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),90000);
+ try{
+  const r=await fetch('/api/estimation/roques?'+new URLSearchParams({commune,type_bien,prix:price,surface:Number(q('#surfaceHab')?.value||0)}),{signal:controller.signal});const d=await r.json();
+  if(!r.ok)throw Error(d.detail||'Catalogue inaccessible');roquesFound=d.annonces||[];displayRoques();status.textContent=d.message;
+ }catch(e){roquesFound=[];displayRoques();status.textContent=e.name==='AbortError'?'Recherche trop longue. Réessayez.':'Recherche Roques indisponible : '+e.message;}
+ finally{clearTimeout(timer);button.disabled=false;}
+}
+q('#launchRoques')?.addEventListener('click',loadRoques);
+annoncesBtn?.addEventListener('click',loadRoques);
 })();

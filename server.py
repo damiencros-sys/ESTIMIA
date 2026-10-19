@@ -342,6 +342,7 @@ class WordPayload(BaseModel):
     theme_color:str=""
     estimation:dict={}
     annonces:list=[]
+    roques_annonces:list=[]
 
 def _property_color(t):
     s=(t or "").lower()
@@ -480,11 +481,12 @@ def word_export(p:WordPayload):
     else:
         heading('ESTIMATION DU BIEN')
         doc.add_paragraph('Estimation non calculée dans ce dossier.')
-    if p.annonces:
-        heading('ANNONCES COMPARABLES')
+    for group_title,group_items in [('ANNONCES COMPARABLES',p.annonces),('ANNONCES SIMILAIRES ROQUES IMMOBILIER',p.roques_annonces[:4])]:
+        if not group_items:continue
+        heading(group_title)
         doc.add_paragraph('Biens proposés à la vente sélectionnés par proximité du prix central. Prix affichés et disponibilité à confirmer auprès des agences.')
-        pictures=_export_market_images(p.annonces)
-        for index,item in enumerate(p.annonces[:6]):
+        pictures=_export_market_images(group_items)
+        for index,item in enumerate(group_items[:6]):
             heading(str(index+1)+'  '+str(item.get('titre','Bien proposé à la vente')))
             if pictures[index]:
                 para=doc.add_paragraph();para.alignment=WD_ALIGN_PARAGRAPH.CENTER
@@ -590,11 +592,12 @@ def pdf_export(p:WordPayload):
         add_table([('Valeur centrale',text(p.estimation.get('centrale'))),('Fourchette basse',text(p.estimation.get('basse'))),('Fourchette haute',text(p.estimation.get('haute')))])
         story.append(Paragraph(text(p.estimation.get('texte') or 'Valeur statistique indicative issue des ventes DVF, sans ajustement qualitatif.'),normal))
     else:story.append(Paragraph('Estimation non calculée dans ce dossier.',normal))
-    if p.annonces:
-        story.append(Paragraph('ANNONCES COMPARABLES',h))
+    for group_title,group_items in [('ANNONCES COMPARABLES',p.annonces),('ANNONCES SIMILAIRES ROQUES IMMOBILIER',p.roques_annonces[:4])]:
+        if not group_items:continue
+        story.append(Paragraph(group_title,h))
         story.append(Paragraph('Biens proposés à la vente sélectionnés par proximité du prix central. Prix affichés et disponibilité à confirmer auprès des agences.',normal))
-        pictures=_export_market_images(p.annonces)
-        for index,item in enumerate(p.annonces[:6]):
+        pictures=_export_market_images(group_items)
+        for index,item in enumerate(group_items[:6]):
             card=[Paragraph(text(str(index+1)+'  '+str(item.get('titre','Bien proposé à la vente'))),h)]
             if pictures[index]:card.append(RLImage(io.BytesIO(pictures[index]),width=105*mm,height=65*mm,kind='proportional'))
             else:card.append(Paragraph('Photo de cette annonce indisponible lors de l’export.',cap))
@@ -1066,11 +1069,11 @@ def _market_parse_roques(page, city, typ):
     citykey=_market_city_key(city)
     for block in re.findall(r'<article\b[^>]*>(.*?)</article>',page,re.S|re.I):
         links=re.findall(r'href=["\'](/vente/[^"\']+)["\']',block,re.I)
-        path=next((u for u in links if re.search(r'/\d+-[^/]+/(?:maison|villa|appartement)/\d+-',u)),None)
+        path=next((u for u in links if re.search(r'/\d+-[^/]+/(?:maison|villa|maison-de-village|mas|propriete|appartement|studio|duplex)/\d+-',u)),None)
         if not path or path in seen:continue
         parts=path.split('/')
-        if _market_city_key(re.sub(r'^\d+-','',parts[2]))!=citykey:continue
-        if parts[3] not in (('maison','villa') if typ=='maison' else ('appartement',)):continue
+        if _roques_name_key(re.sub(r'^\d+-','',parts[2]).replace('-',' '))!=_roques_name_key(city):continue
+        if parts[3] not in (('maison','villa','maison-de-village','mas','propriete') if typ=='maison' else ('appartement','studio','duplex')):continue
         titlematch=re.search(r'<p\b[^>]*class=["\'][^"\']*item__block--title[^"\']*["\'][^>]*>(.*?)</p>',block,re.S|re.I)
         pricematch=re.search(r'<div\b[^>]*class=["\'][^"\']*item__price[^"\']*["\'][^>]*>(.*?)</div>',block,re.S|re.I)
         if not titlematch or not pricematch:continue
@@ -1215,3 +1218,82 @@ def annonces_marche(commune: str, type_bien: str, surface: float = 0):
     return {'status':'resultats' if rows else 'aucun_resultat','annonces':rows,'recherches_agences':links,
         'message':message,'diagnostics':diag,
         'limites':'Catalogues consultés à Lamalou-les-Bains : Roques Immobilier, IAD, SAFTI, Superimmo et Bien’ici. Résultats non exhaustifs ; autres communes par liens. Doublons résiduels possibles. Prix affichés, disponibilité à confirmer ; aucune intégration automatique au calcul DVF.'}
+
+
+_ROQUES_GEO_CACHE={}
+def _roques_name_key(name):
+    text=re.sub(r'\bst\b','saint',name.lower())
+    text=re.sub(r'\bste\b','sainte',text)
+    return _market_city_key(text)
+
+
+def _roques_discovery():
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+    if _ROQUES_GEO_CACHE.get('expires',0)>time.monotonic():return _ROQUES_GEO_CACHE['data']
+    urls=['https://www.roques-immobilier.com/sitemap.xml']+[
+        'https://geo.api.gouv.fr/departements/'+dept+'/communes?fields=nom,code,centre&format=json' for dept in ('34','12','81')]
+    def load(url):
+        try:
+            req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0'})
+            with urllib.request.urlopen(req,timeout=10) as r:return r.read(3000000).decode('utf-8')
+        except Exception:return ''
+    with ThreadPoolExecutor(max_workers=4) as pool:pages=list(pool.map(load,urls))
+    if not pages[0]:raise HTTPException(503,'Catalogue des communes Roques indisponible')
+    towns=sorted(set(re.findall(r'/vente/(\d+-[^/<]+)/',pages[0])))
+    geo=[]
+    for page in pages[1:]:
+        try:geo.extend(json.loads(page) if page else [])
+        except ValueError:pass
+    if not geo:raise HTTPException(503,'Coordonnées des communes indisponibles')
+    data=(towns,geo);_ROQUES_GEO_CACHE.update(data=data,expires=time.monotonic()+900);return data
+
+
+def _roques_distance(a,b):
+    lon1,lat1,lon2,lat2=map(math.radians,[a[0],a[1],b[0],b[1]])
+    d=math.sin((lat2-lat1)/2)**2+math.cos(lat1)*math.cos(lat2)*math.sin((lon2-lon1)/2)**2
+    return 6371*2*math.asin(min(1,math.sqrt(d)))
+
+
+@app.get('/api/estimation/roques')
+def roques_similaires(commune:str,type_bien:str,prix:float=0,surface:float=0):
+    if type_bien not in ('maison','appartement') or not 0<prix<=10000000:raise HTTPException(400,'Calculer l’estimation et préciser le type de bien')
+    if not 0<=surface<=20000:raise HTTPException(400,'Surface non valide')
+    towns,geo=_roques_discovery()
+    target=next((x for x in geo if str(x.get('code'))==commune.strip() or _roques_name_key(x.get('nom',''))==_roques_name_key(commune)),None)
+    if not target or not target.get('centre'):raise HTTPException(400,'Commune non reconnue pour la recherche de proximité')
+    center=target['centre']['coordinates'];catalog=[]
+    for slug in towns:
+        name=re.sub(r'^\d+-','',slug).replace('-',' ')
+        town=next((x for x in geo if _roques_name_key(x.get('nom',''))==_roques_name_key(name)),None)
+        if not town or not town.get('centre'):continue
+        distance=_roques_distance(center,town['centre']['coordinates'])
+        if distance<=20 or town['code']==target['code']:catalog.append((0 if town['code']==target['code'] else distance,town,slug))
+    catalog.sort(key=lambda x:(x[0],x[1]['nom']));rows=[];seen=set();diagnostics=[]
+    for distance,town,slug in catalog:
+        if len(rows)>=4:break
+        url='https://www.roques-immobilier.com/vente/'+slug+'/1'
+        try:
+            req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0'})
+            with urllib.request.urlopen(req,timeout=10) as r:page=r.read(2500000).decode('utf-8',errors='replace')
+            found=_market_parse_roques(page,town['nom'],type_bien)
+            # En cas de pagination, consulter les pages suivantes si le premier
+            # lot ne suffit pas à compléter les quatre places restantes.
+            pages=sorted(set(int(x) for x in re.findall(r'/vente/'+re.escape(slug)+r'/(\d+)(?:[?"\'])',page)))
+            for number in pages:
+                if number<=1 or number>5:continue
+                try:
+                    with urllib.request.urlopen('https://www.roques-immobilier.com/vente/'+slug+'/'+str(number),timeout=10) as r:extra=r.read(2500000).decode('utf-8',errors='replace')
+                    found.extend(_market_parse_roques(extra,town['nom'],type_bien))
+                except Exception:diagnostics.append({'commune':town['nom'],'etat':'page_indisponible'})
+            found.sort(key=lambda x:(abs(x['prix']-prix),abs(x['surface']-surface)))
+            for row in found:
+                if row['url'] in seen:continue
+                seen.add(row['url']);row['distance_km']=round(distance,1)
+                row['description']=town['nom']+(' — même commune' if distance==0 else ' — à '+str(round(distance,1))+' km à vol d’oiseau')+' · '+row['description']
+                rows.append(row)
+                if len(rows)>=4:break
+            diagnostics.append({'commune':town['nom'],'distance_km':round(distance,1),'etat':'accessible','retenus':len(found)})
+        except Exception:diagnostics.append({'commune':town['nom'],'etat':'indisponible'})
+    return {'annonces':rows,'diagnostics':diagnostics,'commune':target['nom'],
+        'message':str(len(rows))+' annonce(s) Roques sélectionnée(s). Commune du bien prioritaire, puis communes par distance croissante dans un rayon de 20 km. Prix le plus proche dans chaque commune. Distances à vol d’oiseau entre centres des communes.'}
