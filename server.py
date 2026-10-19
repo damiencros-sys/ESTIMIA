@@ -596,7 +596,11 @@ def pdf_export(p:WordPayload):
         for s in p.sections:
             rows=s.get('rows') or []
             rows=[(x[0],x[1]) for x in rows if isinstance(x,(list,tuple)) and len(x)>=2 and str(x[1]).strip()]
-            if rows: story.append(Paragraph(str(s.get('title') or 'Informations'),h));add_table(rows)
+            if rows:
+                if str(s.get('title') or '').startswith('Urbanisme — parcelle'):
+                    from xml.sax.saxutils import escape as xml_escape
+                    rows=[(xml_escape(str(k)),xml_escape(str(v))) for k,v in rows]
+                story.append(Paragraph(str(s.get('title') or 'Informations'),h));add_table(rows)
     from xml.sax.saxutils import escape
     def text(value):return escape(str(value or ''))
     story.append(Paragraph('ESTIMATION DU BIEN',h))
@@ -1320,3 +1324,133 @@ def roques_similaires(commune:str,type_bien:str,prix:float=0,surface:float=0):
     return {'annonces':rows,'diagnostics':diagnostics,'commune':target['nom'],
         'message':str(len(rows))+' annonce(s) Roques sélectionnée(s). Commune du bien prioritaire, puis communes par distance croissante dans un rayon de 20 km. Prix le plus proche dans chaque commune. Distances à vol d’oiseau entre centres des communes.'}
 
+
+# V13.87 — consultation officielle d'urbanisme sur la géométrie de chaque parcelle.
+def _urbanisme_kind(props, details=None):
+    details=details or {}
+    kind=str(details.get('type') or props.get('du_type') or '').upper()
+    if kind=='PLU' and (details.get('grid',{}).get('type')=='epci' or re.fullmatch(r'\d{9}',str(props.get('grid_name') or ''))):kind='PLUI'
+    return {'PLUI':'PLUi','PLU':'PLU','CC':'Carte communale','PSMV':'PSMV','POS':'POS'}.get(kind,kind or 'Type non renseigné')
+
+def _urbanisme_intersections(features, parcel):
+    from shapely.geometry import shape
+    from shapely import make_valid
+    result=[]
+    for feature in features:
+        if not isinstance(feature,dict) or not feature.get('geometry'):continue
+        geometry=make_valid(shape(feature['geometry']))
+        fraction=parcel.intersection(geometry).area/parcel.area
+        # Les limites communes seules ne sont pas un zonage de la parcelle.
+        if fraction>0.000001:result.append((feature.get('properties') or {},min(1.,fraction)))
+    return result
+
+@app.get('/api/urbanisme/parcelle')
+def urbanisme_parcelle(commune:str, section:str, numero:str):
+    from concurrent.futures import ThreadPoolExecutor,as_completed
+    from shapely.geometry import shape
+    from shapely import make_valid
+    if not re.fullmatch(r'[A-Za-z0-9]{1,3}',section.strip()) or not re.fullmatch(r'\d{1,4}',numero.strip()) or int(numero)<=0:
+        raise HTTPException(400,'Section ou numéro de parcelle invalide.')
+    query=commune.strip()
+    resolved={'code':query,'name':query} if re.fullmatch(r'(?:\d{5}|2[AB]\d{3})',query) else _resolve_commune(query)
+    if not resolved or not resolved.get('code'):raise HTTPException(400,'Commune non reconnue.')
+    code=str(resolved['code'])
+    result={'commune':resolved.get('name') or query,'code_insee':code,'section':section.upper().lstrip('0') or section.upper(),
+            'numero':str(int(numero)),'consulted_at':datetime.now().astimezone().isoformat(timespec='seconds'),
+            'documents':[],'zones':[],'regime':'Non déterminé','diagnostics':{},'status':'incomplet',
+            'source':'IGN API Carto / Géoportail de l’urbanisme','source_url':'https://www.geoportail-urbanisme.gouv.fr/',
+            'note':'Les parts de zonage sont approximatives. Consulter les règlements liés et les prescriptions applicables ; le zonage seul ne vaut pas autorisation de construire.'}
+    try:
+        feature,sec,no=_fetch_parcel(code,section,numero)
+    except Exception:
+        result.update(status='indisponible',message='Service cadastral indisponible : consultation impossible pour cette parcelle.');return result
+    if not feature:
+        result.update(status='parcelle_introuvable',message='Parcelle non trouvée : aucun régime ni zonage attribué.');return result
+    result['section']=re.sub(r'^0(?=[A-Z]$)','',sec);result['numero']=str(int(no))
+    try:parcel=make_valid(shape(feature['geometry']))
+    except Exception:
+        result.update(status='indisponible',message='Géométrie cadastrale inexploitable.');return result
+    if parcel.is_empty or parcel.area<=0:
+        result.update(status='indisponible',message='Géométrie cadastrale inexploitable.');return result
+    geom=json.dumps(feature['geometry'],separators=(',',':'))
+    urls={ep:'https://apicarto.ign.fr/api/gpu/'+ep+'?'+urllib.parse.urlencode({'geom':geom}) for ep in ('document','zone-urba','secteur-cc')}
+    urls['municipality']='https://apicarto.ign.fr/api/gpu/municipality?'+urllib.parse.urlencode({'insee':code})
+    fetched={}
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        jobs={pool.submit(get_json,url,12):ep for ep,url in urls.items()}
+        for job in as_completed(jobs):
+            ep=jobs[job]
+            try:
+                data=job.result()
+                if not isinstance(data,dict) or not isinstance(data.get('features'),list):raise ValueError('Format inattendu')
+                if data.get('numberReturned') and not data['features']:raise ValueError('Réponse tronquée')
+                if data.get('numberMatched') and str(data['numberMatched']).isdigit() and int(data['numberMatched'])>len(data['features']):raise ValueError('Réponse tronquée')
+                fetched[ep]=data['features'];result['diagnostics'][ep]='accessible'
+            except Exception:result['diagnostics'][ep]='indisponible'
+    try:doc_rows=_urbanisme_intersections(fetched.get('document',[]),parcel)
+    except Exception:doc_rows=[];result['diagnostics']['document']='géométrie inexploitable'
+    details_by_id={}
+    for props,share in doc_rows:
+        if str(props.get('gpu_status') or 'production')!='production':continue
+        ident=str(props.get('gpu_doc_id') or props.get('id') or '')
+        if not re.fullmatch(r'[a-fA-F0-9-]{32,36}',ident):continue
+        if ident in details_by_id:continue
+        try:
+            details=get_json('https://www.geoportail-urbanisme.gouv.fr/api/document/'+ident+'/details',10)
+            if not isinstance(details,dict):raise ValueError()
+            result['diagnostics']['métadonnées '+ident]='accessible'
+        except Exception:
+            details={};result['diagnostics']['métadonnées '+ident]='indisponible'
+        details_by_id[ident]=details
+        if (details.get('effectiveStatus') and details['effectiveStatus']!='EN_VIGUEUR') or (details.get('legalStatus') and details['legalStatus']!='APPROVED') or details.get('notEnforceable') is True:
+            result['diagnostics']['document '+ident]='Document publié non en vigueur : vérification nécessaire'
+            continue
+        document={'id':ident,'type':_urbanisme_kind(props,details),'name':props.get('name') or details.get('originalName') or '',
+                  'title':details.get('title') or props.get('grid_title') or '',
+                  'legal_status':details.get('legalStatus') or 'Non renseigné',
+                  'effective_status':details.get('effectiveStatus') or 'Non confirmé par les métadonnées',
+                  'publication_date':details.get('publicationDate') or props.get('gpu_timestamp') or '',
+                  'url':'https://www.geoportail-urbanisme.gouv.fr/document/by-id/'+ident}
+        result['documents'].append(document)
+    docs={d['id']:d for d in result['documents']}
+    for ep in ('zone-urba','secteur-cc'):
+        try:rows=_urbanisme_intersections(fetched.get(ep,[]),parcel)
+        except Exception:rows=[];result['diagnostics'][ep]='géométrie inexploitable'
+        grouped={}
+        for props,share in rows:
+            ident=str(props.get('gpu_doc_id') or '')
+            if ident in details_by_id and ident not in docs:continue
+            label=str(props.get('libelle') or props.get('typezone') or props.get('typesect') or 'Secteur non renseigné')
+            key=(ident,label)
+            if key in grouped:grouped[key]['part_percent']=min(100,round(grouped[key]['part_percent']+share*100,2));continue
+            url=props.get('urlfic') or ''
+            if not re.match(r'^https://(?:[a-z0-9-]+\.)*(?:gouv\.fr|ign\.fr)/',url,re.I):url=''
+            filename=props.get('nomfic') or ''
+            materials=details_by_id.get(ident,{}).get('writingMaterials') or {}
+            candidate=materials.get(filename)
+            if candidate and str(candidate).startswith('https://www.geoportail-urbanisme.gouv.fr/'):url=candidate
+            grouped[key]={'label':label,'description':props.get('libelong') or '',
+                          'category':props.get('typezone') or props.get('typesect') or '',
+                          'part_percent':round(share*100,2),'document_id':ident,
+                          'approval_date':props.get('datappro') or '', 'regulation_url':url,
+                          'regulation_file':filename,'source_layer':ep}
+        result['zones'].extend(grouped.values())
+    result['zones'].sort(key=lambda z:(z['document_id'],z['label']))
+    municipalities=[f.get('properties') or {} for f in fetched.get('municipality',[]) if str((f.get('properties') or {}).get('insee'))==code]
+    if municipalities and str(result['commune'])==code:result['commune']=municipalities[0].get('name') or code
+    rnu=any(p.get('is_rnu') is True and p.get('is_deleted') is not True for p in municipalities)
+    if rnu and (docs or result['zones'] or doc_rows):
+        result['regime']='Informations contradictoires';result['message']='Documents publiés et indicateur RNU simultanés : vérifier auprès du service urbanisme.'
+    elif docs:
+        result['regime']=' / '.join(dict.fromkeys(d['type'] for d in result['documents']))
+        result['message']='Document(s) officiel(s) publié(s) identifié(s) sur la parcelle.'
+        layers=['document','zone-urba','secteur-cc']
+        result['status']='ok' if result['zones'] and all(value=='accessible' for value in result['diagnostics'].values()) else 'incomplet'
+    elif rnu and result['diagnostics'].get('document')=='accessible' and not doc_rows:
+        result['regime']='RNU';result['status']='ok';result['message']='Commune indiquée au règlement national d’urbanisme par le GPU. Pas de zonage PLU à attribuer.'
+    else:
+        result['message']='Régime non déterminé avec les données disponibles. Une absence de document ne permet pas de conclure au RNU.'
+    if result['regime']=='RNU':result['zones']=[]
+    if not result['zones']:
+        result['zoning_message']='Sans zonage PLU sous RNU.' if result['regime']=='RNU' else ('Service de zonage indisponible ou incomplet.' if any(result['diagnostics'].get(ep)!='accessible' for ep in ('zone-urba','secteur-cc')) else 'Aucun zonage surfacique trouvé sur la parcelle dans les données publiées.')
+    return result
