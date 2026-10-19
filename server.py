@@ -999,8 +999,13 @@ def _market_parse_roques(page, city, typ):
         area=_market_area(title)
         if not price or not area:continue
         if re.search(r'\b(?:vendu[e]?|sous compromis)\b',_market_clean(block),re.I):continue
+        image_match=re.search(r'<img\b[^>]*\bsrc=["\']([^"\']+)["\']',block,re.I)
+        photo=urllib.parse.urljoin('https://www.roques-immobilier.com',html.unescape(image_match[1])) if image_match else ''
+        if not photo.startswith('https://'):photo=''
+        summary_match=re.search(r'title=(["\'])Voir le bien\s+(.*?)\1',block,re.I|re.S)
+        summary=_market_clean(summary_match[2]) if summary_match else title
         seen.add(path)
-        rows.append({'titre':title,'description':city,'url':'https://www.roques-immobilier.com'+html.unescape(path),
+        rows.append({'titre':title,'description':summary[:180],'photo':photo,'commune':city,'url':'https://www.roques-immobilier.com'+html.unescape(path),
           'site':'Roques Immobilier','prix':price,'surface':area,'prix_m2':round(price/area),
           'fiabilite':'Annonce présente sur le catalogue public ; disponibilité à confirmer auprès de l’agence',
           'consulte_le':datetime.now().isoformat(timespec='seconds')})

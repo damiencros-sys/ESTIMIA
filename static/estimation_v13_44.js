@@ -44,12 +44,35 @@ q('#dvfImport')?.addEventListener('click',async()=>{
 
 const annoncesBtn=q('#launchAnnonces');
 const manual=[];let found=[];
-function displayAnnonces(){
- const rows=[...found,...manual];const target=q('#annoncesResults');
- if(!rows.length){target.textContent='Aucun comparable affichable.';return;}
- const table=rows.map((a,i)=>`<tr><td>${esc(a.site||'Ajout manuel')}</td><td>${esc(a.titre||'Annonce vérifiée par utilisateur')}</td><td>${a.prix?fmt(a.prix):'Non communiqué'}</td><td>${a.surface?esc(a.surface)+' m²':'Non communiquée'}</td><td>${a.prix_m2?fmt(a.prix_m2)+'/m²':'—'}</td><td><a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">Voir</a></td></tr>`).join('');
- target.innerHTML=`<div style="overflow-x:auto"><table><thead><tr><th>Site</th><th>Annonce</th><th>Prix affiché</th><th>Surface</th><th>Prix/m² demandé</th><th>Source</th></tr></thead><tbody>${table}</tbody></table></div><p class="small">${rows.length} annonce(s) — sources à vérifier. Doublons éventuels entre sites non certifiés. Ces prix ne sont pas intégrés automatiquement au calcul DVF.</p>`;
+function estimationReference(){
+ const value=q('#estimationResults .estimationValueAmount')?.textContent||'';
+ const amount=Number(value.replace(/[^0-9,.-]/g,'').replace(',','.'));
+ return Number.isFinite(amount)&&amount>0?amount:0;
 }
+function closestAnnonces(rows,price,surface){
+ const unique=[...new Map(rows.filter(a=>Number(a.prix)>0).map(a=>[a.url,a])).values()];
+ return unique.sort((a,b)=>Math.abs(a.prix-price)-Math.abs(b.prix-price)||
+  Math.abs((Number(a.surface)||0)-surface)-Math.abs((Number(b.surface)||0)-surface)||String(a.url).localeCompare(String(b.url))).slice(0,4);
+}
+function safeAnnonceUrl(value){
+ try{const u=new URL(value);return ['https:','http:'].includes(u.protocol)?u.href:'';}catch{return '';}
+}
+function displayAnnonces(){
+ const target=q('#annoncesResults');if(!target)return;
+ const all=[...found,...manual],price=estimationReference();
+ if(!all.length){target.textContent='Aucun comparable affichable.';return;}
+ if(!price){target.textContent='Calculez d’abord l’estimation du bien pour sélectionner les 4 annonces les plus proches de sa valeur centrale.';return;}
+ const rows=closestAnnonces(all,price,Number(q('#surfaceHab')?.value||0));
+ target.innerHTML=`<p class="small">${rows.length} annonce(s) sélectionnée(s) sur ${all.length} — prix les plus proches de l’estimation centrale de ${fmt(price)}.</p><div class="annoncesCards">${rows.map(a=>{
+  const photo=safeAnnonceUrl(a.photo),url=safeAnnonceUrl(a.url);
+  return `<article class="annonceCard"><div class="annoncePhoto">${photo?`<img src="${esc(photo)}" alt="${esc(a.titre||'Photo du bien')}" loading="lazy" referrerpolicy="no-referrer">`:''}<span class="annonceNoPhoto" ${photo?'hidden':''}>Photo non disponible</span></div><div class="annonceBody"><div class="annonceAgency">${esc(a.site||'Ajout manuel')}</div><h4>${esc(a.titre||'Bien proposé à la vente')}</h4><p class="annonceDescription">${esc(a.description||'Caractéristiques à consulter dans l’annonce.')}</p><div class="annoncePrice">${fmt(a.prix)}</div><div class="small">Prix affiché${a.surface?' · '+esc(a.surface)+' m²':''}</div>${url?`<a class="annonceLink" href="${esc(url)}" target="_blank" rel="noopener noreferrer">Voir l’annonce ↗</a>`:''}</div></article>`;
+ }).join('')}</div><p class="small">Annonces proposées à la vente ; disponibilité à confirmer. Les prix affichés ne sont pas des prix de vente constatés.</p>`;
+}
+q('#annoncesResults')?.addEventListener('error',event=>{
+ if(event.target.tagName==='IMG'){event.target.hidden=true;event.target.parentElement.querySelector('.annonceNoPhoto').hidden=false;}
+},true);
+// Reclasser les cartes lorsqu'une nouvelle estimation est calculée.
+if(q('#estimationResults'))new MutationObserver(()=>displayAnnonces()).observe(q('#estimationResults'),{childList:true,subtree:true,characterData:true});
 annoncesBtn?.addEventListener('click',async()=>{
  const raw=(q('#cadCommune')?.value||'').trim();const addr=(q('#address')?.value||'').trim();
  const commune=/^\d{5}$/.test(raw)?(raw==='34126'?'Lamalou-les-Bains':raw):raw||(/lamalou/i.test(addr)?'Lamalou-les-Bains':'');
