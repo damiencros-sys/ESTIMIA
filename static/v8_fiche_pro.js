@@ -74,6 +74,7 @@ function addMissing(){
 
 // Run after V7 has rendered.
 document.addEventListener('DOMContentLoaded',()=>{
+ if(window.estimiaV13Active)return;
  const btn=$('#analyse');
  if(btn) btn.addEventListener('click',()=>setTimeout(()=>{renderPro();addMissing()},30),false);
 });

@@ -715,7 +715,8 @@ async def save(address:str=Form(""),type:str=Form(""),surface:str=Form(""),notes
 
 
 # V13.50 : index DVF local provenant des archives officielles DGFiP.
-_DVF_DB=DATA/'dvf_local.sqlite3'
+# Cache de production distinct : l'ancien cache contenait des fixtures de test.
+_DVF_DB=DATA/'dvf_officiel.sqlite3'
 _DVF_LOCK=threading.Lock()
 _DVF_IMPORT_LIMIT=110*1024*1024
 

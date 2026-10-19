@@ -1,5 +1,6 @@
 // ESTIM'IA V13 — correctif ciblé du test V11. Micro inchangé.
 (function(){
+window.estimiaV13Active=true;
 const $=s=>document.querySelector(s);
 const E=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const clean=s=>String(s||'').replace(/[’]/g,"'").replace(/\b(?:euh|heu|hum|hmm)\b[,. ]*/gi,' ').replace(/\s+/g,' ').trim();
@@ -287,7 +288,7 @@ function sanitaryLocalFragment(text,start,end){
  return {tail,area:area?n(area[1]):null,index:area?end+area.index:-1};
 }
 function sanitarySurfaceWarnings(text){
- return surfaces(text,true).filter(r=>{const max=roomSurfaceLimit(r.name);return max!=null&&r.val>max}).map(r=>[r.name+' — '+r.lvl,fmt(r.val)+' dictés — surface non attribuée : supérieure au seuil de contrôle de '+roomSurfaceLimit(r.name)+' m². Vérifier la pièce concernée ; aucune correction numérique inventée.']);
+ return surfaces(text,true).filter(r=>{const max=roomSurfaceLimit(r.name);return max!=null&&r.val>max}).map(r=>[r.name+' — '+r.lvl,fmt(r.val)+' dictés — surface non attribuée : supérieure au seuil de contrôle de '+roomSurfaceLimit(r.name)+' m². Corrigez la valeur sur la ligne de cette pièce dans Surfaces calculées ; aucune correction numérique inventée.']);
 }
 function surfaces(text,includeSuspicious=false){
  const t=normalizeDictatedAreas(text), ms=markers(t), out=[],shared=sharedAnnexAreas(t);
@@ -401,7 +402,7 @@ function normalizeManualLevels(rows){
  if(!manualLevels.length)manualLevels=['RDC'];
 }
 function surfaceEditorHTML(rows){
- manualSurfaceRows=rows.map((x,i)=>({...x,_id:'s'+Date.now()+'_'+i}));
+ manualSurfaceRows=rows.map((x,i)=>({...x,_needsReview:roomSurfaceLimit(x.name)!=null&&x.val>roomSurfaceLimit(x.name),_id:'s'+Date.now()+'_'+i}));
  manualLevels=[];normalizeManualLevels(manualSurfaceRows);surfaceUndo=[];surfaceRedo=[];rememberSurfaceState();return renderSurfaceEditor();
 }
 function renderSurfaceEditor(){
@@ -409,14 +410,14 @@ function renderSurfaceEditor(){
  const ins=manualSurfaceRows.filter(x=>x.cat==='Intérieur');
  let s='<section class="surfaceHero surfaceEditor"><div class="surfaceHead"><h3>📐 SURFACES CALCULÉES PAR NIVEAU</h3><div class="surfaceToolbar"><button type="button" class="miniEditBtn" data-act="add-level">＋ Ajouter un niveau</button></div></div>';
  manualLevels.forEach(lv=>{
-  const rr=ins.filter(x=>x.lvl===lv),total=rr.reduce((a,x)=>a+x.val,0);
+  const rr=ins.filter(x=>x.lvl===lv),total=rr.filter(x=>!x._needsReview).reduce((a,x)=>a+x.val,0);
   s+=`<div class="levelBlock" data-level="${E(lv)}"><div class="levelHead"><input class="levelName" value="${E(lv)}"><div class="levelActions"><button type="button" data-act="level-up" title="Monter le niveau">↑</button><button type="button" data-act="level-down" title="Descendre le niveau">↓</button><button type="button" data-act="delete-level" title="Supprimer le niveau">🗑</button></div></div>`;
   rr.forEach(x=>{const opts=manualLevels.map(z=>`<option ${z===lv?'selected':''}>${E(z)}</option>`).join('');
-   s+=`<div class="surfaceRow editableSurface" data-id="${E(x._id)}"><input class="pieceName" value="${E(x.name)}"><input class="pieceVal" type="number" step=".01" value="${Number(x.val)}"><span class="unit">m²</span><select class="pieceLevel">${opts}</select><button type="button" data-act="piece-up" title="Monter">↑</button><button type="button" data-act="piece-down" title="Descendre">↓</button><button type="button" data-act="delete-piece" title="Supprimer">×</button></div>`;
+   s+=`<div class="surfaceRow editableSurface" data-id="${E(x._id)}"><input class="pieceName" value="${E(x.name)}"><input class="pieceVal" type="number" step=".01" value="${Number(x.val)}"><span class="unit">${x._needsReview?'⚠ m² à vérifier':'m²'}</span><select class="pieceLevel">${opts}</select><button type="button" data-act="piece-up" title="Monter">↑</button><button type="button" data-act="piece-down" title="Descendre">↓</button><button type="button" data-act="delete-piece" title="Supprimer">×</button></div>`;
   });
   s+=`<button type="button" class="miniEditBtn" data-act="add-piece">＋ Ajouter une pièce</button><div class="surfaceTotal"><span>Total ${E(lv)}</span><strong>${fmt(total)}</strong></div></div>`;
  });
- const total=ins.reduce((a,x)=>a+x.val,0);
+ const total=ins.filter(x=>!x._needsReview).reduce((a,x)=>a+x.val,0);
  s+=`<div class="grandTotal"><span>TOTAL DES PIÈCES INTÉRIEURES RENSEIGNÉES</span><strong>${fmt(total)}</strong></div>`;
  const ann=manualSurfaceRows.filter(x=>x.cat==='Annexe'),ext=manualSurfaceRows.filter(x=>x.cat==='Extérieur');
  if(ann.length)s+=`<div class="otherSurface"><h4 contenteditable="true">🏚️ Annexes — hors total intérieur</h4>${ann.map(x=>`<div class="surfaceRow"><span contenteditable="true">${E(x.name)} — ${E(x.lvl)}</span><b contenteditable="true">${fmt(x.val)}</b></div>`).join('')}</div>`;
@@ -448,8 +449,10 @@ function redoSurface(){
 function refreshSurfaceEditor(){
  const box=document.querySelector('#facts .surfaceEditor');if(!box)return;
  const d=document.createElement('div');d.innerHTML=renderSurfaceEditor();box.replaceWith(d.firstElementChild);
- const total=manualSurfaceRows.filter(x=>x.cat==='Intérieur').reduce((a,x)=>a+x.val,0);
- if($('#surfaceHab'))$('#surfaceHab').value=total?total.toFixed(2):'';
+ const pending=manualSurfaceRows.filter(x=>x._needsReview),total=manualSurfaceRows.filter(x=>x.cat==='Intérieur'&&!x._needsReview).reduce((a,x)=>a+x.val,0);
+ const field=$('#surfaceHab');if(field){field.dataset.needsReview=String(pending.length>0);field.value=!pending.length&&total?total.toFixed(2):'';field.dispatchEvent(new Event('input',{bubbles:true}));}
+ const alerts=$('#surfaceReviewAlerts');if(alerts)alerts.innerHTML=card('Surfaces à vérifier','⚠️',pending.map(x=>[x.name+' — '+x.lvl,fmt(x.val)+' à vérifier : corrigez la surface sur la ligne de cette pièce, ou renseignez une surface habitable globale confirmée.']));
+ $('#surfaceCalculationNotice')?.remove();
  if(!surfaceRestoring)rememberSurfaceState();
 }
 function surfaceRowById(id){return manualSurfaceRows.find(x=>x._id===id)}
@@ -888,7 +891,7 @@ async function normalizeCommune(q,postcode=''){
  const query=[postcode,q].filter(Boolean).join(' ').trim();
  try{
   const r=await fetch('/api/commune?q='+encodeURIComponent([q,postcode].filter(Boolean).join(' '))),j=await r.json();
-  if(r.ok&&j.result){
+  if(r.ok&&j.result&&[$('#cadCommune').value].some(v=>low(v)===low(q)||low(v)===low(j.result.name))){
    $('#cadCommune').value=j.result.name||q;
    $('#cadCommune').dataset.insee=j.result.code||'';
    $('#cadCommune').dataset.postcode=j.result.postcode||postcode||'';
@@ -977,13 +980,13 @@ async function render(){
  const mail=emailFromDictation(t);
  // Synchroniser les cartes dès que la dictée a rempli les champs historiques.
  if(o||ph||mail)ownUpdateFromDictation(o,ph,mail);
- const a=address(t);if(a&&a.street){$('#address').value=a.street;$('#cadCommune').value=a.city;$('#cadCommune').dataset.postcode=a.postcode||'';$('#cadCommune').dataset.insee='';await normalizeCommune(a.city,a.postcode||'');}
+ const a=address(t);if(a&&a.street){$('#address').value=a.street;$('#cadCommune').value=a.city;$('#cadCommune').dataset.postcode=a.postcode||'';$('#cadCommune').dataset.insee='';void normalizeCommune(a.city,a.postcode||'');}
  const cps=parseCadParcels(t);if(cps.length){cps.forEach(p=>addCadParcel(p.section,p.numero,false));$('#cadSection').value='';$('#cadParcel').value='';}
  const cm=commune(t);
  if(cm&&!$('#cadCommune').value){
   $('#cadCommune').value=cm.name;
   $('#cadCommune').dataset.postcode=cm.postcode||'';
-  await normalizeCommune(cm.name,cm.postcode);
+  void normalizeCommune(cm.name,cm.postcode);
  }
  const typ=typeOf(t);if(typ&&!$('#type').value)$('#type').value=typ;applyPropertyTheme();
  const surfaceAlerts=sanitarySurfaceWarnings(t);
@@ -997,16 +1000,16 @@ async function render(){
  let topRows=buildInfo(t);
  if(announced!=null)topRows.push(['Surface annoncée / dictée',fmt(announced)]);
  let out='<div class="proGrid">'+card('Bien & construction','🏠',topRows)+'</div>';
- out+=surfaceEditorHTML(ss);
+ out+=surfaceEditorHTML(surfaces(t,true));
  if(total){
-   let msg=`<div class="calculatedTop">📏 <span>Surface habitable calculée sur les pièces admissibles chiffrées</span><strong>${fmt(total)}</strong></div>`;
+   let msg=`<div id="surfaceCalculationNotice"><div class="calculatedTop">📏 <span>Surface habitable calculée sur les pièces admissibles chiffrées</span><strong>${fmt(total)}</strong></div>`;
    if(announced!=null && Math.abs(announced-total)>.01)msg+=`<div class="status">⚠ Surface annoncée : ${fmt(announced)} — total des pièces chiffrées : ${fmt(total)}. Écart conservé à contrôler ; aucune valeur n’est supprimée.</div>`;
    if(surfaceAlerts.length)msg+='<div class="status">⚠ Total partiel : les surfaces suspectes sont exclues. Le total des pièces n’est pas utilisé automatiquement pour l’estimation. Vérifiez les alertes ou renseignez une surface habitable globale confirmée.</div>';
-   out+=msg;
+   out+=msg+'</div>';
  }
  out+='<div class="proGrid">';
  out+=card('Sanitaires','🚿',sanitary(t))+card('Chauffage & eau chaude','🔥',heating(t))+card('Réseaux & compteurs','⚡',networks(t))+card('Construction / structure','🏗️',structure(t))+card('Annexes','🏚️',allAnnexes(t))+card('Divers','📌',divers(t))+card('Menuiseries & fermetures','🪟',menu(t))+card('État / désordres','⚠️',state(t))+card('Fiscalité','💶',finance(t));
- out+=card('Surfaces à vérifier','⚠️',surfaceAlerts);
+ out+='<div id="surfaceReviewAlerts">'+card('Surfaces à vérifier','⚠️',surfaceAlerts)+'</div>';
  out+='</div>';
  const extras=[];
 
@@ -1189,7 +1192,7 @@ async function printVisit(){
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
- $('#analyse')?.addEventListener('click',()=>setTimeout(render,80));
+ $('#analyse')?.addEventListener('click',()=>{window.estimiaFicheReady=render();});
  $('#findParcel')?.addEventListener('click',parcelSearch);
  $('#checkAddress')?.addEventListener('click',verifyAddressV137);
  $('#printVisit')?.addEventListener('click',()=>withExportModal('pdf',downloadVisit,'printVisit'));
@@ -1215,8 +1218,8 @@ document.addEventListener('click',e=>{
 document.addEventListener('change',e=>{
  const sr=e.target.closest('.editableSurface'),id=sr?.dataset.id,x=id&&surfaceRowById(id);
  if(x&&e.target.classList.contains('pieceLevel')){x.lvl=e.target.value;refreshSurfaceEditor();return}
- if(x&&e.target.classList.contains('pieceVal')){x.val=Number(e.target.value)||0;refreshSurfaceEditor();return}
- if(x&&e.target.classList.contains('pieceName')){x.name=clean(e.target.value)||'Pièce';refreshSurfaceEditor();return}
+ if(x&&e.target.classList.contains('pieceVal')){const value=Number(e.target.value);if(!Number.isFinite(value)||value<=0){e.target.value=x.val;return}x.val=value;x._needsReview=roomSurfaceLimit(x.name)!=null&&value>roomSurfaceLimit(x.name);refreshSurfaceEditor();return}
+ if(x&&e.target.classList.contains('pieceName')){x.name=clean(e.target.value)||'Pièce';x._needsReview=roomSurfaceLimit(x.name)!=null&&x.val>roomSurfaceLimit(x.name);refreshSurfaceEditor();return}
  if(e.target.classList.contains('levelName')){const block=e.target.closest('.levelBlock'),old=block?.dataset.level,neu=clean(e.target.value);if(!old||!neu||neu===old)return;if(manualLevels.includes(neu)){alert('Ce niveau existe déjà.');e.target.value=old;return}manualLevels=manualLevels.map(x=>x===old?neu:x);manualSurfaceRows.forEach(x=>{if(x.lvl===old)x.lvl=neu});refreshSurfaceEditor();}
 });
 

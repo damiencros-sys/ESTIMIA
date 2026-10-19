@@ -243,6 +243,7 @@ function render(facts){
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
+ if(window.estimiaV13Active)return;
  const btn=$('#analyse');
  if(!btn)return;
  // Capture phase: our professional parser owns the final rendering, while microphone stays untouched.

@@ -255,7 +255,7 @@ function localStructure(){
   const raw=$('#notes').value.trim();
   const t=normalizeFrenchNumbers(raw);
   const facts={};
-  const address=$('#address').value.trim(), type=$('#type').value.trim(), surfaceField=$('#surface').value.trim();
+  const address=$('#address').value.trim(), type=$('#type').value.trim(), surfaceField=($('#surface')?.value||$('#surfaceHab')?.value||'').trim();
   if(address) facts['Adresse']=address;
   if(type) facts['Type']=type;
 
@@ -409,6 +409,7 @@ function localStructure(){
 }
 
 $('#analyse').addEventListener('click',()=>{
+  if(window.estimiaV13Active)return;
   const notes=$('#notes').value.trim();
   if(!notes){setStatus('#recordStatus','Dicte ou écris d’abord tes notes.');return}
   renderFacts(localStructure());
@@ -422,7 +423,7 @@ function renderFacts(j){
 
 $('#save').addEventListener('click',async()=>{
   const fd=new FormData();
-  fd.append('address',$('#address').value);fd.append('type',$('#type').value);fd.append('surface',$('#surface').value);
+  fd.append('address',$('#address').value);fd.append('type',$('#type').value);fd.append('surface',($('#surface')?.value||$('#surfaceHab')?.value||''));
   fd.append('notes',$('#notes').value);fd.append('correction',$('#correction').value);
   fd.append('owner',$('#owner')?.value||'');fd.append('owner_phone',$('#ownerPhone')?.value||'');
   fd.append('cad_commune',$('#cadCommune')?.value||'');fd.append('cad_section',$('#cadSection')?.value||'');fd.append('cad_parcel',$('#cadParcel')?.value||'');

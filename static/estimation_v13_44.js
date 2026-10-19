@@ -10,13 +10,14 @@ function calculateEstimate(){
 }
 btn.addEventListener('click',calculateEstimate);
 async function performEstimate(){
+ if(window.estimiaFicheReady)await window.estimiaFicheReady;
  const commune=(q('#cadCommune')?.value||'').trim();
  const addr=(q('#address')?.value||'').trim();
  const typ=(q('#type')?.value||'').toLowerCase();
  const type_bien=(/appartement|studio/.test(typ))?'appartement':typ.includes('maison')||typ.includes('villa')?'maison':'';
  const surface=Number(q('#surfaceHab')?.value||0);
  const status=q('#estimationStatus'),result=q('#estimationResults');result.replaceChildren();result.dataset.dvfMedian='';result.dataset.dvfCount='';if(q('#validatedPrice'))q('#validatedPrice').value='';
- if(!type_bien||!Number.isFinite(surface)||surface<=0){status.textContent=!surface&&q('#surfaceHab')?.dataset.needsReview==='true'?'Une surface de pièce est à vérifier : renseignez une surface habitable globale confirmée dans la fiche, puis relancez le calcul. Aucun total partiel n’est utilisé.':'Renseignez le type maison/appartement et une surface habitable positive dans la fiche.';return false;}
+ if(!type_bien||!Number.isFinite(surface)||surface<=0){status.textContent=!surface&&q('#surfaceHab')?.dataset.needsReview==='true'?'Une surface de pièce est à vérifier : corrigez la ligne signalée dans Surfaces calculées, ou renseignez une surface habitable globale confirmée, puis relancez le calcul. Aucun total partiel n’est utilisé.':'Renseignez le type maison/appartement et une surface habitable positive dans la fiche.';return false;}
  let code=(q('#cadCommune')?.dataset.insee||'').trim();
  if(!/^\d{5}$/.test(code))code=commune;
  if(!code && /lamalou/i.test(addr))code='34126';
