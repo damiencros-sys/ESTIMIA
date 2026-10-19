@@ -1310,3 +1310,42 @@ def roques_similaires(commune:str,type_bien:str,prix:float=0,surface:float=0):
         except Exception:diagnostics.append({'commune':town['nom'],'etat':'indisponible'})
     return {'annonces':rows,'diagnostics':diagnostics,'commune':target['nom'],
         'message':str(len(rows))+' annonce(s) Roques sélectionnée(s). Commune du bien prioritaire, puis communes par distance croissante dans un rayon de 20 km. Prix le plus proche dans chaque commune. Distances à vol d’oiseau entre centres des communes.'}
+
+
+class EmailDraftPayload(BaseModel):
+    document_base64:str
+    kind:str
+    filename:str='Dossier_estimation'
+    subject:str='Dossier d’estimation immobilière'
+    body:str='Bonjour,\n\nVous trouverez en pièce jointe le dossier d’estimation immobilière.\n\nCordialement.'
+
+
+def _email_draft_bytes(p):
+    import base64
+    import binascii
+    from email.message import EmailMessage
+    from email.policy import SMTP
+    from email.utils import make_msgid,formatdate
+    if p.kind not in ('pdf','word'):raise HTTPException(400,'Format non pris en charge')
+    if len(p.document_base64)>35_000_000:raise HTTPException(413,'Document trop volumineux pour préparer le mail')
+    try:raw=base64.b64decode(p.document_base64,validate=True)
+    except (ValueError,binascii.Error):raise HTTPException(400,'Document encodé non valide')
+    if not raw or len(raw)>25_000_000:raise HTTPException(413,'Document vide ou trop volumineux')
+    if (p.kind=='pdf' and not raw.startswith(b'%PDF')) or (p.kind=='word' and not raw.startswith(b'PK')):raise HTTPException(400,'Le document ne correspond pas au format demandé')
+    extension='pdf' if p.kind=='pdf' else 'docx'
+    name=re.sub(r'[^\w. -]','_',p.filename,flags=re.UNICODE).strip(' .')[:140] or 'Dossier_estimation'
+    if not name.lower().endswith('.'+extension):name+='.'+extension
+    subject=re.sub(r'[\r\n]+',' ',p.subject).strip()[:240] or 'Dossier d’estimation immobilière'
+    msg=EmailMessage(policy=SMTP);msg['Subject']=subject;msg['X-Unsent']='1'
+    msg['Date']=formatdate(localtime=True);msg['Message-ID']=make_msgid(domain='estimia.local')
+    msg.set_content(p.body[:20000],charset='utf-8')
+    subtype='pdf' if p.kind=='pdf' else 'vnd.openxmlformats-officedocument.wordprocessingml.document'
+    msg.add_attachment(raw,maintype='application',subtype=subtype,filename=name)
+    return msg.as_bytes()
+
+
+@app.post('/api/email/draft')
+def email_draft(p:EmailDraftPayload):
+    raw=_email_draft_bytes(p)
+    return StreamingResponse(io.BytesIO(raw),media_type='message/rfc822',headers={
+        'Content-Disposition':'attachment; filename="Email_dossier_estimation.eml"','Cache-Control':'no-store'})

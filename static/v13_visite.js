@@ -1075,6 +1075,53 @@ async function downloadWord(){
   document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1500);
  }catch(e){alert('Export Word impossible : '+e.message)}
 }
+
+let preparedEmail=null;
+function downloadEmailBlob(blob,name){
+ const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;
+ document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
+async function prepareEmailDocument(kind){
+ const status=$('#emailStatus'),actions=$('#emailActions');actions.hidden=false;preparedEmail=null;
+ $('#emailShare').hidden=true;$('#emailEml').hidden=true;$('#emailAttachment').hidden=true;
+ $('#emailWord').disabled=true;$('#emailPdf').disabled=true;
+ status.textContent='Création du dossier '+(kind==='word'?'Word':'PDF')+' avec les photos et l’estimation…';
+ try{
+  const payload=await buildExportPayload();
+  const response=await fetch('/api/'+(kind==='word'?'word':'pdf'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  if(!response.ok){let error={};try{error=await response.json()}catch{}throw Error(error.detail||'Création du document impossible');}
+  const mime=kind==='word'?'application/vnd.openxmlformats-officedocument.wordprocessingml.document':'application/pdf';
+  if(!(response.headers.get('content-type')||'').includes(mime))throw Error('Le serveur n’a pas renvoyé le document attendu');
+  const blob=await response.blob(),name='Dossier_estimation_'+String(payload.owner||payload.address||'bien').replace(/[^\p{L}\p{N}-]+/gu,'_')+(kind==='word'?'.docx':'.pdf');
+  const file=new File([blob],name,{type:mime});
+  preparedEmail={file,kind,subject:'Dossier d’estimation immobilière'+(payload.address?' — '+payload.address:''),body:'Bonjour,\n\nVous trouverez en pièce jointe le dossier d’estimation immobilière'+(payload.address?' du bien situé '+payload.address:'')+'.\n\nCordialement.'};
+  let shareable=false;try{shareable=!!(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]}))}catch{}
+  $('#emailShare').hidden=!shareable;$('#emailEml').hidden=false;$('#emailAttachment').hidden=false;
+  status.textContent='Document prêt ('+(blob.size/1024/1024).toFixed(1)+' Mo). '+(shareable?'Choisissez « Partager avec la messagerie », puis votre application de mail.':'Préparez le fichier .eml, puis ouvrez-le dans votre logiciel de messagerie.');
+ }catch(error){status.textContent='Préparation impossible : '+error.message;}
+ finally{$('#emailWord').disabled=false;$('#emailPdf').disabled=false;}
+}
+$('#emailWord')?.addEventListener('click',()=>prepareEmailDocument('word'));
+$('#emailPdf')?.addEventListener('click',()=>prepareEmailDocument('pdf'));
+$('#emailShare')?.addEventListener('click',async()=>{
+ const email=preparedEmail;if(!email)return;
+ try{await navigator.share({files:[email.file],title:email.subject,text:email.body});$('#emailStatus').textContent='Document transmis à l’application choisie. Complétez et envoyez votre message dans la messagerie.';}
+ catch(error){$('#emailStatus').textContent=error.name==='AbortError'?'Partage annulé. Le document reste prêt.':'Partage indisponible. Vous pouvez préparer le fichier .eml ou télécharger la pièce jointe.';}
+});
+$('#emailAttachment')?.addEventListener('click',()=>{if(preparedEmail)downloadEmailBlob(preparedEmail.file,preparedEmail.file.name)});
+$('#emailEml')?.addEventListener('click',async()=>{
+ const email=preparedEmail;if(!email)return;const button=$('#emailEml');button.disabled=true;
+ $('#emailStatus').textContent='Préparation du message avec sa pièce jointe…';
+ try{
+  const data=String(await fileToDataURL(email.file)).split(',')[1];
+  const response=await fetch('/api/email/draft',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({document_base64:data,kind:email.kind,filename:email.file.name,subject:email.subject,body:email.body})});
+  if(!response.ok){let e={};try{e=await response.json()}catch{}throw Error(e.detail||'Création du message impossible');}
+  if(!(response.headers.get('content-type')||'').includes('message/rfc822'))throw Error('Format de message inattendu');
+  downloadEmailBlob(await response.blob(),'Email_'+email.file.name.replace(/\.(?:pdf|docx)$/i,'')+'.eml');
+  $('#emailStatus').textContent='E-mail téléchargé avec sa pièce jointe. Ouvrez le fichier .eml dans votre messagerie, renseignez le destinataire puis envoyez.';
+ }catch(error){$('#emailStatus').textContent='Préparation du mail impossible : '+error.message;}
+ finally{button.disabled=false;}
+});
 async function printableHTML(){
  const title=ficheTitle(), facts=$('#facts')?.innerHTML||'', mapUrl=cadMapURL();
  const refsTxt=cadParcels.map(p=>`${E(p.section)} ${E(String(parseInt(p.numero,10)))}`).join(' • ');
