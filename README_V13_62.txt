@@ -1,1 +1,1 @@
-V13.62 : consultation automatique des contenances cadastrales pour les parcelles déjà reconnues; confirmation obligatoire avant utilisation comme surface du terrain vendu. Recherche annonces : domaines supplémentaires et classement par proximité de surface. Les annonces ne sont pas garanties : aucun bien fictif.
+V13.62 — Base V13.60, corrections chauffage V13.61 conservées. Extraction bornée par changement de sujet, sans copie de la dictée entière. Une ligne par équipement, nombre explicite, attributs techniques reconnus.

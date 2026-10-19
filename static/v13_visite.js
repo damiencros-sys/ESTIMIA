@@ -482,18 +482,38 @@ function heating(t){
   const m=mentions[i],end=i+1<mentions.length?mentions[i+1].index:text.length;
   const prefix=text.slice(0,m.index).match(/\b(\d+|un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix)\s*$/i);
   const number=prefix?countExplicit(prefix[0]+m[0],m[0]):null;
-  let detail=clean(text.slice(m.index,end).split(/[.!?;]|,\s*(?=(?:la|le|une?|des|avec)\b)/)[0]).replace(/\s+(?:et|avec|ainsi que)\s*(?:(?:\d+|un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix)\s*)?$/i,'').trim();
-  // Garder la description dictée, y compris capacité, énergie et état.
+  const before=text.slice(Math.max(0,m.index-25),m.index);
+  if(/\b(?:sans|pas de|aucun[e]?)\s*$/i.test(before))continue;
+  // Une dictée peut ne contenir aucun point : arrêter au changement de sujet.
+  const fragment=clean(text.slice(m.index,end).split(/[.!?;]|\b(?:cuisine|chambres?|salon|s[ée]jour|couloir|palier|escalier|salles?|wc|toilettes?|concernant|eaux us[ée]es|fosse|assainissement|isolation|toiture|fa[çc]ade|terrain|parcelle|piscine|garage|annexes?|menuiseries?|fen[eê]tres?|taxe|[ée]tage|maison|appartement)\b/i)[0]);
   const isWater=/ballon|cumulus|chauffe.eau/i.test(m[0]);
-  let label=isWater?"Production d'eau chaude":'';
-  if(!label){
-   if(/chemin[ée]e|foyer/i.test(m[0]))label=/ouvert/i.test(detail)?'Cheminée à foyer ouvert':'Cheminée';
-   else label=heat.find(h=>new RegExp(m[0].replace(/s$/,'').replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i').test(h))||m[0].replace(/^./,c=>c.toUpperCase());
+  let label=m[0].replace(/^./,c=>c.toUpperCase());
+  if(/chemin[ée]e|foyer/i.test(m[0]))label=/ouvert/i.test(fragment)?'Cheminée à foyer ouvert':/ferm[ée]/i.test(fragment)?'Cheminée à foyer fermé':'Cheminée';
+  else if(/radiateur|convecteur/i.test(m[0]))label=/inertie|inertiel/i.test(fragment)?'Radiateurs électriques à inertie':/[ée]lectrique/i.test(fragment)?'Radiateurs électriques':label;
+  else if(/po[eê]le|insert|chaudi[eè]re/i.test(m[0])){
+   label=/po[eê]le/i.test(m[0])?'Poêle':/insert/i.test(m[0])?'Insert':'Chaudière';
+   const energy=fragment.match(/\b(bois|b[uû]ches?|granul[ée]s?|pellets?|gaz|fioul|fuel)\b/i);
+   if(energy)label+=' à '+energy[1].toLowerCase();
+   if(/condensation/i.test(fragment))label+=' à condensation';
+  }else if(/pompe|pac/i.test(m[0])){label='Pompe à chaleur';const type=fragment.match(/air\s*[/\-]\s*(?:air|eau)/i);if(type)label+=' '+type[0];}
+  else if(/clim/i.test(m[0]))label='Climatisation';
+  else if(/plancher|chauffage au sol/i.test(m[0]))label='Plancher chauffant';
+  if(/r[ée]versible/i.test(fragment))label+=' réversible';
+  // Ne jamais utiliser un fragment libre comme détail : seuls des attributs
+  // d'équipement explicitement reconnus peuvent alimenter cette rubrique.
+  const attributes=[];
+  for(const rx of [/\b\d+(?:[.,]\d+)?\s*(?:litres?|l\b|kwh?\b|watts?|w\b)/gi,/\b(?:hors service|condamn[ée]e?|d[ée]corati(?:f|ve)|en panne|bon [ée]tat|[àa] remplacer)\b/gi,/\b(?:install[ée]e?|remplac[ée]e?)\s+en\s+\d{4}\b/gi]){
+   for(const x of fragment.matchAll(rx))attributes.push(x[0]);
   }
+  if(isWater){
+   label="Production d'eau chaude";
+   attributes.unshift(/thermodynamique/i.test(fragment)?'Ballon thermodynamique':/[ée]lectrique|cumulus/i.test(fragment)?'Ballon électrique':m[0]);
+  }
+  const detail=uniq(attributes).join(' · ');
   rows.push([label,number===null?'—':String(number),detail]);
  }
  // Conserver les modes reconnus sans nom d'équipement et l'ECS par chaudière.
- if(!rows.length)for(const h of uniq(heat))rows.push([h,'—','']);
+ if(!mentions.length)for(const h of uniq(heat))rows.push([h,'—','']);
  if(ecs&&!rows.some(r=>r[0]==="Production d'eau chaude"))rows.push(["Production d'eau chaude",'—',ecs]);
  return rows;
 }
