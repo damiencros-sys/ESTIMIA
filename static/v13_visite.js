@@ -1046,8 +1046,17 @@ async function buildExportPayload(){
  document.querySelectorAll('#facts .levelBlock').forEach(b=>{const title=b.querySelector('.levelName')?.value||b.dataset.level||'Niveau';const rows=[...b.querySelectorAll('.editableSurface')].map(r=>[r.querySelector('.pieceName')?.value||'',(r.querySelector('.pieceVal')?.value||'')+(r.querySelector('.pieceVal')?.value?' m²':'')]);const total=b.querySelector('.surfaceTotal');if(total)rows.push([total.querySelector('span')?.innerText||'',total.querySelector('strong')?.innerText||'']);sections.push({title,rows})});
  document.querySelectorAll('#facts .otherSurface').forEach(b=>sections.push({title:b.querySelector('h4')?.innerText||'Surfaces annexes',rows:[...b.querySelectorAll('.surfaceRow')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('b')?.innerText||''])}));
  document.querySelectorAll('#facts .proGroup').forEach(b=>sections.push({title:b.querySelector('h3')?.innerText||'Informations',rows:[...b.querySelectorAll('.proRow')].map(r=>r.classList.contains('annexRow')?[r.children[0]?.innerText||'',(r.children[1]?.innerText||'')+' — '+(r.children[2]?.innerText||'')]:[r.querySelector('span')?.innerText||'',r.querySelector('strong')?.innerText||''])}));
+ const estimateBox=document.querySelector('#estimationResults');
+ const estimation={centrale:estimateBox?.querySelector('.estimationValueAmount')?.innerText||'',
+  basse:estimateBox?.querySelectorAll('.estimationRangeAmount')[0]?.innerText||'',
+  haute:estimateBox?.querySelectorAll('.estimationRangeAmount')[1]?.innerText||'',
+  texte:estimateBox?.querySelector('p')?.innerText||''};
+ const annonces=[...document.querySelectorAll('#annoncesResults .annonceCard')].slice(0,4).map(card=>({
+  titre:card.querySelector('h4')?.innerText||'',description:card.querySelector('.annonceDescription')?.innerText||'',
+  prix:card.querySelector('.annoncePrice')?.innerText||'',site:card.querySelector('.annonceAgency')?.innerText||'',
+  photo:card.querySelector('img')?.src||'',url:card.querySelector('.annonceLink')?.href||''}));
  const photos=[];for(const p of currentPhotos()){try{photos.push({name:p.label||photoDisplayName(p.file),data:await optimizedPhotoDataURL(p.file)})}catch{}}
- return {owner:$('#owner')?.value||'',phone:$('#ownerPhone')?.value||'',owners:ownerCardsState,address:$('#address')?.value||'',commune:$('#cadCommune')?.value||'',section:$('#cadSection')?.value||'',parcel:$('#cadParcel')?.value||'',property_type:$('#type')?.value||'',surface:$('#surfaceHab')?.value||'',surface_carrez:$('#surfaceCarrez')?.value||'',sections,parcels:cadParcels.map(p=>({section:p.section,numero:p.numero})),facts:$('#facts')?.innerText||'',photos,generated_date:new Date().toLocaleDateString('fr-FR')};
+ return {owner:$('#owner')?.value||'',phone:$('#ownerPhone')?.value||'',owners:ownerCardsState,address:$('#address')?.value||'',commune:$('#cadCommune')?.value||'',section:$('#cadSection')?.value||'',parcel:$('#cadParcel')?.value||'',property_type:$('#type')?.value||'',surface:$('#surfaceHab')?.value||'',surface_carrez:$('#surfaceCarrez')?.value||'',sections,parcels:cadParcels.map(p=>({section:p.section,numero:p.numero})),facts:$('#facts')?.innerText||'',photos,estimation,annonces,generated_date:new Date().toLocaleDateString('fr-FR')};
 }
 async function downloadWord(){
  const payload=await buildExportPayload();
@@ -1057,7 +1066,7 @@ async function downloadWord(){
   const ct=(r.headers.get('content-type')||'').toLowerCase();
   if(!ct.includes('officedocument.wordprocessingml.document'))throw new Error('Le serveur n’a pas renvoyé un document Word valide');
   const b=await r.blob(),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;
-  a.download='Fiche_visite_'+((payload.owner||payload.address||'bien').replace(/[^\p{L}\p{N}-]+/gu,'_'))+'.docx';
+  a.download='Dossier_estimation_'+((payload.owner||payload.address||'bien').replace(/[^\p{L}\p{N}-]+/gu,'_'))+'.docx';
   document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1500);
  }catch(e){alert('Export Word impossible : '+e.message)}
 }
@@ -1094,7 +1103,7 @@ async function downloadVisit(){
   if(String.fromCharCode(...head)!=='%PDF-')throw new Error('Le fichier reçu n’est pas un PDF valide');
   const u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;
   const safe=((payload.owner||payload.address||'bien').replace(/[^\p{L}\p{N}-]+/gu,'_'));
-  a.download='Fiche_visite_'+safe+'.pdf';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1500)
+  a.download='Dossier_estimation_'+safe+'.pdf';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1500)
  }catch(e){alert('Export PDF impossible : '+e.message)}
 }
 async function printVisit(){

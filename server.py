@@ -340,6 +340,8 @@ class WordPayload(BaseModel):
     photos:list=[]
     generated_date:str=""
     theme_color:str=""
+    estimation:dict={}
+    annonces:list=[]
 
 def _property_color(t):
     s=(t or "").lower()
@@ -350,6 +352,26 @@ def _property_color(t):
     if any(x in s for x in ["garage","parking","box"]): return "64748B"
     if any(x in s for x in ["maison","villa","pavillon"]): return "2F7D5A"
     return "49697D"
+
+
+def _export_market_images(annonces):
+    # Télécharger seulement les photos des catalogues connus, sans redirections.
+    from concurrent.futures import ThreadPoolExecutor
+    from PIL import Image
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self,*args,**kwargs):return None
+    def load(item):
+        try:
+            url=str(item.get('photo','')); parsed=urllib.parse.urlsplit(url)
+            if parsed.scheme!='https' or parsed.hostname not in ('roquesimmobilie.staticlbi.com','www.roques-immobilier.com') or parsed.port not in (None,443):return None
+            opener=urllib.request.build_opener(NoRedirect())
+            with opener.open(urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0'}),timeout=8) as response:
+                raw=response.read(8_000_001)
+            if len(raw)>8_000_000:return None
+            im=Image.open(io.BytesIO(raw));im.thumbnail((1000,750));im=im.convert('RGB')
+            out=io.BytesIO();im.save(out,format='JPEG',quality=82);return out.getvalue()
+        except Exception:return None
+    with ThreadPoolExecutor(max_workers=4) as pool:return list(pool.map(load,annonces[:4]))
 
 @app.post("/api/word")
 def word_export(p:WordPayload):
@@ -362,6 +384,7 @@ def word_export(p:WordPayload):
 
     doc=Document()
     sec=doc.sections[0]
+    sec.page_width=Inches(210/25.4);sec.page_height=Inches(297/25.4)
     sec.top_margin=Inches(.45); sec.bottom_margin=Inches(.45); sec.left_margin=Inches(.55); sec.right_margin=Inches(.55)
     styles=doc.styles
     styles['Normal'].font.name='Aptos'; styles['Normal'].font.size=Pt(9.5)
@@ -396,9 +419,9 @@ def word_export(p:WordPayload):
         return para
 
     title=doc.add_paragraph(); title.alignment=WD_ALIGN_PARAGRAPH.CENTER; title.paragraph_format.space_after=Pt(4)
-    r=title.add_run('FICHE DE VISITE IMMOBILIÈRE'); r.bold=True; r.font.size=Pt(18); r.font.color.rgb=RGBColor.from_string(property_color)
+    r=title.add_run('DOSSIER D’ESTIMATION IMMOBILIÈRE'); r.bold=True; r.font.size=Pt(18); r.font.color.rgb=RGBColor.from_string(property_color)
     sub=doc.add_paragraph(); sub.alignment=WD_ALIGN_PARAGRAPH.CENTER; sub.paragraph_format.space_after=Pt(7)
-    rr=sub.add_run('ESTIM’IA — fiche de relevé'); rr.italic=True; rr.font.size=Pt(9); rr.font.color.rgb=RGBColor(0x66,0x66,0x66)
+    rr=sub.add_run('ESTIM’IA — visite et estimation'); rr.italic=True; rr.font.size=Pt(9); rr.font.color.rgb=RGBColor(0x66,0x66,0x66)
     datep=doc.add_paragraph(); datep.alignment=WD_ALIGN_PARAGRAPH.CENTER; datep.paragraph_format.space_after=Pt(7)
     dr=datep.add_run('Document généré le '+(p.generated_date or datetime.now().strftime('%d/%m/%Y'))); dr.font.size=Pt(8.5); dr.font.color.rgb=RGBColor(0x66,0x66,0x66)
 
@@ -442,6 +465,34 @@ def word_export(p:WordPayload):
             doc.add_paragraph(line)
 
 
+    if p.estimation.get('centrale'):
+        heading('ESTIMATION DU BIEN')
+        label_value_table([('Valeur centrale',p.estimation.get('centrale')),('Fourchette basse',p.estimation.get('basse')),('Fourchette haute',p.estimation.get('haute'))])
+        doc.add_paragraph(str(p.estimation.get('texte') or 'Valeur statistique indicative issue des ventes DVF, sans ajustement qualitatif.'))
+    else:
+        heading('ESTIMATION DU BIEN')
+        doc.add_paragraph('Estimation non calculée dans ce dossier.')
+    if p.annonces:
+        heading('ANNONCES COMPARABLES')
+        doc.add_paragraph('Biens proposés à la vente sélectionnés par proximité du prix central. Prix affichés et disponibilité à confirmer auprès des agences.')
+        pictures=_export_market_images(p.annonces)
+        for index,item in enumerate(p.annonces[:4]):
+            heading(str(index+1)+'  '+str(item.get('titre','Bien proposé à la vente')))
+            if pictures[index]:
+                para=doc.add_paragraph();para.alignment=WD_ALIGN_PARAGRAPH.CENTER
+                para.add_run().add_picture(io.BytesIO(pictures[index]),width=Inches(3.1))
+                para.paragraph_format.keep_with_next=True
+            else:doc.add_paragraph('Photo de cette annonce indisponible lors de l’export.')
+            card_table=label_value_table([('Prix affiché',item.get('prix')),('Agence',item.get('site')),('Description',item.get('description'))])
+            for row in card_table.rows:
+                for cell in row.cells:
+                    for para in cell.paragraphs:para.paragraph_format.keep_with_next=True
+            url=str(item.get('url',''))
+            if urllib.parse.urlsplit(url).scheme in ('http','https'):
+                para=doc.add_paragraph('Source : ')
+                link=OxmlElement('w:hyperlink');link.set(qn('r:id'),doc.part.relate_to(url,'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',is_external=True))
+                run=OxmlElement('w:r');text=OxmlElement('w:t');text.text='Consulter l’annonce';run.append(text);link.append(run);para._p.append(link)
+
     # Photographies ajoutées au dossier. Les contrôles de l'interface ne sont jamais exportés.
     if p.photos:
         import base64
@@ -471,14 +522,16 @@ def word_export(p:WordPayload):
                 except Exception:
                     pass
 
+            keep_table(table)
+
     # footer + page number field
     footer=sec.footer.paragraphs[0]; footer.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    fr=footer.add_run('ESTIM’IA  •  Fiche de visite  •  Page '); fr.font.size=Pt(8); fr.font.color.rgb=RGBColor(0x77,0x77,0x77)
+    fr=footer.add_run('ESTIM’IA  •  Dossier d’estimation  •  Page '); fr.font.size=Pt(8); fr.font.color.rgb=RGBColor(0x77,0x77,0x77)
     fld=OxmlElement('w:fldSimple'); fld.set(qn('w:instr'),'PAGE'); footer._p.append(fld)
 
     out=io.BytesIO(); doc.save(out); out.seek(0)
     safe=re.sub(r'[^A-Za-z0-9_-]+','_',p.owner or p.address or 'bien').strip('_') or 'bien'
-    return StreamingResponse(out,media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',headers={'Content-Disposition':f'attachment; filename="Fiche_visite_{safe}.docx"'})
+    return StreamingResponse(out,media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',headers={'Content-Disposition':f'attachment; filename="Dossier_estimation_{safe}.docx"'})
 
 
 @app.post("/api/pdf")
@@ -498,7 +551,7 @@ def pdf_export(p:WordPayload):
     h=ParagraphStyle('HX',parent=styles['Heading2'],fontName='Helvetica-Bold',fontSize=10.5,leading=13,textColor=theme,spaceBefore=4*mm,spaceAfter=2*mm)
     normal=ParagraphStyle('NX',parent=styles['Normal'],fontSize=8.5,leading=11)
     cap=ParagraphStyle('CapX',parent=normal,fontSize=7.5,textColor=colors.HexColor('#555555'),alignment=TA_CENTER)
-    story=[Paragraph('FICHE DE VISITE IMMOBILIERE',title),Paragraph('ESTIM’IA - fiche de releve',date_style),Paragraph('Document genere le '+(p.generated_date or datetime.now().strftime('%d/%m/%Y')),date_style)]
+    story=[Paragraph('DOSSIER D’ESTIMATION IMMOBILIERE',title),Paragraph('ESTIM’IA - visite et estimation',date_style),Paragraph('Document genere le '+(p.generated_date or datetime.now().strftime('%d/%m/%Y')),date_style)]
     def add_table(rows):
         data=[]
         for k,v in rows:
@@ -522,6 +575,25 @@ def pdf_export(p:WordPayload):
             rows=s.get('rows') or []
             rows=[(x[0],x[1]) for x in rows if isinstance(x,(list,tuple)) and len(x)>=2 and str(x[1]).strip()]
             if rows: story.append(Paragraph(str(s.get('title') or 'Informations'),h));add_table(rows)
+    from xml.sax.saxutils import escape
+    def text(value):return escape(str(value or ''))
+    story.append(Paragraph('ESTIMATION DU BIEN',h))
+    if p.estimation.get('centrale'):
+        add_table([('Valeur centrale',text(p.estimation.get('centrale'))),('Fourchette basse',text(p.estimation.get('basse'))),('Fourchette haute',text(p.estimation.get('haute')))])
+        story.append(Paragraph(text(p.estimation.get('texte') or 'Valeur statistique indicative issue des ventes DVF, sans ajustement qualitatif.'),normal))
+    else:story.append(Paragraph('Estimation non calculée dans ce dossier.',normal))
+    if p.annonces:
+        story.append(Paragraph('ANNONCES COMPARABLES',h))
+        story.append(Paragraph('Biens proposés à la vente sélectionnés par proximité du prix central. Prix affichés et disponibilité à confirmer auprès des agences.',normal))
+        pictures=_export_market_images(p.annonces)
+        for index,item in enumerate(p.annonces[:4]):
+            card=[Paragraph(text(str(index+1)+'  '+str(item.get('titre','Bien proposé à la vente'))),h)]
+            if pictures[index]:card.append(RLImage(io.BytesIO(pictures[index]),width=105*mm,height=65*mm,kind='proportional'))
+            else:card.append(Paragraph('Photo de cette annonce indisponible lors de l’export.',cap))
+            card.extend([Paragraph('<b>Prix affiché : '+text(item.get('prix'))+'</b>',normal),Paragraph(text(item.get('site')),normal),Paragraph(text(item.get('description')),normal)])
+            url=str(item.get('url',''))
+            if urllib.parse.urlsplit(url).scheme in ('http','https'):card.append(Paragraph('<link href="'+escape(url,{'"':'&quot;'})+'" color="#0d705a">Consulter l’annonce</link>',normal))
+            card.append(Spacer(1,3*mm));story.append(KeepTogether(card))
     if p.photos:
         story.append(Paragraph('PHOTOGRAPHIES DU BIEN',h)); cells=[]
         for item in p.photos[:30]:
@@ -536,10 +608,10 @@ def pdf_export(p:WordPayload):
             t=Table([[row[0][0],row[1][0]],[row[0][1],row[1][1]]],colWidths=[82*mm,82*mm],hAlign='CENTER')
             t.setStyle(TableStyle([('BOX',(0,0),(-1,-1),.35,colors.HexColor('#CCD5DB')),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('ALIGN',(0,0),(-1,-1),'CENTER'),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)]));story.append(KeepTogether(t));story.append(Spacer(1,2*mm))
     def footer(canvas,docx):
-        canvas.saveState();canvas.setFont('Helvetica',7);canvas.setFillColor(colors.HexColor('#777777'));canvas.drawCentredString(A4[0]/2,7*mm,f'ESTIM’IA - Fiche de visite - Page {docx.page}');canvas.restoreState()
+        canvas.saveState();canvas.setFont('Helvetica',7);canvas.setFillColor(colors.HexColor('#777777'));canvas.drawCentredString(A4[0]/2,7*mm,f'ESTIM’IA - Dossier d’estimation - Page {docx.page}');canvas.restoreState()
     doc.build(story,onFirstPage=footer,onLaterPages=footer);out.seek(0)
     safe=re.sub(r'[^A-Za-z0-9_-]+','_',p.owner or p.address or 'bien').strip('_') or 'bien'
-    return StreamingResponse(out,media_type='application/pdf',headers={'Content-Disposition':f'attachment; filename="Fiche_visite_{safe}.pdf"'})
+    return StreamingResponse(out,media_type='application/pdf',headers={'Content-Disposition':f'attachment; filename="Dossier_estimation_{safe}.pdf"'})
 
 @app.post("/api/transcribe")
 async def transcribe(audio: UploadFile=File(...)):

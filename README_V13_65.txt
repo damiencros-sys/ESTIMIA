@@ -1,0 +1,1 @@
+V13.65 — Export dossier complet Word et PDF A4 : relevé, plan cadastral existant, valeur centrale et fourchette, quatre annonces affichées avec photo, descriptif, prix et lien, photographies du bien. Téléchargement parallèle borné des photos du catalogue avec emplacement de secours si indisponibles. Fonctionnalités V13.64 conservées.
