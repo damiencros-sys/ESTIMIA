@@ -1050,7 +1050,10 @@ async function buildExportPayload(){
  const estimation={centrale:estimateBox?.querySelector('.estimationValueAmount')?.innerText||'',
   basse:estimateBox?.querySelectorAll('.estimationRangeAmount')[0]?.innerText||'',
   haute:estimateBox?.querySelectorAll('.estimationRangeAmount')[1]?.innerText||'',
-  texte:estimateBox?.querySelector('p')?.innerText||''};
+  texte:estimateBox?.querySelector('p')?.innerText||'',
+  reperes:[...document.querySelectorAll('#marketIndicators tr')].map(r=>[r.querySelector('th')?.innerText||'',r.querySelector('td')?.innerText||'']).concat([['Avis d’ajustement',document.querySelector('#marketAdjustmentAdvice')?.innerText||'']]),
+  retenue:document.querySelector('#validatedPrice')?.value?Number(document.querySelector('#validatedPrice').value).toLocaleString('fr-FR')+' €':'',
+  justification:document.querySelector('#validatedReason')?.value||''};
  const annonces=[...document.querySelectorAll('#annoncesResults .annonceCard')].slice(0,6).map(card=>({
   titre:card.querySelector('h4')?.innerText||'',description:card.querySelector('.annonceDescription')?.innerText||'',
   prix:card.querySelector('.annoncePrice')?.innerText||'',site:card.querySelector('.annonceAgency')?.innerText||'',

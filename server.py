@@ -481,6 +481,12 @@ def word_export(p:WordPayload):
     else:
         heading('ESTIMATION DU BIEN')
         doc.add_paragraph('Estimation non calculée dans ce dossier.')
+    if p.estimation.get('reperes'):
+        heading('REPERES AU METRE CARRE ET AJUSTEMENT')
+        label_value_table(p.estimation['reperes'])
+    if p.estimation.get('retenue'):
+        heading('ESTIMATION RETENUE ET VALIDEE')
+        label_value_table([('Montant retenu',p.estimation.get('retenue')),('Justification',p.estimation.get('justification'))])
     for group_title,group_items in [('ANNONCES SIMILAIRES ROQUES IMMOBILIER',p.roques_annonces[:4]),('AUTRES ANNONCES SIMILAIRES',p.annonces)]:
         if not group_items:continue
         heading(group_title)
@@ -592,6 +598,12 @@ def pdf_export(p:WordPayload):
         add_table([('Valeur centrale',text(p.estimation.get('centrale'))),('Fourchette basse',text(p.estimation.get('basse'))),('Fourchette haute',text(p.estimation.get('haute')))])
         story.append(Paragraph(text(p.estimation.get('texte') or 'Valeur statistique indicative issue des ventes DVF, sans ajustement qualitatif.'),normal))
     else:story.append(Paragraph('Estimation non calculée dans ce dossier.',normal))
+    if p.estimation.get('reperes'):
+        story.append(Paragraph('REPERES AU METRE CARRE ET AJUSTEMENT',h))
+        add_table([(text(k),text(v)) for k,v in p.estimation['reperes']])
+    if p.estimation.get('retenue'):
+        story.append(Paragraph('ESTIMATION RETENUE ET VALIDEE',h))
+        add_table([('Montant retenu',text(p.estimation.get('retenue'))),('Justification',text(p.estimation.get('justification')))])
     for group_title,group_items in [('ANNONCES SIMILAIRES ROQUES IMMOBILIER',p.roques_annonces[:4]),('AUTRES ANNONCES SIMILAIRES',p.annonces)]:
         if not group_items:continue
         story.append(Paragraph(group_title,h))
@@ -987,6 +999,7 @@ def estimation_dvf(commune: str, type_bien: str, surface: float):
     m=mid(sorted(c['prix_m2'] for c in selected)); rnd=lambda x:round(x/1000)*1000
     return {'status':'indicatif','source':source_url,'source_nom':source_name,
             'comparables':selected[:30],'nombre':len(selected),'diagnostics':diagnostics,
+            'periode_debut':min(str(c.get('date','')) for c in selected),'periode_fin':max(str(c.get('date','')) for c in selected),
             'prix_m2_median':round(m),'basse':rnd(m*surface*.85),
             'centrale':rnd(m*surface),'haute':rnd(m*surface*1.15),
             'avertissement':'Fourchette statistique non ajustée : état, terrain, travaux et dépendances non pris en compte. Données tierces à vérifier avant tout avis de valeur.'}

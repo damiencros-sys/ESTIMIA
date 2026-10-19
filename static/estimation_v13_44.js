@@ -9,7 +9,7 @@ btn.addEventListener('click',async()=>{
  const typ=(q('#type')?.value||'').toLowerCase();
  const type_bien=typ.includes('appartement')?'appartement':typ.includes('maison')||typ.includes('villa')?'maison':'';
  const surface=Number(q('#surfaceHab')?.value||0);
- const status=q('#estimationStatus'),result=q('#estimationResults');result.replaceChildren();
+ const status=q('#estimationStatus'),result=q('#estimationResults');result.replaceChildren();result.dataset.dvfMedian='';result.dataset.dvfCount='';if(q('#validatedPrice'))q('#validatedPrice').value='';
  if(!type_bien||!surface){status.textContent='Renseigne le type (maison/appartement) et la surface habitable dans la fiche.';return;}
  let code=(q('#cadCommune')?.dataset.insee||'').trim();
  if(!/^\d{5}$/.test(code))code=commune;
@@ -24,6 +24,8 @@ btn.addEventListener('click',async()=>{
   if(d.status!=='indicatif'){
    status.textContent=(d.message||'Données insuffisantes')+(d.diagnostic?' (Diagnostic : '+d.diagnostic+')':'');return;
   }
+  result.dataset.dvfMedian=String(d.prix_m2_median||'');result.dataset.dvfCount=String(d.nombre||'');result.dataset.periodStart=d.periode_debut||'';result.dataset.periodEnd=d.periode_fin||'';
+  if(q('#validatedPrice'))q('#validatedPrice').value='';if(q('#validatedReason'))q('#validatedReason').value='';if(q('#retainedEstimateText'))q('#retainedEstimateText').textContent='';
   status.textContent=`${d.nombre} ventes filtrées — valeur statistique indicative (sans ajustement qualitatif).`;
   const table=d.comparables.map(c=>`<tr><td>${esc(c.date)}</td><td>${esc(c.surface)} m²</td><td>${fmt(c.prix)}</td><td>${fmt(c.prix_m2)}/m²</td></tr>`).join('');
   result.innerHTML=`<div class="estimationValueMain"><div class="estimationValueLabel">Estimation du bien — valeur centrale</div><div class="estimationValueAmount">${fmt(d.centrale)}</div><div class="small">Valeur statistique indicative issue des ventes DVF retenues</div></div><div class="estimationRange"><div><strong>Fourchette basse</strong><div class="estimationRangeAmount">${fmt(d.basse)}</div></div><div><strong>Fourchette haute</strong><div class="estimationRangeAmount">${fmt(d.haute)}</div></div></div><p>${esc(d.avertissement)}</p><details><summary>Voir les ventes retenues</summary><div style="overflow:auto"><table><thead><tr><th>Date</th><th>Surface</th><th>Prix</th><th>Prix/m²</th></tr></thead><tbody>${table}</tbody></table></div></details><p><a href="${esc(d.source)}" target="_blank" rel="noopener">Source des transactions</a></p>`;
@@ -46,6 +48,7 @@ const annoncesBtn=q('#launchAnnonces');
 const manual=[];let found=[];
 let roquesFound=[],roquesReady=false;
 function estimationReference(){
+ const approved=Number(q('#validatedPrice')?.value||0);if(approved>0)return approved;
  const value=q('#estimationResults .estimationValueAmount')?.textContent||'';
  const amount=Number(value.replace(/[^0-9,.-]/g,'').replace(',','.'));
  return Number.isFinite(amount)&&amount>0?amount:0;
@@ -76,10 +79,69 @@ function closestAnnonces(rows,price,surface){
  return unique.sort((a,b)=>Math.abs(a.prix-price)-Math.abs(b.prix-price)||
   Math.abs((Number(a.surface)||0)-surface)-Math.abs((Number(b.surface)||0)-surface)||String(a.url).localeCompare(String(b.url))).slice(0,6);
 }
+function marketIndicators(rows,surface,commune){
+ const key=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+ if(!(surface>0))return {count:0,median:0,minSurface:0,maxSurface:0};
+ const sample=[];
+ for(const row of rows){
+  const area=Number(row.surface),price=Number(row.prix);
+  if(!(price>0&&area>=surface*.75&&area<=surface*1.25))continue;
+  // Le code INSEE du cadastre n'est pas un nom : les résultats du serveur
+  // sont déjà limités à la commune demandée dans ce cas.
+  if(commune&&!/^\d{5}$/.test(commune)&&row.commune&&key(commune)!==key(row.commune))continue;
+  if(sample.some(x=>sameProperty(x,row)))continue;
+  sample.push(row);
+ }
+ const values=sample.map(x=>Number(x.prix)/Number(x.surface)).sort((a,b)=>a-b);
+ const median=values.length?(values[Math.floor((values.length-1)/2)]+values[Math.floor(values.length/2)])/2:0;
+ return {count:sample.length,median:sample.length>=3?median:0,minSurface:surface*.75,maxSurface:surface*1.25};
+}
+function renderMarketIndicators(){
+ const box=q('#marketIndicators');if(!box)return;
+ const result=q('#estimationResults'),surface=Number(q('#surfaceHab')?.value||0),commune=(q('#cadCommune')?.value||'').trim();
+ const m=marketIndicators(found,surface,commune),dvf=Number(result?.dataset.dvfMedian||0),count=Number(result?.dataset.dvfCount||0);
+ const central=Number((result?.querySelector('.estimationValueAmount')?.textContent||'').replace(/[^0-9,.-]/g,'').replace(',','.'));
+ const retained=estimationReference(),today=new Date().toLocaleDateString('fr-FR');
+ const period=[result?.dataset.periodStart,result?.dataset.periodEnd].filter(Boolean).join(' au ');
+ const metricRows=[
+ ['Prix médian des ventes DVF',dvf?fmt(dvf)+'/m² — '+count+' ventes'+(period?' — du '+period:''):'Données insuffisantes'],
+ ['Prix médian des annonces comparables',m.median?fmt(m.median)+'/m² — '+m.count+' annonces':'Échantillon insuffisant : '+m.count+' annonce(s), minimum 3'],
+ ['Prix au m² de l’estimation statistique',central>0&&surface>0?fmt(central/surface)+'/m²':'Estimation à calculer'],
+ ['Prix au m² du montant retenu',retained>0&&surface>0?fmt(retained/surface)+'/m²':'Montant à définir'],
+ ['Périmètre des annonces',commune+' — même type — surfaces de '+Math.round(m.minSurface)+' à '+Math.round(m.maxSurface)+' m² (±25 %)'],
+ ['Date de consultation des annonces',found.length?today:'Recherche des annonces à lancer']];
+ box.innerHTML='<table><tbody>'+metricRows.map(([k,v])=>'<tr><th style="text-align:left;padding:8px">'+esc(k)+'</th><td style="padding:8px">'+esc(v)+'</td></tr>').join('')+'</tbody></table><p class="small">Annonces dédoublonnées, sélectionnées sans filtre de prix. Catalogues partiels, prix demandés et non prix de vente. Aucune correction automatique de la valeur DVF.</p>';
+ let advice='Calculez l’estimation et recherchez les annonces pour obtenir un avis d’ajustement.';
+ if(dvf&&m.median){
+  const gap=(m.median/dvf-1)*100;
+  advice='Écart annonces / ventes DVF : '+(gap>=0?'+':'')+gap.toFixed(1)+' %. ';
+  advice+=Math.abs(gap)<=5?'Les deux repères sont proches : conserver la base DVF peut être cohérent, sous réserve des caractéristiques du bien.':gap>0?'Les prix demandés sont supérieurs aux ventes DVF. Une hausse ne se justifie que si l’état, l’emplacement et les prestations du bien la confirment ; cet écart n’est pas une hausse de marché démontrée.':'Les prix demandés sont inférieurs aux ventes DVF. Vérifiez la pertinence et l’ancienneté des ventes, les travaux et le positionnement du bien avant d’envisager une baisse.';
+  if(m.count<5||count<5)advice+=' Échantillon réduit : conclusion fragile.';
+ }
+ if(q('#marketAdjustmentAdvice'))q('#marketAdjustmentAdvice').textContent=advice;
+ if(q('#estRetainedPrice'))q('#estRetainedPrice').placeholder=central>0?String(central):'Montant à valider';
+}
+q('#validateRetainedEstimate')?.addEventListener('click',()=>{
+ const status=q('#retainedEstimateText'),price=Number(q('#estRetainedPrice')?.value||0),reason=(q('#estAdjustmentReason')?.value||'').trim();
+ if(!q('#estimationResults .estimationValueAmount')){status.textContent='Calculez d’abord l’estimation statistique.';return;}
+ if(!(price>0&&price<=10000000)){status.textContent='Saisissez un montant positif valide.';return;}
+ if(!reason){status.textContent='Indiquez la justification de votre décision avant de valider.';return;}
+ q('#validatedPrice').value=String(price);q('#validatedReason').value=reason;
+ status.textContent='Montant retenu et validé : '+fmt(price)+' — '+reason;
+ renderMarketIndicators();displayAnnonces();if(roquesFound.length||found.length)loadRoques();
+ q('#validatedPrice').dispatchEvent(new Event('input',{bubbles:true}));
+});
+for(const id of ['#surfaceHab','#type','#cadCommune','#address'])q(id)?.addEventListener('input',()=>{
+ if(q('#validatedPrice'))q('#validatedPrice').value='';if(q('#validatedReason'))q('#validatedReason').value='';
+ if(q('#retainedEstimateText'))q('#retainedEstimateText').textContent='Le bien a été modifié : recalculer l’estimation avant validation.';
+ const result=q('#estimationResults');if(result){result.replaceChildren();result.dataset.dvfMedian='';result.dataset.dvfCount='';}
+ found=[];roquesFound=[];roquesReady=false;displayRoques();displayAnnonces();
+});
 function safeAnnonceUrl(value){
  try{const u=new URL(value);return ['https:','http:'].includes(u.protocol)?u.href:'';}catch{return '';}
 }
 function displayAnnonces(){
+ renderMarketIndicators();
  const target=q('#annoncesResults');if(!target)return;
  const all=[...found,...manual],price=estimationReference();
  if(!all.length){target.textContent='Aucun comparable affichable.';return;}
