@@ -476,7 +476,12 @@ def word_export(p:WordPayload):
 
     if p.estimation.get('centrale'):
         heading('ESTIMATION DU BIEN')
-        label_value_table([('Valeur centrale',p.estimation.get('centrale')),('Fourchette basse',p.estimation.get('basse')),('Fourchette haute',p.estimation.get('haute'))])
+        estimate_table=label_value_table([('Valeur centrale',p.estimation.get('centrale')),('Fourchette basse',p.estimation.get('basse')),('Fourchette haute',p.estimation.get('haute'))])
+        for run in estimate_table.rows[0].cells[1].paragraphs[0].runs:
+            run.font.size=Pt(14); run.bold=True; run.font.color.rgb=RGBColor.from_string(property_color)
+        for row in estimate_table.rows[:-1]:
+            for cell in row.cells:
+                for paragraph in cell.paragraphs: paragraph.paragraph_format.keep_with_next=True
         doc.add_paragraph(str(p.estimation.get('texte') or 'Valeur statistique indicative issue des ventes DVF, sans ajustement qualitatif.'))
     else:
         heading('ESTIMATION DU BIEN')
@@ -568,10 +573,11 @@ def pdf_export(p:WordPayload):
     normal=ParagraphStyle('NX',parent=styles['Normal'],fontSize=8.5,leading=11)
     cap=ParagraphStyle('CapX',parent=normal,fontSize=7.5,textColor=colors.HexColor('#555555'),alignment=TA_CENTER)
     story=[Paragraph('DOSSIER D’ESTIMATION IMMOBILIERE',title),Paragraph('ESTIM’IA - visite et estimation',date_style),Paragraph('Document genere le '+(p.generated_date or datetime.now().strftime('%d/%m/%Y')),date_style)]
-    def add_table(rows):
+    estimate_value=ParagraphStyle('EstimateValue',parent=normal,fontName='Helvetica-Bold',fontSize=14,leading=18,textColor=theme)
+    def add_table(rows,highlight_estimate=False):
         data=[]
         for k,v in rows:
-            if str(v).strip(): data.append([Paragraph(str(k),normal),Paragraph(str(v),normal)])
+            if str(v).strip(): data.append([Paragraph(str(k),normal),Paragraph(str(v),estimate_value if highlight_estimate and k=='Valeur centrale' else normal)])
         if not data:return
         t=Table(data,colWidths=[52*mm,112*mm],repeatRows=0,hAlign='CENTER')
         t.setStyle(TableStyle([('GRID',(0,0),(-1,-1),.4,colors.HexColor('#CCD5DB')),('BACKGROUND',(0,0),(0,-1),colors.HexColor('#F2F6F5')),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('LEFTPADDING',(0,0),(-1,-1),5),('RIGHTPADDING',(0,0),(-1,-1),5),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),('TEXTCOLOR',(0,0),(0,-1),theme)]));story.append(t)
@@ -595,7 +601,9 @@ def pdf_export(p:WordPayload):
     def text(value):return escape(str(value or ''))
     story.append(Paragraph('ESTIMATION DU BIEN',h))
     if p.estimation.get('centrale'):
-        add_table([('Valeur centrale',text(p.estimation.get('centrale'))),('Fourchette basse',text(p.estimation.get('basse'))),('Fourchette haute',text(p.estimation.get('haute')))])
+        block_start=len(story)-1
+        add_table([('Valeur centrale',text(p.estimation.get('centrale'))),('Fourchette basse',text(p.estimation.get('basse'))),('Fourchette haute',text(p.estimation.get('haute')))],highlight_estimate=True)
+        story[block_start:]=[KeepTogether(story[block_start:])]
         story.append(Paragraph(text(p.estimation.get('texte') or 'Valeur statistique indicative issue des ventes DVF, sans ajustement qualitatif.'),normal))
     else:story.append(Paragraph('Estimation non calculée dans ce dossier.',normal))
     if p.estimation.get('reperes'):
