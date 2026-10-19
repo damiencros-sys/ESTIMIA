@@ -36,6 +36,7 @@ function capture(){
  return {
   id:currentId||makeId(),updated:new Date().toISOString(),values:allValues(),
   html:{
+   estimationResults:$('#estimationResults')?.innerHTML||'',estimationDataset:{...($('#estimationResults')?.dataset||{})},estimationStatus:$('#estimationStatus')?.textContent||'',
    facts:captureFactsHTML(),dictationHistory:$('#dictationHistory')?.innerHTML||'',
    cadPlan:document.getElementById('cadPlanBox')?.outerHTML||'',gallery:$('#gallery')?.innerHTML||''
   },
@@ -73,7 +74,12 @@ function restore(d){
  if($('#photoStatus'))$('#photoStatus').textContent=d.text?.photoStatus||'';
  removePlan();const plan=d.html?.cadPlan||d.cadPlanHTML||'';
  if(plan){const host=$('.cadastreBox');if(host)host.insertAdjacentHTML('beforeend',plan)}
- document.dispatchEvent(new Event('estimia:surfaces-restored'));document.dispatchEvent(new Event('estimia:dictations-restored'));document.dispatchEvent(new Event('estimia:emails-restored'));document.dispatchEvent(new Event('estimia:contacts-restored'));document.querySelector('#type')?.dispatchEvent(new Event('input',{bubbles:true}));restoring=false;document.dispatchEvent(new Event('estimia:parcels-restored'));renderList();closeDrawer();window.scrollTo({top:0,behavior:'smooth'});
+ document.dispatchEvent(new Event('estimia:surfaces-restored'));document.dispatchEvent(new Event('estimia:dictations-restored'));document.dispatchEvent(new Event('estimia:emails-restored'));document.dispatchEvent(new Event('estimia:contacts-restored'));document.querySelector('#type')?.dispatchEvent(new Event('input',{bubbles:true}));const result=$('#estimationResults');if(result){result.innerHTML=d.html?.estimationResults||'';for(const key of Object.keys(result.dataset))delete result.dataset[key];Object.assign(result.dataset,d.html?.estimationDataset||{});}
+ // La notification du type invalide les anciens résultats : restaurer les montants après elle.
+ for(const id of ['validatedPrice','validatedReason']){const val=d.values?.[id];if($("#"+id))$("#"+id).value=typeof val==='object'?val.value||'':val||'';}
+ if($('#estimationStatus'))$('#estimationStatus').textContent=d.html?.estimationStatus||'';
+ document.dispatchEvent(new Event('estimia:estimation-restored'));
+ restoring=false;document.dispatchEvent(new Event('estimia:parcels-restored'));renderList();closeDrawer();window.scrollTo({top:0,behavior:'smooth'});
 }
 function clearForm(){
  restoring=true;currentId=null;

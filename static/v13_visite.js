@@ -285,7 +285,8 @@ function sanitaryLocalFragment(text,start,end){
  const t=clean(text);
  const tail=t.slice(end,end+140).split(/(?<!\d)\.(?!\d)|[!?;]|\b(?:cave|garage|chambre|cuisine|salon|s[ée]jour|couloir|d[ée]gagement|piscine|jardin|terrasse|parcelles?|salles?\s+(?:de\s+bains?|d[' ]eau)|wc|toilettes?)\b/i)[0];
  const area=tail.match(/\b(\d+(?:[.,]\d+)?)\s*(?:m\s*[²2]|m[eè]tres?\s+carr[ée]s?)/i);
- return {tail,area:area?n(area[1]):null,index:area?end+area.index:-1};
+ const collective=area&&/\b(?:le\s+tout|au\s+total|totalit[ée]|ensemble|surface\s+(?:totale|globale)|font|repr[ée]sentent)\b/i.test(tail.slice(0,area.index));
+ return {tail,area:area&&!collective?n(area[1]):null,index:area&&!collective?end+area.index:-1};
 }
 function sanitarySurfaceWarnings(text){
  return surfaces(text,true).filter(r=>{const max=roomSurfaceLimit(r.name);return max!=null&&r.val>max}).map(r=>[r.name+' — '+r.lvl,fmt(r.val)+' dictés — surface non attribuée : supérieure au seuil de contrôle de '+roomSurfaceLimit(r.name)+' m². Corrigez la valeur sur la ligne de cette pièce dans Surfaces calculées ; aucune correction numérique inventée.']);
@@ -336,6 +337,7 @@ function surfaces(text,includeSuspicious=false){
   // This prevents a later correction (e.g. corridor) being stolen by mezzanine/garage/entry.
   let sm=chunk.match(/(?:\bde\b|\bmesurant\b|\bfait\b|\b:)?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/i);
   if(sm){
+   if(isSanitaryRoom(m.name)&&/\b(?:le\s+tout|au\s+total|totalit[ée]|ensemble|surface\s+(?:totale|globale)|font|repr[ée]sentent)\b/i.test(chunk.slice(0,sm.index)))continue;
    let area=n(sm[1]);
    // Plusieurs segments du même couloir : « 3,84 m² + 2,5 m² ».
    // Ne pas additionner une autre pièce ni une date.
@@ -476,8 +478,26 @@ function confirmSurfaceTotal(){
  const field=$('#surfaceHab');field.value=total.toFixed(2);field.dataset.needsReview='false';field.dataset.surfaceConfirmed='true';field.dispatchEvent(new Event('input',{bubbles:true}));
  $('#surfaceCalculationNotice')?.remove();const alerts=$('#surfaceReviewAlerts');if(alerts)alerts.remove();
 }
+function repairInheritedSanitaryAnnex(){
+ const text=clean(($('#notes')?.value||'')+' '+($('#correction')?.value||''));if(!text)return;
+ const parsed=surfaces(text,true),annexes=parsed.filter(x=>x.cat==='Annexe'&&!isSanitaryRoom(x.name));
+ let changed=false;
+ document.querySelectorAll('#facts .surfaceEditor .otherSurface .surfaceRow').forEach(row=>{
+ const name=clean(row.querySelector('span')?.textContent||'').split(' — ')[0],val=n(row.querySelector('b')?.textContent||'');
+ if(!isSanitaryRoom(name)||!Number.isFinite(val))return;
+ if(parsed.some(x=>isSanitaryRoom(x.name)&&Math.abs(x.val-val)<.001))return;
+ const owner=annexes.find(x=>Math.abs(x.val-val)<.001);if(!owner)return;
+ const group=row.closest('.otherSurface');
+ const exists=[...group.querySelectorAll('.surfaceRow')].some(other=>other!==row&&low(clean(other.querySelector('span')?.textContent||'').split(' — ')[0])===low(owner.name)&&Math.abs(n(other.querySelector('b')?.textContent||'')-val)<.001);
+ if(exists)row.remove();else row.querySelector('span').textContent=owner.name+' — '+owner.lvl;
+ changed=true;
+ });
+ if(changed){
+ const note=document.createElement('p');note.className='small';note.dataset.sanitaryAreaRepair='true';note.textContent='Correction : la surface de la cave / du garage est conservée une seule fois. Le WC qui y est situé n’a pas de surface précisée dans la dictée.';document.querySelector('#facts .surfaceEditor')?.appendChild(note);
+ }
+}
 document.addEventListener('estimia:surfaces-restored',()=>{
- manualSurfaceRows=[];manualLevels=[];hydrateSurfaceRows();
+ manualSurfaceRows=[];manualLevels=[];repairInheritedSanitaryAnnex();hydrateSurfaceRows();
  const box=document.querySelector('#facts .surfaceEditor');if(box&&!box.querySelector('[data-act="confirm-surface-total"]')){
  const b=document.createElement('button');b.type='button';b.className='miniEditBtn';b.dataset.act='confirm-surface-total';b.textContent='Utiliser ce total vérifié pour l’estimation';box.appendChild(b);}
 });
@@ -1149,9 +1169,9 @@ async function buildExportPayload(){
  const estimation={centrale:estimateBox?.querySelector('.estimationValueAmount')?.innerText||'',
   basse:estimateBox?.querySelectorAll('.estimationRangeAmount')[0]?.innerText||'',
   haute:estimateBox?.querySelectorAll('.estimationRangeAmount')[1]?.innerText||'',
-  texte:estimateBox?.querySelector('p')?.innerText||'',
-  reperes:[...document.querySelectorAll('#marketIndicators tr')].map(r=>[r.querySelector('th')?.innerText||'',r.querySelector('td')?.innerText||'']).concat([['Avis d’ajustement',document.querySelector('#marketAdjustmentAdvice')?.innerText||'']]),
-  retenue:document.querySelector('#validatedPrice')?.value?Number(document.querySelector('#validatedPrice').value).toLocaleString('fr-FR')+' €':'',
+  texte:estimateBox?.querySelector('.estimationExplanation')?.innerText||estimateBox?.querySelector('p:not(.originalEstimateReference)')?.innerText||'',
+  reperes:[...document.querySelectorAll('#marketIndicators tr')].filter(r=>estimateBox?.dataset.adjusted!=='true'||!/estimation statistique/i.test(r.querySelector('th')?.innerText||'')).map(r=>[r.querySelector('th')?.innerText||'',r.querySelector('td')?.innerText||'']).concat([['Avis d’ajustement',document.querySelector('#marketAdjustmentAdvice')?.innerText||'']]),
+  retenue:estimateBox?.dataset.adjusted!=='true'&&document.querySelector('#validatedPrice')?.value?Number(document.querySelector('#validatedPrice').value).toLocaleString('fr-FR')+' €':'',
   justification:document.querySelector('#validatedReason')?.value||''};
  const annonces=[...document.querySelectorAll('#annoncesResults .annonceCard')].slice(0,6).map(card=>({
   titre:card.querySelector('h4')?.innerText||'',description:card.querySelector('.annonceDescription')?.innerText||'',
@@ -1177,6 +1197,8 @@ async function downloadWord(){
 
 async function printableHTML(){
  const title=ficheTitle(), facts=$('#facts')?.innerHTML||'', mapUrl=cadMapURL();
+ const payload=await buildExportPayload(),v=payload.estimation;
+ const estimatePrint=v.centrale?`<section class="proGroup"><h2>Estimation du bien</h2><p>Valeur centrale : <strong>${E(v.centrale)}</strong></p><p>Fourchette basse : ${E(v.basse)} — Fourchette haute : ${E(v.haute)}</p><p>${E(v.texte)}</p></section>`:'';
  const refsTxt=cadParcels.map(p=>`${E(p.section)} ${E(String(parseInt(p.numero,10)))}`).join(' • ');
  const mapBlock=mapUrl?`<section class="cadPrint"><h2>Plan cadastral</h2><img src="${mapUrl}" alt="Plan cadastral"><div>Parcelles : ${refsTxt}</div></section>`:'';
  const photoItems=[];
@@ -1195,7 +1217,7 @@ async function printableHTML(){
  const head=meta.map(x=>`<div class="m"><span>${E(x[0])}</span><b>${E(x[1])}</b></div>`).join('');
  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${E(title)}</title>
  <style>body{font-family:Arial,sans-serif;color:#17212b;margin:28px}h1{font-size:23px;margin-bottom:5px}.date{color:#667;font-size:12px;margin-bottom:18px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px}.m{border:1px solid #ccd5db;border-radius:8px;padding:8px}.m span,.m b{display:block}.m span{font-size:11px;color:#667;margin-bottom:3px}.proGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.proGroup,.surfaceHero{border:1px solid #ccd5db;border-radius:10px;padding:10px;margin:0 0 10px;break-inside:avoid}.proGroup h3,.surfaceHero h3{margin:0 0 8px}.proRow,.surfaceRow,.surfaceTotal,.grandTotal{display:flex;justify-content:space-between;gap:15px;padding:5px 0;border-bottom:1px solid #eee}.grandTotal{font-weight:bold;font-size:16px}.rawNotes{margin-top:14px}.cadPrint{break-inside:avoid;margin:15px 0}.cadPrint img{width:100%;max-width:760px;border:1px solid #ccd5db;border-radius:8px}.photosPrint{margin-top:18px}.photoGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.photoPrint{margin:0;break-inside:avoid;border:1px solid #ccd5db;border-radius:8px;padding:7px}.photoPrint img{display:block;width:100%;height:220px;object-fit:contain}.photoPrint figcaption{text-align:center;font-size:11px;margin-top:6px;color:#445}.dossierHead,.calculatedTop{display:none}@media print{body{margin:10mm}.proGroup,.surfaceHero{break-inside:avoid}}</style></head><body>
- <h1>FICHE DE VISITE IMMOBILIÈRE</h1><div class="date">Document généré le ${new Date().toLocaleDateString('fr-FR')}</div><div class="meta">${head}</div>${mapBlock}${facts}${photosBlock}</body></html>`;
+ <h1>FICHE DE VISITE IMMOBILIÈRE</h1><div class="date">Document généré le ${new Date().toLocaleDateString('fr-FR')}</div><div class="meta">${head}</div>${estimatePrint}${mapBlock}${facts}${photosBlock}</body></html>`;
 }
 async function downloadVisit(){
  const payload=await buildExportPayload();
