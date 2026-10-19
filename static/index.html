@@ -6,11 +6,11 @@
 <meta name="theme-color" content="#15324a">
 <title>ESTIM’IA</title>
 <link rel="manifest" href="/static/manifest.json">
-<link rel="stylesheet" href="/static/style.css?v=13.72-layout3">
+<link rel="stylesheet" href="/static/style.css?v=13.73-layout3">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<link rel="stylesheet" href="/static/v13_dossiers_pro.css?v=13.72">
+<link rel="stylesheet" href="/static/v13_dossiers_pro.css?v=13.73">
 <style>
 .cadParcelsList{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:9px 0}.cadParcelsLabel{flex-basis:100%;font-weight:700;margin:2px 0 1px}
 .cadParcelChip{display:inline-flex;align-items:center;gap:7px;border:1px solid #cbd8de;border-radius:999px;padding:6px 9px;background:#f7fafb;font-size:13px}
@@ -52,7 +52,7 @@
 .exportStatus.error{display:block;background:#fff0f0;border:1px solid #e4aaaa;color:#8a2828}
 #printVisit:disabled,#wordVisit:disabled{opacity:.65;cursor:wait}
 
-/* V13.72 : croix Supprimer visibles sur toutes les lignes structurées */
+/* V13.73 : croix Supprimer visibles sur toutes les lignes structurées */
 #facts .proGroup .proRow{display:grid!important;grid-template-columns:minmax(110px,.8fr) minmax(160px,1.5fr) 38px!important;align-items:center!important;gap:10px!important;padding:8px 0!important;position:relative!important}
 #facts .proGroup .proRow>.rowDelete{display:inline-flex!important;visibility:visible!important;opacity:1!important;grid-column:3!important;grid-row:1!important;position:static!important;transform:none!important;justify-self:end!important;align-items:center!important;justify-content:center!important;width:34px!important;height:34px!important;margin:0!important;padding:0!important;border:1px solid #efcaca!important;border-radius:8px!important;background:#fff!important;color:#c33!important;font-size:20px!important;line-height:1!important;cursor:pointer!important}
 #facts .proGroup .proRow>.rowDelete:hover{background:#fff5f5!important}
@@ -68,7 +68,7 @@
 @keyframes estimSpin{to{transform:rotate(360deg)}}
 #printVisit:disabled,#downloadWord:disabled{opacity:.65;cursor:wait}
 
-/* V13.72 — gestion complète des photos */
+/* V13.73 — gestion complète des photos */
 .photoManagerHead{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:12px 0 10px}
 .photoManagerHead h3{margin:0}
 .photoCount{font-weight:500;color:#687781;font-size:.9em}
@@ -92,7 +92,7 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 .estExtraSection{background:white;border:1px solid #d8e3e6;border-radius:10px;margin:9px 0;padding:13px 15px}.estExtraSection summary{cursor:pointer;font-weight:700;color:#173a52}.estExtraSection[open] summary{margin-bottom:12px}.estExtrasSections>h3{font-size:18px;margin:12px 0}.estExtrasSections h3 small{font-size:12px;font-weight:400}.estCount{font-size:12px;font-weight:400;color:#647781;margin-left:7px}
 @media(max-width:720px){.estContactRow{grid-template-columns:1fr 1fr}.estContactRow button{grid-column:2}}
 </style><style>
-/* V13.72 — fiches contacts modernes, sans modification des autres modules */
+/* V13.73 — fiches contacts modernes, sans modification des autres modules */
 .ownersModern{margin:8px 0 22px}.ownersEyebrow{font-size:10px;letter-spacing:1.3px;font-weight:800;color:#638397}.ownersTitle h3{font-size:21px;margin:3px 0;color:#173a52}.ownersTitle p{font-size:13px;color:#687b88;margin:0 0 15px}
 .ownersCount{font-size:12px;vertical-align:middle;background:#e9f1f4;border-radius:20px;padding:4px 9px;color:#45697a}
 .ownerCard{border:1px solid #dce6eb;background:#fff;border-radius:16px;margin:12px 0;padding:17px;box-shadow:0 4px 16px rgba(25,58,78,.055)}
@@ -139,7 +139,7 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 
 
 <header>
-  <div><div class="estBrand"><b>ESTIM’IA</b><span class="estVersion">V13.72</span></div><small>Assistant d’estimation immobilière</small></div>
+  <div><div class="estBrand"><b>ESTIM’IA</b><span class="estVersion">V13.73</span></div><small>Assistant d’estimation immobilière</small></div>
   <button id="new" type="button" hidden aria-hidden="true">+ Nouveau</button>
 </header>
 <div id="globalHistory" class="globalHistory">
@@ -219,26 +219,10 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
   <label>Correction libre<textarea id="correction" rows="3" placeholder="Ex. la terrasse fait 25 m² et non 30 m²"></textarea></label>
 </section>
 
-<section class="card" id="estimationModule">
-  <div class="step">4 · ESTIMATION (BÊTA)</div>
-  <h2>Estimation — ventes DVF et annonces du marché</h2>
-  <p>Le logiciel lit le type, la commune et la surface de la fiche, puis recherche des ventes publiques comparables. Aucun prix n'est inventé si le service est indisponible.</p>
-  <button id="launchEstimation" type="button" class="bigbtn">📊 Rechercher les ventes et calculer</button>
-<div id="estimationStatus" class="status" role="status"></div>
-<p class="small">Version interface DVF : 13.72 — Si cette ligne est absente après installation, actualiser la page avec Ctrl + F5.</p>
-  <div id="estimationResults"></div>
-<section id="marketIndicatorsBox" class="proGroup">
-<h3>Repères au m² et ajustement</h3>
-<div id="marketIndicators">Calculez l’estimation puis lancez la recherche des annonces pour comparer les repères.</div>
-<p id="marketAdjustmentAdvice" class="small"></p>
-<label>Montant que vous souhaitez retenir (€)<input id="estRetainedPrice" type="number" min="1" step="1000" placeholder="Montant à valider"></label>
-<label>Justification de votre décision<textarea id="estAdjustmentReason" rows="3" placeholder="État, travaux, terrain, emplacement, annexes, comparables vérifiés…"></textarea></label>
-<button id="validateRetainedEstimate" type="button">Valider le montant retenu</button>
-<input id="validatedPrice" type="hidden"><input id="validatedReason" type="hidden">
-<p id="retainedEstimateText" role="status"></p>
-</section>
-  <hr><h3>Biens actuellement proposés à la vente</h3>
-  <p class="small">Recherche dans les catalogues Roques Immobilier, IAD, SAFTI, Superimmo et Bien’ici à Lamalou-les-Bains. Jusqu’à 6 annonces proches du prix estimé. Les résultats peuvent être incomplets ou anciens : vérifie les annonces originales.</p>
+<section class="card" id="marketListingsModule">
+  <div class="step">4 · BIENS SIMILAIRES</div>
+  <h2>Biens actuels similaires proposés à la vente</h2>
+  <p class="small">Recherche dans les catalogues Roques Immobilier, IAD, SAFTI, Superimmo et Bien’ici à Lamalou-les-Bains. Jusqu’à 6 annonces proches du prix estimé. Calculez d’abord l’estimation dans la rubrique 5 pour permettre le classement par prix. Les résultats peuvent être incomplets ou anciens : vérifie les annonces originales.</p>
   <button id="launchAnnonces" type="button" class="bigbtn">🔎 Rechercher les annonces comparables</button>
   <div id="annoncesStatus" class="status" role="status"></div>
 <h3>Annonces similaires Roques Immobilier</h3><p class="small">4 biens maximum : commune du dossier en priorité, puis communes proches jusqu’à 20 km. Classement par prix dans chaque commune.</p><button type="button" id="launchRoques">Rechercher les annonces Roques</button><p id="roquesStatus" class="small"></p><div id="roquesResults"></div>
@@ -253,6 +237,26 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
   <button id="addAnnonce" type="button">Ajouter au tableau</button>
   </details>
   <p class="small">Les annonces et les ventes DVF sont présentées séparément : aucun prix affiché n’est assimilé à un prix vendu.</p>
+</section>
+
+<section class="card" id="estimationModule">
+  <div class="step">5 · ESTIMATION (BÊTA)</div>
+  <h2>Estimation — ventes DVF et annonces du marché</h2>
+  <p>Le logiciel lit le type, la commune et la surface de la fiche, puis recherche des ventes publiques comparables. Aucun prix n'est inventé si le service est indisponible.</p>
+  <button id="launchEstimation" type="button" class="bigbtn">📊 Rechercher les ventes et calculer</button>
+<div id="estimationStatus" class="status" role="status"></div>
+<p class="small">Version interface DVF : 13.73 — Si cette ligne est absente après installation, actualiser la page avec Ctrl + F5.</p>
+  <div id="estimationResults"></div>
+<section id="marketIndicatorsBox" class="proGroup">
+<h3>Repères au m² et ajustement</h3>
+<div id="marketIndicators">Calculez l’estimation puis lancez la recherche des annonces pour comparer les repères.</div>
+<p id="marketAdjustmentAdvice" class="small"></p>
+<label>Montant que vous souhaitez retenir (€)<input id="estRetainedPrice" type="number" min="1" step="1000" placeholder="Montant à valider"></label>
+<label>Justification de votre décision<textarea id="estAdjustmentReason" rows="3" placeholder="État, travaux, terrain, emplacement, annexes, comparables vérifiés…"></textarea></label>
+<button id="validateRetainedEstimate" type="button">Valider le montant retenu</button>
+<input id="validatedPrice" type="hidden"><input id="validatedReason" type="hidden">
+<p id="retainedEstimateText" role="status"></p>
+</section>
   <details id="dvfOfflineBox" style="margin-top:12px;padding:12px;border:2px solid #0a705b;border-radius:10px"><summary><b>📁 Import DVF manuel (en cas de besoin)</b></summary>
 <p class="small">Le logiciel tente désormais de télécharger automatiquement les données DVF départementales. En cas de panne réseau, tu peux aussi importer une archive officielle. L'import conserve uniquement les mutations simples de la commune du dossier. Les données importées sont stockées sur le serveur Render et peuvent disparaître lors d'un redéploiement sans disque persistant.</p>
 <label>Archive annuelle officielle DGFiP (.zip) <input type="file" id="dvfZip" accept=".zip"></label>
@@ -264,31 +268,31 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 </section>
 
 <section class="card">
-  <div class="step">5 · DOSSIER</div>
+  <div class="step">6 · DOSSIER</div>
   <button id="save" class="bigbtn">💾 Enregistrer le dossier</button>
     <button id="printVisit" type="button" class="secondary">📕 Télécharger le vrai PDF</button>
 
     <button id="downloadWord" type="button" class="secondary">📄 Télécharger la fiche Word</button>
-<button id="emailWord" type="button" class="secondary">✉ Envoyer le Word par mail</button>
-<button id="emailPdf" type="button" class="secondary">✉ Envoyer le PDF par mail</button>
+<button id="emailWord" type="button" class="secondary">✉ Préparer le Word pour envoi</button>
+<button id="emailPdf" type="button" class="secondary">✉ Préparer le PDF pour envoi</button>
 <div id="emailActions" hidden style="width:100%;padding:12px;border:1px solid #dbe6e3;border-radius:10px">
 <p id="emailStatus" role="status"></p>
-<button id="emailOpen" type="button" class="secondary" hidden>Ouvrir ma messagerie et télécharger le dossier à joindre</button>
+<button id="emailOpen" type="button" class="secondary" hidden>Ouvrir ma messagerie (sans télécharger à nouveau)</button>
 <button id="emailShare" type="button" class="secondary" hidden>Partager avec la messagerie</button>
 <button id="emailEml" type="button" class="secondary" hidden>Préparer un e-mail avec pièce jointe (.eml)</button>
 <button id="emailAttachment" type="button" class="secondary" hidden>Télécharger la pièce jointe</button>
-<p class="small">« Ouvrir ma messagerie » utilise l’application associée aux liens MAILTO et télécharge le dossier : ajoutez ce fichier au message. Pour transmettre directement la pièce jointe, utilisez « Partager avec la messagerie » si proposé. Le fichier .eml reste une autre possibilité à ouvrir manuellement. Aucun message n’est envoyé automatiquement.</p>
+<p class="small">Choisissez Word ou PDF ci-dessus. Téléchargez la pièce jointe, puis ouvrez la messagerie et ajoutez le fichier téléchargé au message. Le bouton d’ouverture ne télécharge aucun fichier. Pour transmettre directement la pièce jointe, utilisez « Partager avec la messagerie » si proposé. Le fichier .eml reste une autre possibilité à ouvrir manuellement. Aucun message n’est envoyé automatiquement.</p>
 </div>
   <div id="saveStatus" class="status"></div>
-  <p class="small">V13.72 : fiche entièrement modifiable + gestion des niveaux et des pièces.</p>
+  <p class="small">V13.73 : fiche entièrement modifiable + gestion des niveaux et des pièces.</p>
 </section>
 </main>
-<script src="/static/estimation_v13_44.js?v=13.72" defer></script>
-<script src="/static/app.js?v=13.72"></script>
+<script src="/static/estimation_v13_44.js?v=13.73" defer></script>
+<script src="/static/app.js?v=13.73"></script>
 <script src="/static/v7_pro.js"></script>
 <script src="/static/v8_fiche_pro.js"></script>
-<script src="/static/v13_visite.js?v=13.72-layout3"></script>
-<script src="/static/v13_dossiers_pro.js?v=13.72"></script>
+<script src="/static/v13_visite.js?v=13.73-layout3"></script>
+<script src="/static/v13_dossiers_pro.js?v=13.73"></script>
 
 
 <div id="exportOverlay" class="exportOverlay" aria-live="polite">
