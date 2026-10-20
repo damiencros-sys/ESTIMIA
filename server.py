@@ -343,6 +343,8 @@ class WordPayload(BaseModel):
     estimation:dict={}
     annonces:list=[]
     roques_annonces:list=[]
+    advisor:dict={}
+    argumentaire:dict={}
 
 def _property_color(t):
     s=(t or "").lower()
@@ -381,6 +383,24 @@ def _export_market_images(annonces):
             out=io.BytesIO();im.save(out,format='JPEG',quality=82);return out.getvalue()
         except Exception:return None
     with ThreadPoolExecutor(max_workers=4) as pool:return list(pool.map(load,annonces[:6]))
+
+def _dossier_photos(items):
+    import base64
+    from PIL import Image
+    valid=[]
+    for item in items[:30]:
+        try:
+            raw=base64.b64decode(str(item.get('data','')).split(',',1)[1],validate=True)
+            if len(raw)>12_000_000:continue
+            with Image.open(io.BytesIO(raw)) as im:
+                w,h=im.size;im.verify()
+            if w<=0 or h<=0:continue
+            valid.append((str(item.get('name') or 'Photo'),raw,w,h))
+        except Exception:continue
+    return valid
+
+def _dossier_advisor(p):
+    return [str(p.advisor.get(k) or default) for k,default in [('name','Damien CROS'),('agency','Agence ROQUES IMMOBILIER'),('phone','06 66 87 24 46')]]
 
 @app.post("/api/word")
 def word_export(p:WordPayload):
@@ -428,12 +448,27 @@ def word_export(p:WordPayload):
         return para
 
     title=doc.add_paragraph(); title.alignment=WD_ALIGN_PARAGRAPH.CENTER; title.paragraph_format.space_after=Pt(4)
-    r=title.add_run('DOSSIER D’ESTIMATION IMMOBILIÈRE'); r.bold=True; r.font.size=Pt(18); r.font.color.rgb=RGBColor.from_string(property_color)
+    r=title.add_run('DOSSIER D’ESTIMATION IMMOBILIÈRE'); r.bold=True; r.font.size=Pt(18); r.font.color.rgb=RGBColor(0x17,0x21,0x2B)
     sub=doc.add_paragraph(); sub.alignment=WD_ALIGN_PARAGRAPH.CENTER; sub.paragraph_format.space_after=Pt(7)
     rr=sub.add_run('ESTIM’IA — visite et estimation'); rr.italic=True; rr.font.size=Pt(9); rr.font.color.rgb=RGBColor(0x66,0x66,0x66)
     datep=doc.add_paragraph(); datep.alignment=WD_ALIGN_PARAGRAPH.CENTER; datep.paragraph_format.space_after=Pt(7)
     dr=datep.add_run('Document généré le '+(p.generated_date or datetime.now().strftime('%d/%m/%Y'))); dr.font.size=Pt(8.5); dr.font.color.rgb=RGBColor(0x66,0x66,0x66)
 
+    cover=doc.add_paragraph();cover.alignment=WD_ALIGN_PARAGRAPH.CENTER
+    run=cover.add_run(' — '.join(str(x) for x in [p.property_type,p.surface+' m²' if p.surface else ''] if x));run.bold=True;run.font.size=Pt(14)
+    for line in [p.address,p.commune]:
+        if line:
+            para=doc.add_paragraph(line);para.alignment=WD_ALIGN_PARAGRAPH.CENTER
+    valid_photos=_dossier_photos(p.photos)
+    if valid_photos:
+        name,raw,w,h=valid_photos[0];scale=min(6.2/w,3.7/h)
+        para=doc.add_paragraph();para.alignment=WD_ALIGN_PARAGRAPH.CENTER
+        para.add_run().add_picture(io.BytesIO(raw),width=Inches(w*scale),height=Inches(h*scale))
+        para=doc.add_paragraph(name);para.alignment=WD_ALIGN_PARAGRAPH.CENTER
+    for line in _dossier_advisor(p):
+        para=doc.add_paragraph(line);para.alignment=WD_ALIGN_PARAGRAPH.CENTER
+    doc.add_page_break()
+    heading('SYNTHÈSE DU BIEN')
     heading('DOSSIER')
     meta=[('Propriétaire',p.owner),('Téléphone',p.phone),('Adresse',p.address),('Commune',p.commune),
           ('Cadastre',(' • '.join([str(x.get('section','')).upper()+' '+str(int(re.sub(r'\\D','',str(x.get('numero',''))) or '0')) for x in p.parcels if x.get('section') and x.get('numero')]) if p.parcels else (('Section '+p.section.upper()+' — Parcelle '+str(int(re.sub(r'\\D','',p.parcel) or '0'))) if p.section and p.parcel else ''))),
@@ -474,6 +509,66 @@ def word_export(p:WordPayload):
             doc.add_paragraph(line)
 
 
+    # Photographies ajoutées au dossier. Les contrôles de l'interface ne sont jamais exportés.
+    if p.photos:
+        import base64
+        heading('PHOTOGRAPHIES DU BIEN')
+        valid=[(name,raw) for name,raw,w,h in valid_photos]
+        for i in range(0,len(valid),2):
+            table=doc.add_table(rows=1,cols=2); table.alignment=WD_TABLE_ALIGNMENT.CENTER
+            for j in range(2):
+                cell=table.rows[0].cells[j]
+                if i+j>=len(valid): continue
+                name,raw=valid[i+j]
+                try:
+                    bio=io.BytesIO(raw)
+                    pcell=cell.paragraphs[0]; pcell.alignment=WD_ALIGN_PARAGRAPH.CENTER
+                    from PIL import Image
+                    with Image.open(bio) as image: w,h=image.size
+                    bio.seek(0); scale=min(3.0/w,2.5/h)
+                    run=pcell.add_run(); run.add_picture(bio,width=Inches(w*scale),height=Inches(h*scale))
+                    cap=cell.add_paragraph(str(name)); cap.alignment=WD_ALIGN_PARAGRAPH.CENTER
+                    for rr in cap.runs: rr.font.size=Pt(7); rr.font.italic=True
+                except Exception:
+                    pass
+
+            keep_table(table)
+
+    if p.estimation.get('comparables'):
+        heading('VENTES RÉALISÉES — RÉFÉRENCES DVF')
+        doc.add_paragraph('Transactions utilisées dans le calcul statistique ; leur comparabilité qualitative doit être appréciée lors de la visite.')
+        table=doc.add_table(rows=1,cols=4);table.style='Table Grid'
+        header=OxmlElement('w:tblHeader');table.rows[0]._tr.get_or_add_trPr().append(header)
+        for cell,value in zip(table.rows[0].cells,['Date','Surface','Prix de vente','Prix / m²']):cell.text=value
+        for values in p.estimation['comparables'][:30]:
+            if isinstance(values,list) and len(values)==4:
+                for cell,value in zip(table.add_row().cells,values):cell.text=str(value)
+        if p.estimation.get('source'):doc.add_paragraph('Source : '+str(p.estimation['source']))
+    for group_title,group_items in [('ANNONCES SIMILAIRES ROQUES IMMOBILIER',p.roques_annonces[:4]),('AUTRES ANNONCES SIMILAIRES',p.annonces)]:
+        if not group_items:continue
+        heading(group_title)
+        doc.add_paragraph('Biens proposés à la vente sélectionnés par proximité du prix central. Prix affichés et disponibilité à confirmer auprès des agences.').paragraph_format.keep_with_next=True
+        pictures=_export_market_images(group_items)
+        for index,item in enumerate(group_items[:6]):
+            heading(str(index+1)+'  '+str(item.get('titre','Bien proposé à la vente')))
+            if pictures[index]:
+                para=doc.add_paragraph();para.alignment=WD_ALIGN_PARAGRAPH.CENTER
+                para.add_run().add_picture(io.BytesIO(pictures[index]),width=Inches(3.1))
+                para.paragraph_format.keep_with_next=True
+            else:doc.add_paragraph('Photo de cette annonce indisponible lors de l’export.')
+            card_table=label_value_table([('Prix affiché',item.get('prix')),('Agence',item.get('site'))])
+            for row in card_table.rows[:-1]:
+                for cell in row.cells:
+                    for para in cell.paragraphs:para.paragraph_format.keep_with_next=True
+            if item.get('description'):doc.add_paragraph(str(item['description']))
+            url=str(item.get('url',''))
+            if urllib.parse.urlsplit(url).scheme in ('http','https'):
+                para=doc.add_paragraph('Source : ')
+                link=OxmlElement('w:hyperlink');link.set(qn('r:id'),doc.part.relate_to(url,'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',is_external=True))
+                run=OxmlElement('w:r');text=OxmlElement('w:t');text.text='Consulter l’annonce';run.append(text);link.append(run);para._p.append(link)
+
+    doc.add_page_break()
+    heading('CONCLUSION ET AVIS DE VALEUR')
     if p.estimation.get('centrale'):
         heading('ESTIMATION DU BIEN')
         estimate_table=label_value_table([('Valeur centrale',p.estimation.get('centrale')),('Fourchette basse',p.estimation.get('basse')),('Fourchette haute',p.estimation.get('haute'))])
@@ -492,62 +587,14 @@ def word_export(p:WordPayload):
     if p.estimation.get('retenue'):
         heading('ESTIMATION RETENUE ET VALIDEE')
         label_value_table([('Montant retenu',p.estimation.get('retenue')),('Justification',p.estimation.get('justification'))])
-    for group_title,group_items in [('ANNONCES SIMILAIRES ROQUES IMMOBILIER',p.roques_annonces[:4]),('AUTRES ANNONCES SIMILAIRES',p.annonces)]:
-        if not group_items:continue
-        heading(group_title)
-        doc.add_paragraph('Biens proposés à la vente sélectionnés par proximité du prix central. Prix affichés et disponibilité à confirmer auprès des agences.')
-        pictures=_export_market_images(group_items)
-        for index,item in enumerate(group_items[:6]):
-            heading(str(index+1)+'  '+str(item.get('titre','Bien proposé à la vente')))
-            if pictures[index]:
-                para=doc.add_paragraph();para.alignment=WD_ALIGN_PARAGRAPH.CENTER
-                para.add_run().add_picture(io.BytesIO(pictures[index]),width=Inches(3.1))
-                para.paragraph_format.keep_with_next=True
-            else:doc.add_paragraph('Photo de cette annonce indisponible lors de l’export.')
-            card_table=label_value_table([('Prix affiché',item.get('prix')),('Agence',item.get('site')),('Description',item.get('description'))])
-            for row in card_table.rows:
-                for cell in row.cells:
-                    for para in cell.paragraphs:para.paragraph_format.keep_with_next=True
-            url=str(item.get('url',''))
-            if urllib.parse.urlsplit(url).scheme in ('http','https'):
-                para=doc.add_paragraph('Source : ')
-                link=OxmlElement('w:hyperlink');link.set(qn('r:id'),doc.part.relate_to(url,'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',is_external=True))
-                run=OxmlElement('w:r');text=OxmlElement('w:t');text.text='Consulter l’annonce';run.append(text);link.append(run);para._p.append(link)
-
-    # Photographies ajoutées au dossier. Les contrôles de l'interface ne sont jamais exportés.
-    if p.photos:
-        import base64
-        heading('PHOTOGRAPHIES DU BIEN')
-        valid=[]
-        for item in p.photos[:30]:
-            try:
-                data=str(item.get('data',''))
-                if ',' not in data: continue
-                raw=base64.b64decode(data.split(',',1)[1])
-                if len(raw)>12_000_000: continue
-                valid.append((item.get('name','Photo'),raw))
-            except Exception:
-                continue
-        for i in range(0,len(valid),2):
-            table=doc.add_table(rows=1,cols=2); table.alignment=WD_TABLE_ALIGNMENT.CENTER
-            for j in range(2):
-                cell=table.rows[0].cells[j]
-                if i+j>=len(valid): continue
-                name,raw=valid[i+j]
-                try:
-                    bio=io.BytesIO(raw)
-                    pcell=cell.paragraphs[0]; pcell.alignment=WD_ALIGN_PARAGRAPH.CENTER
-                    run=pcell.add_run(); run.add_picture(bio,width=Inches(3.0))
-                    cap=cell.add_paragraph(str(name)); cap.alignment=WD_ALIGN_PARAGRAPH.CENTER
-                    for rr in cap.runs: rr.font.size=Pt(7); rr.font.italic=True
-                except Exception:
-                    pass
-
-            keep_table(table)
+    for label,key in [('Points forts','forts'),('Points de vigilance','limites'),('Travaux à envisager','travaux'),('Choix des comparables','comparables')]:
+        if str(p.argumentaire.get(key,'')).strip():
+            heading(label);doc.add_paragraph(str(p.argumentaire[key]))
+    doc.add_paragraph('Les prix demandés des annonces ne sont pas des prix de vente. Les caractéristiques non vérifiées et les diagnostics non communiqués restent à confirmer. Aucun coût de travaux ni décote énergétique n’est déduit automatiquement.')
 
     # footer + page number field
     footer=sec.footer.paragraphs[0]; footer.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    fr=footer.add_run('ESTIM’IA  •  Dossier d’estimation  •  Page '); fr.font.size=Pt(8); fr.font.color.rgb=RGBColor(0x77,0x77,0x77)
+    fr=footer.add_run(_dossier_advisor(p)[0]+'  •  ESTIM’IA  •  Page '); fr.font.size=Pt(8); fr.font.color.rgb=RGBColor(0x77,0x77,0x77)
     fld=OxmlElement('w:fldSimple'); fld.set(qn('w:instr'),'PAGE'); footer._p.append(fld)
 
     out=io.BytesIO(); doc.save(out); out.seek(0)
@@ -571,16 +618,29 @@ def pdf_export(p:WordPayload):
     date_style=ParagraphStyle('DateX',parent=styles['Normal'],fontSize=8,textColor=colors.HexColor('#666666'),alignment=TA_CENTER,spaceAfter=4*mm)
     h=ParagraphStyle('HX',parent=styles['Heading2'],fontName='Helvetica-Bold',fontSize=10.5,leading=13,textColor=theme,spaceBefore=4*mm,spaceAfter=2*mm)
     normal=ParagraphStyle('NX',parent=styles['Normal'],fontSize=8.5,leading=11)
+    market_intro=ParagraphStyle('MarketIntro',parent=normal,keepWithNext=True)
     cap=ParagraphStyle('CapX',parent=normal,fontSize=7.5,textColor=colors.HexColor('#555555'),alignment=TA_CENTER)
+    from xml.sax.saxutils import escape
+    def text(value):return escape(str(value or ''))
     story=[Paragraph('DOSSIER D’ESTIMATION IMMOBILIERE',title),Paragraph('ESTIM’IA - visite et estimation',date_style),Paragraph('Document genere le '+(p.generated_date or datetime.now().strftime('%d/%m/%Y')),date_style)]
     estimate_value=ParagraphStyle('EstimateValue',parent=normal,fontName='Helvetica-Bold',fontSize=14,leading=18,textColor=theme)
     def add_table(rows,highlight_estimate=False):
         data=[]
         for k,v in rows:
-            if str(v).strip(): data.append([Paragraph(str(k),normal),Paragraph(str(v),estimate_value if highlight_estimate and k=='Valeur centrale' else normal)])
+            if str(v).strip(): data.append([Paragraph(text(k),normal),Paragraph(text(v),estimate_value if highlight_estimate and k=='Valeur centrale' else normal)])
         if not data:return
         t=Table(data,colWidths=[52*mm,112*mm],repeatRows=0,hAlign='CENTER')
         t.setStyle(TableStyle([('GRID',(0,0),(-1,-1),.4,colors.HexColor('#CCD5DB')),('BACKGROUND',(0,0),(0,-1),colors.HexColor('#F2F6F5')),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('LEFTPADDING',(0,0),(-1,-1),5),('RIGHTPADDING',(0,0),(-1,-1),5),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),('TEXTCOLOR',(0,0),(0,-1),theme)]));story.append(t)
+    story.append(Spacer(1,10*mm))
+    story.append(Paragraph(text(' — '.join(x for x in [p.property_type,p.surface+' m²' if p.surface else ''] if x)),title))
+    for line in [p.address,p.commune]:
+        if line:story.append(Paragraph(text(line),date_style))
+    valid_photos=_dossier_photos(p.photos)
+    if valid_photos:
+        name,raw,w,hp=valid_photos[0]
+        story.extend([RLImage(io.BytesIO(raw),width=164*mm,height=95*mm,kind='proportional'),Paragraph(text(name),cap),Spacer(1,8*mm)])
+    for line in _dossier_advisor(p):story.append(Paragraph(text(line),date_style))
+    story.extend([PageBreak(),Paragraph('SYNTHÈSE DU BIEN',h)])
     story.append(Paragraph('DOSSIER',h))
     refs=[x for x in p.parcels if isinstance(x,dict) and x.get('section') and x.get('numero')]
     cad=' • '.join(str(x.get('section','')).upper()+' '+re.sub(r'\D','',str(x.get('numero',''))) for x in refs)
@@ -597,29 +657,31 @@ def pdf_export(p:WordPayload):
             rows=s.get('rows') or []
             rows=[(x[0],x[1]) for x in rows if isinstance(x,(list,tuple)) and len(x)>=2 and str(x[1]).strip()]
             if rows:
-                if str(s.get('title') or '').startswith('Urbanisme — parcelle'):
-                    from xml.sax.saxutils import escape as xml_escape
-                    rows=[(xml_escape(str(k)),xml_escape(str(v))) for k,v in rows]
-                story.append(Paragraph(str(s.get('title') or 'Informations'),h));add_table(rows)
-    from xml.sax.saxutils import escape
-    def text(value):return escape(str(value or ''))
-    story.append(Paragraph('ESTIMATION DU BIEN',h))
-    if p.estimation.get('centrale'):
-        block_start=len(story)-1
-        add_table([('Valeur centrale',text(p.estimation.get('centrale'))),('Fourchette basse',text(p.estimation.get('basse'))),('Fourchette haute',text(p.estimation.get('haute')))],highlight_estimate=True)
-        story[block_start:]=[KeepTogether(story[block_start:])]
-        story.append(Paragraph(text(p.estimation.get('texte') or 'Valeur statistique indicative issue des ventes DVF, sans ajustement qualitatif.'),normal))
-    else:story.append(Paragraph('Estimation non calculée dans ce dossier.',normal))
-    if p.estimation.get('reperes'):
-        story.append(Paragraph('REPERES AU METRE CARRE ET AJUSTEMENT',h))
-        add_table([(text(k),text(v)) for k,v in p.estimation['reperes']])
-    if p.estimation.get('retenue'):
-        story.append(Paragraph('ESTIMATION RETENUE ET VALIDEE',h))
-        add_table([('Montant retenu',text(p.estimation.get('retenue'))),('Justification',text(p.estimation.get('justification')))])
+                story.append(Paragraph(text(s.get('title') or 'Informations'),h));add_table(rows)
+    elif p.facts.strip():
+        story.extend([Paragraph('RELEVÉ DE VISITE',h),Paragraph(text(p.facts).replace('\n','<br/>'),normal)])
+    if p.photos:
+        story.append(Paragraph('PHOTOGRAPHIES DU BIEN',h)); cells=[]
+        for name,raw,w,hp in valid_photos:
+            im=RLImage(io.BytesIO(raw),width=76*mm,height=52*mm,kind='proportional')
+            cells.append([im,Paragraph(text(name),cap)])
+        for i in range(0,len(cells),2):
+            row=cells[i:i+2]
+            while len(row)<2: row.append(['',''])
+            t=Table([[row[0][0],row[1][0]],[row[0][1],row[1][1]]],colWidths=[82*mm,82*mm],hAlign='CENTER')
+            t.setStyle(TableStyle([('BOX',(0,0),(-1,-1),.35,colors.HexColor('#CCD5DB')),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('ALIGN',(0,0),(-1,-1),'CENTER'),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)]));story.append(KeepTogether(t));story.append(Spacer(1,2*mm))
+    if p.estimation.get('comparables'):
+        story.extend([Paragraph('VENTES RÉALISÉES — RÉFÉRENCES DVF',h),Paragraph('Transactions utilisées dans le calcul statistique ; leur comparabilité qualitative doit être appréciée lors de la visite.',normal)])
+        rows=[['Date','Surface','Prix de vente','Prix / m²']]+[r for r in p.estimation['comparables'][:30] if isinstance(r,list) and len(r)==4]
+        table=Table([[Paragraph(text(v),normal) for v in row] for row in rows],colWidths=[35*mm,35*mm,47*mm,47*mm],repeatRows=1)
+        table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),.4,colors.HexColor('#CCD5DB')),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#F2F6F5')),('VALIGN',(0,0),(-1,-1),'TOP')]))
+        story.append(table)
+        if p.estimation.get('source'):story.append(Paragraph('Source : '+text(p.estimation['source']),normal))
     for group_title,group_items in [('ANNONCES SIMILAIRES ROQUES IMMOBILIER',p.roques_annonces[:4]),('AUTRES ANNONCES SIMILAIRES',p.annonces)]:
         if not group_items:continue
+        group_start=len(story)
         story.append(Paragraph(group_title,h))
-        story.append(Paragraph('Biens proposés à la vente sélectionnés par proximité du prix central. Prix affichés et disponibilité à confirmer auprès des agences.',normal))
+        story.append(Paragraph('Biens proposés à la vente sélectionnés par proximité du prix central. Prix affichés et disponibilité à confirmer auprès des agences.',market_intro))
         pictures=_export_market_images(group_items)
         for index,item in enumerate(group_items[:6]):
             card=[Paragraph(text(str(index+1)+'  '+str(item.get('titre','Bien proposé à la vente'))),h)]
@@ -628,22 +690,29 @@ def pdf_export(p:WordPayload):
             card.extend([Paragraph('<b>Prix affiché : '+text(item.get('prix'))+'</b>',normal),Paragraph(text(item.get('site')),normal),Paragraph(text(item.get('description')),normal)])
             url=str(item.get('url',''))
             if urllib.parse.urlsplit(url).scheme in ('http','https'):card.append(Paragraph('<link href="'+escape(url,{'"':'&quot;'})+'" color="#0d705a">Consulter l’annonce</link>',normal))
-            card.append(Spacer(1,3*mm));story.append(KeepTogether(card))
-    if p.photos:
-        story.append(Paragraph('PHOTOGRAPHIES DU BIEN',h)); cells=[]
-        for item in p.photos[:30]:
-            try:
-                data=str(item.get('data','')); raw=base64.b64decode(data.split(',',1)[1]); bio=io.BytesIO(raw)
-                im=RLImage(bio,width=76*mm,height=52*mm,kind='proportional'); label=Paragraph(str(item.get('name') or 'Photo'),cap)
-                cells.append([im,label])
-            except Exception: pass
-        for i in range(0,len(cells),2):
-            row=cells[i:i+2]
-            while len(row)<2: row.append(['',''])
-            t=Table([[row[0][0],row[1][0]],[row[0][1],row[1][1]]],colWidths=[82*mm,82*mm],hAlign='CENTER')
-            t.setStyle(TableStyle([('BOX',(0,0),(-1,-1),.35,colors.HexColor('#CCD5DB')),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('ALIGN',(0,0),(-1,-1),'CENTER'),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)]));story.append(KeepTogether(t));story.append(Spacer(1,2*mm))
+            card.append(Spacer(1,3*mm))
+            if index==0:story[group_start:]=[KeepTogether(story[group_start:]+card[:4])]+card[4:]
+            else:story.extend([KeepTogether(card[:4])]+card[4:])
+    story.extend([PageBreak(),Paragraph('CONCLUSION ET AVIS DE VALEUR',h)])
+    story.append(Paragraph('ESTIMATION DU BIEN',h))
+    if p.estimation.get('centrale'):
+        block_start=len(story)-1
+        add_table([('Valeur centrale',p.estimation.get('centrale')),('Fourchette basse',p.estimation.get('basse')),('Fourchette haute',p.estimation.get('haute'))],highlight_estimate=True)
+        story[block_start:]=[KeepTogether(story[block_start:])]
+        story.append(Paragraph(text(p.estimation.get('texte') or 'Valeur statistique indicative issue des ventes DVF, sans ajustement qualitatif.'),normal))
+    else:story.append(Paragraph('Estimation non calculée dans ce dossier.',normal))
+    if p.estimation.get('reperes'):
+        story.append(Paragraph('REPERES AU METRE CARRE ET AJUSTEMENT',h))
+        add_table(p.estimation['reperes'])
+    if p.estimation.get('retenue'):
+        story.append(Paragraph('ESTIMATION RETENUE ET VALIDEE',h))
+        add_table([('Montant retenu',p.estimation.get('retenue')),('Justification',p.estimation.get('justification'))])
+    for label,key in [('Points forts','forts'),('Points de vigilance','limites'),('Travaux à envisager','travaux'),('Choix des comparables','comparables')]:
+        if str(p.argumentaire.get(key,'')).strip():story.extend([Paragraph(label,h),Paragraph(text(p.argumentaire[key]),normal)])
+    story.append(Spacer(1,3*mm))
+    story.append(Paragraph('Les prix demandés des annonces ne sont pas des prix de vente. Les caractéristiques non vérifiées et les diagnostics non communiqués restent à confirmer. Aucun coût de travaux ni décote énergétique n’est déduit automatiquement.',normal))
     def footer(canvas,docx):
-        canvas.saveState();canvas.setFont('Helvetica',7);canvas.setFillColor(colors.HexColor('#777777'));canvas.drawCentredString(A4[0]/2,7*mm,f'ESTIM’IA - Dossier d’estimation - Page {docx.page}');canvas.restoreState()
+        canvas.saveState();canvas.setFont('Helvetica',7);canvas.setFillColor(colors.HexColor('#777777'));canvas.drawCentredString(A4[0]/2,7*mm,f'{_dossier_advisor(p)[0]} - ESTIM’IA - Page {docx.page}');canvas.restoreState()
     doc.build(story,onFirstPage=footer,onLaterPages=footer);out.seek(0)
     safe=re.sub(r'[^A-Za-z0-9_-]+','_',p.owner or p.address or 'bien').strip('_') or 'bien'
     return StreamingResponse(out,media_type='application/pdf',headers={'Content-Disposition':f'attachment; filename="Dossier_estimation_{safe}.pdf"'})

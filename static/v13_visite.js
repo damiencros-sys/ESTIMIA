@@ -1205,6 +1205,10 @@ async function buildExportPayload(){
   reperes:[...document.querySelectorAll('#marketIndicators tr')].filter(r=>estimateBox?.dataset.adjusted!=='true'||!/estimation statistique/i.test(r.querySelector('th')?.innerText||'')).map(r=>[r.querySelector('th')?.innerText||'',r.querySelector('td')?.innerText||'']).concat([['Avis d’ajustement',document.querySelector('#marketAdjustmentAdvice')?.innerText||'']]),
   retenue:estimateBox?.dataset.adjusted!=='true'&&document.querySelector('#validatedPrice')?.value?Number(document.querySelector('#validatedPrice').value).toLocaleString('fr-FR')+' €':'',
   justification:document.querySelector('#validatedReason')?.value||''};
+ estimation.comparables=[...estimateBox.querySelectorAll('details tbody tr')].map(r=>[...r.querySelectorAll('td')].map(c=>c.innerText)).filter(r=>r.length===4);
+ estimation.source=estimateBox.querySelector('a')?.href||'';
+ const advisor={name:$('#exportAdvisorName')?.value||'',agency:$('#exportAgency')?.value||'',phone:$('#exportAdvisorPhone')?.value||''};
+ const argumentaire={forts:$('#estStrongPoints')?.value||'',limites:$('#estLimitations')?.value||'',travaux:$('#estWorks')?.value||'',comparables:$('#estComparableReason')?.value||''};
  const annonces=[...document.querySelectorAll('#annoncesResults .annonceCard')].slice(0,6).map(card=>({
   titre:card.querySelector('h4')?.innerText||'',description:card.querySelector('.annonceDescription')?.innerText||'',
   prix:card.querySelector('.annoncePrice')?.innerText||'',site:card.querySelector('.annonceAgency')?.innerText||'',
@@ -1212,7 +1216,7 @@ async function buildExportPayload(){
  const roques_annonces=[...document.querySelectorAll('#roquesResults .annonceCard')].slice(0,4).map(card=>({
   titre:card.querySelector('h4')?.innerText||'',description:card.querySelector('.annonceDescription')?.innerText||'',prix:card.querySelector('.annoncePrice')?.innerText||'',site:card.querySelector('.annonceAgency')?.innerText||'',photo:card.querySelector('img')?.src||'',url:card.querySelector('.annonceLink')?.href||''}));
  const photos=[];for(const p of currentPhotos()){try{photos.push({name:p.label||photoDisplayName(p.file),data:await optimizedPhotoDataURL(p.file)})}catch{}}
- return {owner:$('#owner')?.value||'',phone:$('#ownerPhone')?.value||'',owners:ownerCardsState,address:$('#address')?.value||'',commune:$('#cadCommune')?.value||'',section:$('#cadSection')?.value||'',parcel:$('#cadParcel')?.value||'',property_type:$('#type')?.value||'',surface:$('#surfaceHab')?.value||'',surface_carrez:$('#surfaceCarrez')?.value||'',sections,parcels:cadParcels.map(p=>({section:p.section,numero:p.numero})),facts:$('#facts')?.innerText||'',photos,estimation,annonces,roques_annonces,generated_date:new Date().toLocaleDateString('fr-FR')};
+ return {advisor,argumentaire,owner:$('#owner')?.value||'',phone:$('#ownerPhone')?.value||'',owners:ownerCardsState,address:$('#address')?.value||'',commune:$('#cadCommune')?.value||'',section:$('#cadSection')?.value||'',parcel:$('#cadParcel')?.value||'',property_type:$('#type')?.value||'',surface:$('#surfaceHab')?.value||'',surface_carrez:$('#surfaceCarrez')?.value||'',sections,parcels:cadParcels.map(p=>({section:p.section,numero:p.numero})),facts:$('#facts')?.innerText||'',photos,estimation,annonces,roques_annonces,generated_date:new Date().toLocaleDateString('fr-FR')};
 }
 async function downloadWord(){
  const payload=await buildExportPayload();
@@ -1231,6 +1235,7 @@ async function printableHTML(){
  const title=ficheTitle(), facts=$('#facts')?.innerHTML||'', mapUrl=cadMapURL();
  const payload=await buildExportPayload(),v=payload.estimation;
  const urbanismePrint=(window.estimiaUrbanismeExport?.()||[]).map(s=>`<section class="proGroup"><h2>${E(s.title)}</h2>${s.rows.map(([k,v])=>`<p><b>${E(k)}</b> : ${E(v)}</p>`).join('')}</section>`).join('');
+ const argumentairePrint=Object.entries({forts:'Points forts',limites:'Points de vigilance',travaux:'Travaux à envisager',comparables:'Choix des comparables'}).filter(([k])=>payload.argumentaire[k]?.trim()).map(([k,label])=>`<section class="proGroup"><h2>${E(label)}</h2><p>${E(payload.argumentaire[k])}</p></section>`).join('');
  const estimatePrint=v.centrale?`<section class="proGroup"><h2>Estimation du bien</h2><p>Valeur centrale : <strong style="font-size:14pt">${E(v.centrale)}</strong></p><p>Fourchette basse : ${E(v.basse)} — Fourchette haute : ${E(v.haute)}</p><p>${E(v.texte)}</p></section>`:'';
  const refsTxt=cadParcels.map(p=>`${E(p.section)} ${E(String(parseInt(p.numero,10)))}`).join(' • ');
  const mapBlock=mapUrl?`<section class="cadPrint"><h2>Plan cadastral</h2><img src="${mapUrl}" alt="Plan cadastral"><div>Parcelles : ${refsTxt}</div></section>`:'';
@@ -1250,7 +1255,7 @@ async function printableHTML(){
  const head=meta.map(x=>`<div class="m"><span>${E(x[0])}</span><b>${E(x[1])}</b></div>`).join('');
  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${E(title)}</title>
  <style>body{font-family:Arial,sans-serif;color:#17212b;margin:28px}h1{font-size:23px;margin-bottom:5px}.date{color:#667;font-size:12px;margin-bottom:18px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px}.m{border:1px solid #ccd5db;border-radius:8px;padding:8px}.m span,.m b{display:block}.m span{font-size:11px;color:#667;margin-bottom:3px}.proGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.proGroup,.surfaceHero{border:1px solid #ccd5db;border-radius:10px;padding:10px;margin:0 0 10px;break-inside:avoid}.proGroup h3,.surfaceHero h3{margin:0 0 8px}.proRow,.surfaceRow,.surfaceTotal,.grandTotal{display:flex;justify-content:space-between;gap:15px;padding:5px 0;border-bottom:1px solid #eee}.grandTotal{font-weight:bold;font-size:16px}.rawNotes{margin-top:14px}.cadPrint{break-inside:avoid;margin:15px 0}.cadPrint img{width:100%;max-width:760px;border:1px solid #ccd5db;border-radius:8px}.photosPrint{margin-top:18px}.photoGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.photoPrint{margin:0;break-inside:avoid;border:1px solid #ccd5db;border-radius:8px;padding:7px}.photoPrint img{display:block;width:100%;height:220px;object-fit:contain}.photoPrint figcaption{text-align:center;font-size:11px;margin-top:6px;color:#445}.dossierHead,.calculatedTop{display:none}@media print{body{margin:10mm}.proGroup,.surfaceHero{break-inside:avoid}}</style></head><body>
- <h1>FICHE DE VISITE IMMOBILIÈRE</h1><div class="date">Document généré le ${new Date().toLocaleDateString('fr-FR')}</div><div class="meta">${head}</div>${estimatePrint}${mapBlock}${urbanismePrint}${facts}${photosBlock}</body></html>`;
+ <h1>FICHE DE VISITE IMMOBILIÈRE</h1><div class="date">Document généré le ${new Date().toLocaleDateString('fr-FR')}</div><div class="meta">${head}</div>${estimatePrint}${mapBlock}${urbanismePrint}${facts}${photosBlock}${argumentairePrint}</body></html>`;
 }
 async function downloadVisit(){
  const payload=await buildExportPayload();
