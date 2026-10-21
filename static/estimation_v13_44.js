@@ -3,6 +3,35 @@ const q=s=>document.querySelector(s);
 const fmt=n=>Number(n).toLocaleString('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0});
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const btn=q('#launchEstimation');if(!btn)return;
+
+const qualityIds=['#estCondition','#estPlannedWorks','#estQualityMode','#estQualityRate','#estWorkBudget','#estOtherAdjustment','#estQualityReason','#notes','#correction'];
+function qualityConfig(){
+ let mode=q('#estQualityMode')?.value||'etat',budgetText=q('#estWorkBudget')?.value||'';
+ const notes=String(q('#notes')?.value||'')+' '+String(q('#correction')?.value||'');
+ const spoken=[...notes.matchAll(/\bbudget\s+(?:net\s+)?(?:de\s+|des\s+)?travaux\s*(?:de|:|est de|estim[ée] [àa])?\s*(\d[\d ]*(?:[.,]\d+)?)\s*(?:euros?|€)/gi)].at(-1);
+ if(mode!=='aucun'&&spoken&&(!budgetText||budgetText===q('#estWorkBudget')?.dataset.dictationValue)){budgetText=spoken[1].replace(/ /g,'').replace(',','.');q('#estWorkBudget').value=budgetText;q('#estWorkBudget').dataset.dictationValue=budgetText;q('#estQualityMode').value=mode='budget';}
+ const condition=q('#estCondition')?.value||'',rateText=q('#estQualityRate')?.value||'',reason=q('#estQualityReason')?.value.trim()||'';
+ const defaultRate=/réhabiliter/i.test(condition)?-25:/rénover/i.test(condition)?-15:/rafraîchir/i.test(condition)?-5:0;
+ const rate=rateText===''?defaultRate:Number(rateText),budget=Number(budgetText),other=Number(q('#estOtherAdjustment')?.value||0);
+ if(!Number.isFinite(rate)||rate< -80||rate>30||!Number.isFinite(budget)||budget<0||!Number.isFinite(other))throw Error('Ajustements invalides : vérifier le taux et les montants saisis');
+ if(mode==='budget'&&budgetText==='')throw Error('Renseignez le budget net de travaux à déduire ou choisissez la méthode par état');
+ if(((mode==='etat'&&rateText!==''&&rate!==defaultRate)||other!==0)&&!reason)throw Error('Justifiez la correction personnalisée ou les autres plus et moins-values');
+ const unitStates={};if(q('#estCondition')?.dataset.qualityManual!=='true'&&rateText==='')for(const s of window.estimiaConditionSignals?.(notes)||[])if(s.type)unitStates[s.type]=s.condition;
+ return {mode,condition,rate,budget,other,reason,unitStates,works:q('#estPlannedWorks')?.value||''};
+}
+function adjustQuality(d,c){
+ const factor=c.mode==='etat'?1+c.rate/100:1,cost=c.mode==='budget'?c.budget:0;
+ const scoped=c.mode==='etat'&&d.unitBases?.length>1&&Object.keys(c.unitStates).length>0;
+ const rateFor=u=>{const state=c.unitStates[u.key.split(' ')[0]]||'';return /réhabiliter/.test(state)?-25:/rénover/.test(state)?-15:/rafraîchir/.test(state)?-5:0;};
+ const calc=(value,key)=>Math.round(((scoped?d.unitBases.reduce((v,x)=>v+Number(x.value[key])*(1+rateFor(x.unit)/100),0):Number(value)*factor)-cost+c.other)/1000)*1000;
+ const values={centrale:calc(d.centrale,'centrale'),basse:calc(d.basse,'basse'),haute:calc(d.haute,'haute')};
+ if(Object.values(values).some(x=>!Number.isFinite(x)||x<=0))throw Error('Les corrections dépassent la valeur disponible. Revoyez les comparables et les travaux ; aucun montant nul ou négatif n’est retenu');
+ // Preserve exact DVF values when there is no correction.
+ const changed=(scoped?d.unitBases.some(x=>rateFor(x.unit)!==0):factor!==1)||cost!==0||c.other!==0;
+ const formula=scoped?'hypothèses internes provisoires par logement, non issues d’un barème officiel : '+d.unitBases.map(x=>x.unit.label+' '+(c.unitStates[x.unit.key.split(' ')[0]]||'état non précisé')+' '+rateFor(x.unit)+' %').join(' ; '):c.mode==='budget'?'budget net de travaux déduit : '+fmt(cost)+' ; aucune décote d’état ajoutée':c.mode==='aucun'?'comparables déclarés de même état : aucune correction d’état':'état '+(c.condition||'non précisé')+' : '+(c.rate>0?'+':'')+c.rate+' % (hypothèse interne, non issue d’un barème officiel)';
+ const note='Base DVF avant correction : '+fmt(d.centrale)+'. Calcul en l’état : '+formula+(c.other?' ; autres ajustements '+fmt(c.other):'')+'.'+(c.reason?' Justification : '+c.reason+'.':'')+(c.works?' Travaux déclarés : '+c.works+'.':'')+' L’état des ventes DVF n’est pas documenté ; vérifier que la correction n’est pas déjà reflétée par les comparables. Aucun DPE présumé.';
+ return {...d,...(changed?values:{}),avertissement:(d.avertissement||'')+' '+note,qualityNote:note,qualityChanged:changed};
+}
 let estimateTask=null;
 function calculateEstimate(){
  if(estimateTask)return estimateTask;
@@ -11,7 +40,8 @@ function calculateEstimate(){
 btn.addEventListener('click',calculateEstimate);
 async function performEstimate(){
  if(window.estimiaFicheReady)await window.estimiaFicheReady;
- const inputKey=()=>JSON.stringify(['#cadCommune','#address','#type','#surfaceHab','#propertyUnitsJSON'].map(id=>q(id)?.value||''));
+ let quality;try{quality=qualityConfig()}catch(e){q('#estimationResults').replaceChildren();q('#estimationStatus').textContent=e.message;return false;}
+ const inputKey=()=>JSON.stringify(['#cadCommune','#address','#type','#surfaceHab','#propertyUnitsJSON',...qualityIds].map(id=>q(id)?.value||''));
  const startedWith=inputKey();
  const commune=(q('#cadCommune')?.value||'').trim();
  const addr=(q('#address')?.value||'').trim();
@@ -51,19 +81,22 @@ async function performEstimate(){
    }
    const comparables=[...refs.values()].map(c=>({...c,date:c.date+' — '+c.logements.join(' / ')}));
    const sum=key=>values.reduce((total,x)=>total+Number(x.value[key]),0);
-   d={status:'indicatif',centrale:sum('centrale'),basse:sum('basse'),haute:sum('haute'),prix_m2_median:'',nombre:comparables.length,comparables,
+   d={status:'indicatif',centrale:sum('centrale'),basse:sum('basse'),haute:sum('haute'),prix_m2_median:'',nombre:comparables.length,comparables,unitBases:values,
     source:values[0].value.source,periode_debut:values.map(x=>x.value.periode_debut).sort()[0],periode_fin:values.map(x=>x.value.periode_fin).sort().at(-1),
-    avertissement:'Ensemble de '+units.length+' logements : somme des estimations DVF calculées séparément selon leur surface. '+values.map(x=>x.unit.label+' ('+x.unit.surface.toLocaleString('fr-FR')+' m²) : '+fmt(x.value.centrale)).join(' ; ')+'. Valeur indicative sans ajustement qualitatif ; une vente en bloc peut différer de la somme des lots.'};
+    avertissement:'Ensemble de '+units.length+' logements : somme des estimations DVF calculées séparément selon leur surface. '+values.map(x=>x.unit.label+' ('+x.unit.surface.toLocaleString('fr-FR')+' m²) : '+fmt(x.value.centrale)).join(' ; ')+'. Base avant correction d’état ; une vente en bloc peut différer de la somme des lots.'};
   }else d=await fetchOne(surface,type_bien);
   if(inputKey()!==startedWith){status.textContent='La fiche a changé pendant la recherche. Relancez le calcul sur les informations corrigées.';return false;}
   if(d.status!=='indicatif'){
    status.textContent=(d.message||'Données insuffisantes')+(d.diagnostic?' (Diagnostic : '+d.diagnostic+')':'');return false;
   }
+  const rawDvf={centrale:d.centrale,basse:d.basse,haute:d.haute};d=adjustQuality(d,quality);result.dataset.rawDvfEstimate=JSON.stringify(rawDvf);
+  q('#qualityAdjustmentStatus').textContent=d.qualityNote;
   result.dataset.unitValuation=String(units.length>1);result.dataset.dvfMedian=String(d.prix_m2_median||'');result.dataset.dvfCount=String(d.nombre||'');result.dataset.periodStart=d.periode_debut||'';result.dataset.periodEnd=d.periode_fin||'';result.dataset.originalEstimate=JSON.stringify({centrale:d.centrale,basse:d.basse,haute:d.haute});result.dataset.adjusted='false';
   if(q('#validatedPrice'))q('#validatedPrice').value='';if(q('#validatedReason'))q('#validatedReason').value='';if(q('#retainedEstimateText'))q('#retainedEstimateText').textContent='';
-  status.textContent=units.length>1?`${units.length} logements calculés séparément — ${d.nombre} références affichées dédoublonnées. Valeur indicative de l’ensemble.`:`${d.nombre} ventes filtrées — valeur statistique indicative (sans ajustement qualitatif).`;
+  status.textContent=units.length>1?`${units.length} logements calculés séparément — ${d.nombre} références affichées dédoublonnées. Valeur indicative de l’ensemble.`:`${d.nombre} ventes filtrées — base statistique DVF et corrections détaillées ci-dessous.`;
+  if(d.qualityChanged)status.textContent+=' État / travaux pris en compte : voir le calcul détaillé.';
   const table=d.comparables.map(c=>`<tr><td>${esc(c.date)}</td><td>${esc(c.surface)} m²</td><td>${fmt(c.prix)}</td><td>${fmt(c.prix_m2)}/m²</td></tr>`).join('');
-  result.innerHTML=`<div class="estimationValueMain"><div class="estimationValueLabel">Estimation du bien — valeur centrale</div><div class="estimationValueAmount">${fmt(d.centrale)}</div><div class="small">Valeur statistique indicative issue des ventes DVF retenues</div></div><div class="estimationRange"><div><strong>Fourchette basse</strong><div class="estimationRangeAmount">${fmt(d.basse)}</div></div><div><strong>Fourchette haute</strong><div class="estimationRangeAmount">${fmt(d.haute)}</div></div></div><p class="estimationExplanation">${esc(d.avertissement)}</p><details><summary>Voir les ventes retenues</summary><div style="overflow:auto"><table><thead><tr><th>Date</th><th>Surface</th><th>Prix</th><th>Prix/m²</th></tr></thead><tbody>${table}</tbody></table></div></details><p><a href="${esc(d.source)}" target="_blank" rel="noopener">Source des transactions</a></p>`;
+  result.innerHTML=`<div class="estimationValueMain"><div class="estimationValueLabel">${d.qualityChanged?"Estimation indicative en l’état — hypothèse à vérifier":"Estimation du bien — valeur centrale"}</div><div class="estimationValueAmount">${fmt(d.centrale)}</div><div class="small">Valeur indicative après prise en compte de l’état et des ajustements déclarés</div></div><div class="estimationRange"><div><strong>Fourchette basse</strong><div class="estimationRangeAmount">${fmt(d.basse)}</div></div><div><strong>Fourchette haute</strong><div class="estimationRangeAmount">${fmt(d.haute)}</div></div></div><p class="estimationExplanation">${esc(d.avertissement)}</p><details><summary>Voir les ventes retenues</summary><div style="overflow:auto"><table><thead><tr><th>Date</th><th>Surface</th><th>Prix</th><th>Prix/m²</th></tr></thead><tbody>${table}</tbody></table></div></details><p><a href="${esc(d.source)}" target="_blank" rel="noopener">Source des transactions</a></p>`;
   return true;
  }catch(e){status.textContent=e.name==='AbortError'?'La recherche DVF dépasse le délai prévu. Réessayez ou utilisez l’import DVF manuel. Aucun prix n’est inventé.':'Impossible de consulter les transactions : '+e.message+'. Aucun montant calculé.';return false;}
  finally{clearTimeout(timer);btn.disabled=false;}
@@ -143,12 +176,12 @@ function renderMarketIndicators(){
  const metricRows=[
  ['Prix médian des ventes DVF',result?.dataset.unitValuation==='true'?'Calcul distinct par logement — voir le détail de l’estimation':dvf?fmt(dvf)+'/m² — '+count+' ventes'+(period?' — du '+period:''):'Données insuffisantes'],
  ['Prix médian des annonces comparables',m.median?fmt(m.median)+'/m² — '+m.count+' annonces':'Échantillon insuffisant : '+m.count+' annonce(s), minimum 3'],
- ['Prix au m² de l’estimation statistique',Number(result?.dataset.originalEstimate?JSON.parse(result.dataset.originalEstimate).centrale:central)>0&&surface>0?fmt(Number(result?.dataset.originalEstimate?JSON.parse(result.dataset.originalEstimate).centrale:central)/surface)+'/m²':'Estimation à calculer'],
+ ['Prix au m² de l’estimation statistique après ajustements',Number(result?.dataset.originalEstimate?JSON.parse(result.dataset.originalEstimate).centrale:central)>0&&surface>0?fmt(Number(result?.dataset.originalEstimate?JSON.parse(result.dataset.originalEstimate).centrale:central)/surface)+'/m²':'Estimation à calculer'],
  ['Prix au m² du montant retenu',retained>0&&surface>0?fmt(retained/surface)+'/m²':'Montant à définir'],
  ['Périmètre des annonces',commune+' — même type — surfaces de '+Math.round(m.minSurface)+' à '+Math.round(m.maxSurface)+' m² (±25 %)'],
  ['Date de consultation des annonces',found.length?today:'Recherche des annonces à lancer']];
  box.innerHTML='<table><tbody>'+metricRows.map(([k,v])=>'<tr><th style="text-align:left;padding:8px">'+esc(k)+'</th><td style="padding:8px">'+esc(v)+'</td></tr>').join('')+'</tbody></table><p class="small">Annonces dédoublonnées, sélectionnées sans filtre de prix. Catalogues partiels, prix demandés et non prix de vente. Aucune correction automatique de la valeur DVF.</p>';
- let advice=result?.dataset.unitValuation==='true'&&central?'Ensemble de logements : valeurs DVF calculées séparément. Le prix au m² global des annonces reste un repère, sans ajustement automatique de la somme des lots.':'Calculez l’estimation et recherchez les annonces pour obtenir un avis d’ajustement.';
+ let advice=result?.dataset.unitValuation==='true'&&central?'Ensemble de logements : valeurs DVF calculées séparément. Le prix au m² global des annonces reste un repère ; son écart aux ventes ne corrige pas automatiquement la somme. Les corrections d’état et de travaux sont détaillées dans le calcul.':'Calculez l’estimation et recherchez les annonces pour obtenir un avis d’ajustement.';
  if(dvf&&m.median){
   const gap=(m.median/dvf-1)*100;
   advice='Écart annonces / ventes DVF : '+(gap>=0?'+':'')+gap.toFixed(1)+' %. ';
@@ -180,12 +213,15 @@ q('#validateRetainedEstimate')?.addEventListener('click',()=>{
  renderMarketIndicators();displayAnnonces();if(roquesFound.length||found.length)loadRoques();
  q('#validatedPrice').dispatchEvent(new Event('input',{bubbles:true}));
 });
-for(const id of ['#surfaceHab','#type','#cadCommune','#address'])q(id)?.addEventListener('input',()=>{
+for(const id of ['#surfaceHab','#type','#cadCommune','#address',...qualityIds])q(id)?.addEventListener('input',()=>{
  if(q('#validatedPrice'))q('#validatedPrice').value='';if(q('#validatedReason'))q('#validatedReason').value='';
  if(q('#retainedEstimateText'))q('#retainedEstimateText').textContent='Le bien a été modifié : recalculer l’estimation avant validation.';
+ if(q('#qualityAdjustmentStatus'))q('#qualityAdjustmentStatus').textContent='';
  const result=q('#estimationResults');if(result){result.replaceChildren();result.dataset.dvfMedian='';result.dataset.dvfCount='';delete result.dataset.unitValuation;delete result.dataset.originalEstimate;delete result.dataset.adjusted;}
  found=[];roquesFound=[];roquesReady=false;displayRoques();displayAnnonces();
 });
+q('#estCondition')?.addEventListener('input',()=>{q('#estCondition').dataset.qualityManual='true';});
+for(const id of qualityIds)q(id)?.addEventListener('change',()=>q(id).dispatchEvent(new Event('input',{bubbles:true})));
 document.addEventListener('estimia:estimation-restored',()=>{renderMarketIndicators();if(q('#retainedEstimateText'))q('#retainedEstimateText').textContent=q('#estimationResults')?.dataset.adjusted==='true'?'Estimation modifiée restaurée : '+fmt(Number(q('#validatedPrice')?.value||0)):'';});
 function safeAnnonceUrl(value){
  try{const u=new URL(value);return ['https:','http:'].includes(u.protocol)?u.href:'';}catch{return '';}

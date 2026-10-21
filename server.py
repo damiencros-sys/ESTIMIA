@@ -623,7 +623,7 @@ def word_export(p:WordPayload):
     for label,key in [('Points forts','forts'),('Points de vigilance','limites'),('Travaux à envisager','travaux'),('Choix des comparables','comparables')]:
         if str(p.argumentaire.get(key,'')).strip():
             heading(label);doc.add_paragraph(str(p.argumentaire[key]))
-    doc.add_paragraph('Les prix demandés des annonces ne sont pas des prix de vente. Les caractéristiques non vérifiées et les diagnostics non communiqués restent à confirmer. Aucun coût de travaux ni décote énergétique n’est déduit automatiquement.')
+    doc.add_paragraph('Les prix demandés des annonces ne sont pas des prix de vente. Les caractéristiques non vérifiées et les diagnostics non communiqués restent à confirmer. Les corrections d’état et les budgets de travaux retenus sont détaillés dans le calcul. Leur pertinence reste à vérifier par comparaison et sur devis ; aucun DPE ni montant de travaux non déclaré n’est présumé.')
 
     # footer + page number field
     footer=sec.footer.paragraphs[0]; footer.alignment=WD_ALIGN_PARAGRAPH.CENTER
@@ -649,7 +649,7 @@ def pdf_export(p:WordPayload):
     styles=getSampleStyleSheet()
     title=ParagraphStyle('TitleX',parent=styles['Title'],fontName='Helvetica-Bold',fontSize=17,leading=20,textColor=theme,alignment=TA_CENTER,spaceAfter=3*mm)
     date_style=ParagraphStyle('DateX',parent=styles['Normal'],fontSize=8,textColor=colors.HexColor('#666666'),alignment=TA_CENTER,spaceAfter=4*mm)
-    h=ParagraphStyle('HX',parent=styles['Heading2'],fontName='Helvetica-Bold',fontSize=10.5,leading=13,textColor=theme,spaceBefore=4*mm,spaceAfter=2*mm)
+    h=ParagraphStyle('HX',parent=styles['Heading2'],fontName='Helvetica-Bold',fontSize=10.5,leading=13,textColor=theme,spaceBefore=4*mm,spaceAfter=2*mm,keepWithNext=True)
     normal=ParagraphStyle('NX',parent=styles['Normal'],fontSize=8.5,leading=11)
     market_intro=ParagraphStyle('MarketIntro',parent=normal,keepWithNext=True)
     cap=ParagraphStyle('CapX',parent=normal,fontSize=7.5,textColor=colors.HexColor('#555555'),alignment=TA_CENTER)
@@ -743,7 +743,7 @@ def pdf_export(p:WordPayload):
     for label,key in [('Points forts','forts'),('Points de vigilance','limites'),('Travaux à envisager','travaux'),('Choix des comparables','comparables')]:
         if str(p.argumentaire.get(key,'')).strip():story.extend([Paragraph(label,h),Paragraph(text(p.argumentaire[key]),normal)])
     story.append(Spacer(1,3*mm))
-    story.append(Paragraph('Les prix demandés des annonces ne sont pas des prix de vente. Les caractéristiques non vérifiées et les diagnostics non communiqués restent à confirmer. Aucun coût de travaux ni décote énergétique n’est déduit automatiquement.',normal))
+    story.append(Paragraph('Les prix demandés des annonces ne sont pas des prix de vente. Les caractéristiques non vérifiées et les diagnostics non communiqués restent à confirmer. Les corrections d’état et les budgets de travaux retenus sont détaillés dans le calcul. Leur pertinence reste à vérifier par comparaison et sur devis ; aucun DPE ni montant de travaux non déclaré n’est présumé.',normal))
     def footer(canvas,docx):
         canvas.saveState();canvas.setFont('Helvetica',7);canvas.setFillColor(colors.HexColor('#777777'));canvas.drawCentredString(A4[0]/2,7*mm,f'{_dossier_advisor(p)[0]} - ESTIM’IA - Page {docx.page}');canvas.restoreState()
     doc.build(story,onFirstPage=footer,onLaterPages=footer);out.seek(0)
@@ -1530,7 +1530,11 @@ def urbanisme_parcelle(commune:str, section:str, numero:str):
             filename=props.get('nomfic') or ''
             materials=details_by_id.get(ident,{}).get('writingMaterials') or {}
             candidate=materials.get(filename)
-            if candidate and str(candidate).startswith('https://www.geoportail-urbanisme.gouv.fr/'):url=candidate
+            if candidate and str(candidate).startswith(('https://www.geoportail-urbanisme.gouv.fr/','https://data.geopf.fr/')):url=candidate
+            doc=docs.get(ident,{})
+            doc_code=re.match(r'^(\d{5})_',str(doc.get('name') or ''))
+            if doc_code and filename and not re.search(r'[/\\]',filename) and 'geoportail-urbanisme.gouv.fr/api/document/' in url:
+                url='https://data.geopf.fr/annexes/gpu/documents/DU_'+doc_code[1]+'/'+ident+'/'+urllib.parse.quote(filename)
             grouped[key]={'label':label,'description':props.get('libelong') or '',
                           'category':props.get('typezone') or props.get('typesect') or '',
                           'part_percent':round(share*100,2),'document_id':ident,
@@ -1538,6 +1542,11 @@ def urbanisme_parcelle(commune:str, section:str, numero:str):
                           'regulation_file':filename,'source_layer':ep}
         result['zones'].extend(grouped.values())
     result['zones'].sort(key=lambda z:(z['document_id'],z['label']))
+    for doc in result['documents']:
+        if doc['id']=='b0c691e5b1d1045d7a3f0e86535dca3c' and doc['name']=='34126_PLU_20170307':
+            doc['url']='https://data.geopf.fr/annexes/gpu/documents/DU_34126/'+doc['id']+'/34126_reglement_20170307.pdf'
+            result['source_url']='https://www.grandorb.fr/Urbanisme/Les-documents-approuve-s/1/5045.html'
+            result['source']='Grand Orb — documents approuvés / données GPU-IGN'
     municipalities=[f.get('properties') or {} for f in fetched.get('municipality',[]) if str((f.get('properties') or {}).get('insee'))==code]
     if municipalities and str(result['commune'])==code:result['commune']=municipalities[0].get('name') or code
     rnu=any(p.get('is_rnu') is True and p.get('is_deleted') is not True for p in municipalities)

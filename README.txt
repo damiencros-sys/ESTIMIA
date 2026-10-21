@@ -1,3 +1,6 @@
+VERSION ACTUELLE : V13.93
+Lire README_V13_93.txt et BILAN_TESTS_V13_93.html.
+
 ESTIM'IA V2 — version hébergeable HTTPS
 
 Cette version est conçue pour être déployée sur un vrai serveur HTTPS.

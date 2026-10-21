@@ -58,9 +58,11 @@ function schedule(){clearTimeout(timer);timer=setTimeout(()=>saveNow(false),650)
 function removePlan(){document.getElementById('cadPlanBox')?.remove()}
 function restore(d){
  restoring=true;currentId=d.id;
+ for(const id of ['estQualityMode','estQualityRate','estWorkBudget','estOtherAdjustment','estQualityReason']){const e=document.getElementById(id);if(e){e.value=id==='estQualityMode'?'etat':'';for(const k of Object.keys(e.dataset))delete e.dataset[k];}}
  document.querySelectorAll('main input[id],main textarea[id],main select[id]').forEach(el=>{
   if(el.type==='file'||el.id==='photos')return;
-  const x=d.values?.[el.id]; if(x==null)return;
+  for(const k of Object.keys(el.dataset))delete el.dataset[k];
+  const x=d.values?.[el.id]; if(x==null){el.value=el.tagName==='SELECT'?(el.options[0]?.value||''):(el.defaultValue||'');el.checked=el.defaultChecked||false;return;}
   const o=typeof x==='object'?x:{value:x};
   el.value=o.value??'';if('checked'in o)el.checked=!!o.checked;
   if(o.dataset)Object.entries(o.dataset).forEach(([k,v])=>el.dataset[k]=v);
@@ -83,7 +85,8 @@ function restore(d){
 }
 function clearForm(){
  restoring=true;currentId=null;
- document.querySelectorAll('main input[id],main textarea[id],main select[id]').forEach(el=>{if(el.type!=='file'){el.value='';if(el.type==='checkbox'||el.type==='radio')el.checked=false}});
+ document.querySelectorAll('main input[id],main textarea[id],main select[id]').forEach(el=>{if(el.type!=='file'){el.value='';for(const k of Object.keys(el.dataset))delete el.dataset[k];if(el.type==='checkbox'||el.type==='radio')el.checked=false}});
+ $('#type')?.dispatchEvent(new Event('input',{bubbles:true}));if($('#estQualityMode'))$('#estQualityMode').value='etat';
  ['facts','dictationHistory','gallery'].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML=id==='facts'?'<div class="empty">Dicte ta visite puis touche « Transformer en fiche ».</div>':''});
  ['cadStatus','addressStatus','recordStatus','photoStatus','saveStatus'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=''});
  removePlan();restoring=false;document.dispatchEvent(new Event('estimia:surfaces-restored'));document.dispatchEvent(new Event('estimia:dictations-restored'));document.dispatchEvent(new Event('estimia:contacts-restored'));document.dispatchEvent(new Event('estimia:parcels-restored'));renderList();closeDrawer();window.scrollTo({top:0,behavior:'smooth'});

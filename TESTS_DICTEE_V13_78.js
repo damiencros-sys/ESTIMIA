@@ -42,3 +42,24 @@ console.log('Total actualisé : '+tests+' tests exécutés');
 test('Transcription remise énorme électrique : pas une annexe',()=>assert(!c.annexes('Amélioration de l’isolation remise énorme électrique changement du mode de chauffage.').some(r=>r[0]==='Remise')));
 test('Une vraie remise énorme de 40 m² reste une annexe',()=>assert(c.annexes('Une remise énorme de 40 m².').some(r=>r[0]==='Remise')));
 console.log('Total V13.91 : '+tests+' tests exécutés');
+
+// V13.93 — contrôles reproductibles sans dépendance ni accès réseau.
+include('function owner(t){','function phone(t){');
+include('function conditionSignals(text){','window.estimiaConditionSignals=');
+const app93=fs.readFileSync(path.join(__dirname,'static/app.js'),'utf8');vm.runInContext(app93.slice(app93.indexOf('function normalizeElectricalPhrase(text){'),app93.indexOf('function cleanDictation(text){')),c);
+for(const surname of ['TRAIZIT','POMES','Consorts CROS'])test('Nom sans prénom : '+surname,()=>{const p=c.ownerNameParts(surname);assert.equal(p.nom,surname);assert.equal(p.prenom,'')});
+test('TRAIZIT suivi de l’apostrophe de l’appartement',()=>{const p=c.ownerNameParts('TRAIZIT l’');assert.equal(p.nom,'TRAIZIT');assert.equal(p.prenom,'')});
+for(const name of ['MARTIN damien','COMBES Bernard','PIQUET Mireille','ROQUES Marcel','ASTRUC Sébatien'])test('Propriétaire nommé : '+name,()=>assert.equal(c.owner('Propriétaire '+name+'. Appartement de 50 m².'),name));
+for(const phrase of ['remise énorme électrique','remise en norme électrique','remise aux normes électriques'])test('Normalisation électrique : '+phrase,()=>assert.equal(c.normalizeElectricalPhrase(phrase),'remise aux normes électriques'));
+test('Vraie remise indépendante préservée',()=>assert.equal(c.normalizeElectricalPhrase('Une remise énorme de 40 m².'),'Une remise énorme de 40 m².'));
+test('État par logement, sans état inventé au studio',()=>{const a=c.conditionSignals('Appartement de 97 m² à rénover entièrement. Studio de 17 m².');assert.equal(a.length,1);assert.equal(a[0].type,'appartement');assert.equal(a[0].condition,'À rénover')});
+test('Négation de rénovation',()=>assert.equal(c.conditionSignals('Appartement qui n’est pas à rénover.').length,0));
+test('Dernier état explicite conservé',()=>assert.equal(c.conditionSignals('Maison à rénover. Je corrige : maison en bon état.').at(-1).condition,'Bon état'));
+const quality93=fs.readFileSync(path.join(__dirname,'static/estimation_v13_44.js'),'utf8');vm.runInContext(quality93.slice(quality93.indexOf('function adjustQuality(d,c){'),quality93.indexOf('let estimateTask=null;')),c);
+const base93={centrale:100000,basse:85000,haute:115000},config93={mode:'etat',condition:'À rénover',rate:-15,budget:0,other:0,reason:'',works:'',unitStates:{}};
+test('Correction d’état : -15 %',()=>assert.equal(c.adjustQuality(base93,config93).centrale,85000));
+test('Budget remplace la décote sans doublon',()=>assert.equal(c.adjustQuality(base93,{...config93,mode:'budget',budget:20000}).centrale,80000));
+test('Plus-value explicitement chiffrée',()=>assert.equal(c.adjustQuality(base93,{...config93,mode:'budget',budget:20000,other:5000}).centrale,85000));
+test('Comparables de même état : aucune correction',()=>assert.equal(c.adjustQuality(base93,{...config93,mode:'aucun'}).centrale,100000));
+test('Budget supérieur à la valeur : refus sans montant négatif',()=>assert.throws(()=>c.adjustQuality(base93,{...config93,mode:'budget',budget:200000})));
+console.log('Total V13.93 : '+tests+' tests exécutés');

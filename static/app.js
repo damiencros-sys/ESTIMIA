@@ -20,7 +20,11 @@ function persistDictations(){
  if(field){field.value=JSON.stringify(dictationHistory);field.dispatchEvent(new Event('input',{bubbles:true}));}
 }
 function restoreDictations(){
+ $('#notes').value=normalizeElectricalPhrase($('#notes').value);
  try{const a=JSON.parse(document.querySelector('#dictationSessionsJSON')?.value||'[]');dictationHistory=Array.isArray(a)?a:[];}catch{dictationHistory=[];}
+ const priorHistory=JSON.stringify(dictationHistory);
+ dictationHistory=dictationHistory.map(x=>({...x,cleaned:normalizeElectricalPhrase(x.cleaned),before:normalizeElectricalPhrase(x.before)}));
+ if(JSON.stringify(dictationHistory)!==priorHistory)persistDictations();
  // Dossiers anciens : préserver la transcription existante dans l'historique.
  const oldText=$('#notes')?.value?.trim()||'';
  if(!dictationHistory.length&&oldText){
@@ -33,8 +37,11 @@ function restoreDictations(){
 document.addEventListener('estimia:dictations-restored',()=>{restoreDictations();if(!recognizing)recordingButtons(dictationHistory.length?'ready':'idle')});
 
 
+function normalizeElectricalPhrase(text){
+ return String(text||'').replace(/\bremise\s+(?:[ée]normes?|en\s+normes?)\s+[ée]lectriques?\b/gi,'remise aux normes électriques');
+}
 function cleanDictation(text){
-  let x=String(text||'').trim();
+  let x=normalizeElectricalPhrase(text).trim();
   x=x.replace(/\b(?:euh+|heu+|hum+|hmm+)\b[,.…]*/gi,' ');
   x=x.replace(/\s+/g,' ').trim();
   x=x.replace(/\b([\p{L}\d'-]{2,})\s+\1\b/giu,'$1');

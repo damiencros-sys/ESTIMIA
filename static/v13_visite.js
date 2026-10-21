@@ -42,7 +42,7 @@ function owner(t){
  return '';
 }
 function ownerNameParts(value){
- const t=clean(value).replace(/^(?:monsieur et madame|monsieur|madame|m\. et mme|m\.|mme)\s+/iu,'').trim();
+ const t=clean(value).replace(/\s+(?:l['’]|d['’]|le|la|les|il|elle)$/iu,'').replace(/^(?:monsieur et madame|monsieur|madame|m\. et mme|m\.|mme)\s+/iu,'').trim();
  if(/^(?:consorts?|famille)\s+/i.test(t))return {nom:t,prenom:''};
  const parts=t.split(/\s+/).filter(Boolean);
  if(parts.length<2)return {nom:t,prenom:''};
@@ -527,9 +527,28 @@ function confirmSurfaceTotal(){
  if(manualSurfaceRows.some(x=>x.cat==='Intérieur'&&x._needsReview)){alert('Corrigez les lignes de surfaces signalées avant de confirmer le total.');return;}
  const total=manualSurfaceRows.filter(x=>x.cat==='Intérieur').reduce((a,x)=>a+x.val,0);
  if(!total)return;
- if(!confirm('Confirmer '+fmt(total)+' comme surface habitable vérifiée ? Vérifiez que toutes les pièces habitables sont renseignées et que les annexes sont exclues.'))return;
- const field=$('#surfaceHab');field.value=total.toFixed(2);field.dataset.needsReview='false';field.dataset.surfaceConfirmed='true';field.dispatchEvent(new Event('input',{bubbles:true}));
+ let units=[];try{units=JSON.parse($('#propertyUnitsJSON')?.value||'[]')}catch{}
+ let selectedTotal=total,note='Surface des pièces vérifiée : '+fmt(total)+'.';
+ if(units.length<2&&!confirm('Confirmer '+fmt(total)+' comme surface habitable vérifiée ? Vérifiez que toutes les pièces habitables sont renseignées et que les annexes sont exclues.'))return;
+ if(units.length>1){
+  const sums=units.map(u=>manualSurfaceRows.filter(r=>r.cat==='Intérieur'&&r.lvl.startsWith(u.label+' — ')).reduce((v,r)=>v+r.val,0));
+  const unassigned=manualSurfaceRows.some(r=>r.cat==='Intérieur'&&!units.some(u=>r.lvl.startsWith(u.label+' — ')));
+  if(!unassigned&&sums.every(x=>x>0)){
+   if(!confirm('Confirmer les surfaces vérifiées par logement : '+units.map((u,i)=>u.label+' '+fmt(sums[i])).join(' + ')+' ? Les annexes doivent être exclues.'))return;
+   units=units.map((u,i)=>({...u,surface:Math.round(sums[i]*100)/100}));$('#propertyUnitsJSON').value=JSON.stringify(units);
+   note='Surfaces vérifiées par logement : '+units.map(u=>u.label+' '+fmt(u.surface)).join(' + ')+'.';
+  }else{
+   if(units.some(u=>!(u.surface>0))){$('#estimationStatus').textContent='Affectez les pièces à chaque logement ou renseignez sa surface annoncée. Le total des pièces non affectées ne remplace pas les surfaces des logements.';return;}
+   selectedTotal=units.reduce((v,u)=>v+u.surface,0);
+   if(!confirm('Les '+fmt(total)+' de pièces ne sont pas entièrement affectés aux logements. Ils ne remplacent pas '+units.map(u=>u.label+' '+fmt(u.surface)).join(' + ')+' = '+fmt(selectedTotal)+'. Calculer avec ces surfaces annoncées, conservées séparément ?'))return;
+   note=fmt(total)+' de pièces détaillées non affectées : total partiel conservé. Estimation calculée avec '+units.map(u=>u.label+' '+fmt(u.surface)).join(' + ')+' = '+fmt(selectedTotal)+'.';
+  }
+ }
+ const field=$('#surfaceHab');field.value=selectedTotal.toFixed(2);field.dataset.needsReview='false';field.dataset.surfaceConfirmed='true';field.dispatchEvent(new Event('input',{bubbles:true}));
+ let notice=$('#surfaceConfirmationStatus');if(!notice){notice=document.createElement('p');notice.id='surfaceConfirmationStatus';notice.className='status';$('#facts .surfaceEditor')?.append(notice)}notice.textContent=note;
  $('#surfaceCalculationNotice')?.remove();const alerts=$('#surfaceReviewAlerts');if(alerts)alerts.remove();
+ $('#launchAnnonces')?.click();
+
 }
 function repairInheritedSanitaryAnnex(){
  const text=clean(($('#notes')?.value||'')+' '+($('#correction')?.value||''));if(!text)return;
@@ -1093,6 +1112,16 @@ function renderSupplementCards(){
  for(const sec of propertySupplementSections())facts.insertAdjacentHTML('beforeend',card(sec.title,'',sec.rows).replace('proGroup','proGroup supplementCard'));
  const legacy=$('#legacyWorksLabel');if(legacy)legacy.hidden=!$('#estWorks')?.value;
 }
+function conditionSignals(text){
+ const t=String(text||''),signals=[];
+ for(const m of t.matchAll(/[àa]\s+r[ée]habiliter|[àa]\s+r[ée]nover|r[ée]novation\s+compl[èe]te|[àa]\s+rafra[iî]chir|rafra[iî]chissement|bon\s+[ée]tat/gi)){
+  if(/(?:pas|non|sans)\s*(?:besoin\s+de\s+)?$/i.test(t.slice(Math.max(0,m.index-35),m.index)))continue;
+  const type=[...t.slice(0,m.index).matchAll(/\b(appartement|studio|maison|villa)\b/gi)].at(-1)?.[1]?.toLowerCase()||'';
+  const condition=/habiliter/i.test(m[0])?'À réhabiliter':/nover|novation/i.test(m[0])?'À rénover':/fra/i.test(m[0])?'À rafraîchir':'Bon état';
+  signals.push({type,condition,index:m.index});
+ }return signals;
+}
+window.estimiaConditionSignals=conditionSignals;
 function fillVisitExtras(t){
  const set=(id,value)=>{const el=$('#'+id);if(el&&(!el.value.trim()||el.value===el.dataset.dictationValue)){el.value=value;el.dataset.dictationValue=value;}};
  const text=normalizeDictatedAreas(t);
@@ -1109,12 +1138,12 @@ function fillVisitExtras(t){
   if(/[ée]lectricit[ée]\s+(?:des?\s+)?parties?\s+communes?/i.test(text))scope.push('électricité des parties communes');
   set('estChargesDetails',(manualCharge?'Montant annuel renseigné manuellement ; dernière dictée : '+amount.value.toLocaleString('fr-FR')+' € annualisés, à rapprocher du montant retenu. ':amount.note)+(scope.length?'Postes cités : '+scope.join(' ; ')+'. ':'')+'Périmètre appartement / studio à confirmer si non précisé.');
  }else{set('estCharges','');set('estChargesDetails','')}
- const syndic=text.match(/\bsyndic\s+(?:(?:est|:)\s+)?(b[ée]n[ée]vole|professionnel)\b/i);
+ const syndic=text.match(/\bsyndic\s+(?:(?:est|et|:)\s+)?(b[ée]n[ée]vole|professionnel)\b/i);
  const syndicNeg=syndic&&/(?:pas de|aucun)\s*$/i.test(text.slice(Math.max(0,syndic.index-20),syndic.index));
  set('estSyndic',syndic&&!syndicNeg?'Syndic '+syndic[1].toLowerCase():'');
  const floor=markers(text).filter(m=>/étage/.test(m.name)).at(-1);
  set('estFloor',floor?floor.name+(/dernier\s+[ée]tage/i.test(text)?' — dernier étage':''):'');
- set('estCondition',/[àa]\s+r[ée]nover|r[ée]novation\s+compl[èe]te/i.test(text)?'À rénover':/[àa]\s+rafra[iî]chir|rafra[iî]chissement/i.test(text)?'À rafraîchir':'');
+ if($('#estCondition')?.dataset.qualityManual!=='true')set('estCondition',conditionSignals(text).at(-1)?.condition||'');
  const planned=text.match(/\b(?:en termes de travaux|travaux [àa] pr[ée]voir|travaux de r[ée]novation)\b\s*(?:je r[ée]p[eè]te\s*)?([^.!?;]{1,350})/i);
  set('estPlannedWorks',planned?clean(planned[1].split(/\bje corrige\b|\bles surfaces\b/i)[0]):'');
  const features=[];
@@ -1172,14 +1201,15 @@ function fillConstructionExtras(t){
  requestAnimationFrame(()=>window.estimiaRefreshEquipmentHeights?.());
 }
 async function render(){
- const estimateFields=()=>JSON.stringify(['#type','#address','#cadCommune','#surfaceHab','#propertyUnitsJSON'].map(id=>$(id)?.value||''));
+ const estimateFields=()=>JSON.stringify(['#type','#address','#cadCommune','#surfaceHab','#propertyUnitsJSON','#estCondition','#estPlannedWorks'].map(id=>$(id)?.value||''));
  const estimateBefore=estimateFields();
+ $('#notes').value=normalizeElectricalPhrase($('#notes').value);
  const raw=$('#notes').value||'',corr=$('#correction').value||'',t=clean(raw+' '+corr);
- const o=owner(t);if(o&&!$('#owner').value)$('#owner').value=o;
+ const o=owner(t),ownerField=$('#owner'),useOwner=o&&(!ownerField.value||ownerField.value===ownerField.dataset.dictationValue);if(useOwner){ownerField.value=o;ownerField.dataset.dictationValue=o;}
  const ph=phone(t);if(ph)$('#ownerPhone').value=ph;
  const mail=emailFromDictation(t);
  // Synchroniser les cartes dès que la dictée a rempli les champs historiques.
- if(o||ph||mail)ownUpdateFromDictation(o,ph,mail);
+ if(o||ph||mail)ownUpdateFromDictation(useOwner?o:'',ph,mail);
  const a=address(t);if(a&&a.street&&(!$('#address').value||$('#address').value===$('#address').dataset.dictationValue)){$('#address').value=a.street;$('#address').dataset.dictationValue=a.street;$('#cadCommune').value=a.city;$('#cadCommune').dataset.postcode=a.postcode||'';$('#cadCommune').dataset.insee='';void normalizeCommune(a.city,a.postcode||'');}
  const cps=parseCadParcels(t);if(cps.length){cps.forEach(p=>addCadParcel(p.section,p.numero,false));$('#cadSection').value='';$('#cadParcel').value='';}
  const cm=commune(t);
@@ -1656,7 +1686,7 @@ function ownLoad(){
  const name=(ownEl('owner')?.value||'').trim(),parts=name.split(/\s+/);
  ownerCardsState=[{...ownerNameParts(name),phones:[ownEl('ownerPhone')?.value||''],emails:mails.length?mails:['']}];
  for(const c of others)ownerCardsState.push({nom:c.nom||'',prenom:c.prenom||'',phones:c.phones||[c.telephone||''],emails:c.emails||['']});
- ownRender();
+ ownSync();ownRender();
 }
 function ownUpdateFromDictation(name,telephone,email){
  const first=ownerCardsState[0];if(!first)return;
