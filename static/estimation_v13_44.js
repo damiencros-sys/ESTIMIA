@@ -15,9 +15,9 @@ function qualityConfig(){
  const rate=rateText===''?defaultRate:Number(rateText),budget=Number(budgetText),other=Number(q('#estOtherAdjustment')?.value||0);
  if(!Number.isFinite(rate)||rate< -80||rate>30||!Number.isFinite(budget)||budget<0||!Number.isFinite(other))throw Error('Ajustements invalides : vérifier le taux et les montants saisis');
  if(mode==='budget'&&budgetText==='')throw Error('Renseignez le budget net de travaux à déduire ou choisissez la méthode par état');
- if(((mode==='etat'&&rateText!==''&&rate!==defaultRate)||other!==0)&&!reason)throw Error('Justifiez la correction personnalisée ou les autres plus et moins-values');
+ const needsReason=((mode==='etat'&&rateText!==''&&rate!==defaultRate)||other!==0)&&!reason;
  const unitStates={};if(q('#estCondition')?.dataset.qualityManual!=='true'&&rateText==='')for(const s of window.estimiaConditionSignals?.(notes)||[])if(s.type)unitStates[s.type]=s.condition;
- return {mode,condition,rate,budget,other,reason,unitStates,works:q('#estPlannedWorks')?.value||''};
+ return {mode,condition,rate,budget,other,reason:needsReason?'Ajustement saisi par l’utilisateur — justification à compléter':reason,unitStates,works:q('#estPlannedWorks')?.value||''};
 }
 function adjustQuality(d,c){
  const factor=c.mode==='etat'?1+c.rate/100:1,cost=c.mode==='budget'?c.budget:0;
@@ -32,23 +32,25 @@ function adjustQuality(d,c){
  const note='Base DVF avant correction : '+fmt(d.centrale)+'. Calcul en l’état : '+formula+(c.other?' ; autres ajustements '+fmt(c.other):'')+'.'+(c.reason?' Justification : '+c.reason+'.':'')+(c.works?' Travaux déclarés : '+c.works+'.':'')+' L’état des ventes DVF n’est pas documenté ; vérifier que la correction n’est pas déjà reflétée par les comparables. Aucun DPE présumé.';
  return {...d,...(changed?values:{}),avertissement:(d.avertissement||'')+' '+note,qualityNote:note,qualityChanged:changed};
 }
-let estimateTask=null;
-function calculateEstimate(){
- if(estimateTask)return estimateTask;
- estimateTask=performEstimate().finally(()=>{estimateTask=null;});return estimateTask;
+let estimateTask=null,qualityTimer=null,pendingQuality=false;
+const geometryKey=()=>JSON.stringify(['#cadCommune','#address','#type','#surfaceHab','#propertyUnitsJSON'].map(id=>q(id)?.value||''));
+function calculateEstimate(options={}){
+ if(estimateTask){if(options.reuseBase)pendingQuality=true;return estimateTask;}
+ estimateTask=performEstimate(options.reuseBase===true).finally(()=>{estimateTask=null;if(pendingQuality){pendingQuality=false;scheduleQuality();}});return estimateTask;
 }
 btn.addEventListener('click',calculateEstimate);
-async function performEstimate(){
+async function performEstimate(reuseBase=false){
  if(window.estimiaFicheReady)await window.estimiaFicheReady;
- let quality;try{quality=qualityConfig()}catch(e){q('#estimationResults').replaceChildren();q('#estimationStatus').textContent=e.message;return false;}
+ let quality;try{quality=qualityConfig()}catch(e){q('#estimationResults').dataset.calculationPending='true';q('#estimationStatus').textContent=e.message+' Le dernier résultat reste affiché comme référence ; corrigez la saisie pour actualiser.';return false;}
  const inputKey=()=>JSON.stringify(['#cadCommune','#address','#type','#surfaceHab','#propertyUnitsJSON',...qualityIds].map(id=>q(id)?.value||''));
- const startedWith=inputKey();
+ const startedWith=inputKey(),startedGeometry=geometryKey();
  const commune=(q('#cadCommune')?.value||'').trim();
  const addr=(q('#address')?.value||'').trim();
  const typ=(q('#type')?.value||'').toLowerCase();
  const type_bien=(/appartement|studio/.test(typ))?'appartement':typ.includes('maison')||typ.includes('villa')?'maison':'';
  const surface=Number(q('#surfaceHab')?.value||0);
- const status=q('#estimationStatus'),result=q('#estimationResults');result.replaceChildren();result.dataset.dvfMedian='';result.dataset.dvfCount='';if(q('#validatedPrice'))q('#validatedPrice').value='';
+ const status=q('#estimationStatus'),result=q('#estimationResults');let cached=null;try{if(reuseBase&&result.dataset.dvfInputKey===geometryKey())cached=JSON.parse(result.dataset.dvfBase||'null')}catch{}
+ if(!reuseBase)result.replaceChildren();result.dataset.dvfMedian='';result.dataset.dvfCount='';if(q('#validatedPrice'))q('#validatedPrice').value='';
  if(!type_bien&&typ){status.textContent='Le calcul automatique DVF actuel couvre les maisons, appartements et studios. Ce type de bien ('+typ+') nécessite une analyse spécifique ; aucune estimation de logement n’est appliquée. Le dossier reste modifiable et enregistrable.';return false;}
  if(!type_bien||!Number.isFinite(surface)||surface<=0){status.textContent=!surface&&q('#surfaceHab')?.dataset.needsReview==='true'?'Une surface de pièce est à vérifier : corrigez la ligne signalée dans Surfaces calculées, ou renseignez une surface habitable globale confirmée, puis relancez le calcul. Aucun total partiel n’est utilisé.':'Renseignez le type maison/appartement et une surface habitable positive dans la fiche.';return false;}
  let code=(q('#cadCommune')?.dataset.insee||'').trim();
@@ -67,7 +69,7 @@ async function performEstimate(){
    if(!resp.ok)throw Error(value.detail||'Erreur du service');return value;
   };
   let d;
-  if(units.length>1){
+  if(cached){d=cached;}else if(units.length>1){
    if(units.some(u=>!Number.isFinite(u.surface)||u.surface<=0))throw Error('Précisez la surface de chaque logement dans la dictée avant de calculer l’ensemble');
    if(Math.abs(units.reduce((v,u)=>v+u.surface,0)-surface)>.02)throw Error('Le total de la fiche diffère des surfaces des logements : corrigez les surfaces annoncées puis transformez la fiche');
    const values=await Promise.all(units.map(async unit=>({unit,value:await fetchOne(unit.surface,unit.type)})));
@@ -85,10 +87,12 @@ async function performEstimate(){
     source:values[0].value.source,periode_debut:values.map(x=>x.value.periode_debut).sort()[0],periode_fin:values.map(x=>x.value.periode_fin).sort().at(-1),
     avertissement:'Ensemble de '+units.length+' logements : somme des estimations DVF calculées séparément selon leur surface. '+values.map(x=>x.unit.label+' ('+x.unit.surface.toLocaleString('fr-FR')+' m²) : '+fmt(x.value.centrale)).join(' ; ')+'. Base avant correction d’état ; une vente en bloc peut différer de la somme des lots.'};
   }else d=await fetchOne(surface,type_bien);
+  if(geometryKey()===startedGeometry&&d.status==='indicatif'){result.dataset.dvfBase=JSON.stringify(d);result.dataset.dvfInputKey=startedGeometry;}
   if(inputKey()!==startedWith){status.textContent='La fiche a changé pendant la recherche. Relancez le calcul sur les informations corrigées.';return false;}
   if(d.status!=='indicatif'){
    status.textContent=(d.message||'Données insuffisantes')+(d.diagnostic?' (Diagnostic : '+d.diagnostic+')':'');return false;
   }
+  result.dataset.dvfBase=JSON.stringify(d);result.dataset.dvfInputKey=geometryKey();
   const rawDvf={centrale:d.centrale,basse:d.basse,haute:d.haute};d=adjustQuality(d,quality);result.dataset.rawDvfEstimate=JSON.stringify(rawDvf);
   q('#qualityAdjustmentStatus').textContent=d.qualityNote;
   result.dataset.unitValuation=String(units.length>1);result.dataset.dvfMedian=String(d.prix_m2_median||'');result.dataset.dvfCount=String(d.nombre||'');result.dataset.periodStart=d.periode_debut||'';result.dataset.periodEnd=d.periode_fin||'';result.dataset.originalEstimate=JSON.stringify({centrale:d.centrale,basse:d.basse,haute:d.haute});result.dataset.adjusted='false';
@@ -97,8 +101,8 @@ async function performEstimate(){
   if(d.qualityChanged)status.textContent+=' État / travaux pris en compte : voir le calcul détaillé.';
   const table=d.comparables.map(c=>`<tr><td>${esc(c.date)}</td><td>${esc(c.surface)} m²</td><td>${fmt(c.prix)}</td><td>${fmt(c.prix_m2)}/m²</td></tr>`).join('');
   result.innerHTML=`<div class="estimationValueMain"><div class="estimationValueLabel">${d.qualityChanged?"Estimation indicative en l’état — hypothèse à vérifier":"Estimation du bien — valeur centrale"}</div><div class="estimationValueAmount">${fmt(d.centrale)}</div><div class="small">Valeur indicative après prise en compte de l’état et des ajustements déclarés</div></div><div class="estimationRange"><div><strong>Fourchette basse</strong><div class="estimationRangeAmount">${fmt(d.basse)}</div></div><div><strong>Fourchette haute</strong><div class="estimationRangeAmount">${fmt(d.haute)}</div></div></div><p class="estimationExplanation">${esc(d.avertissement)}</p><details><summary>Voir les ventes retenues</summary><div style="overflow:auto"><table><thead><tr><th>Date</th><th>Surface</th><th>Prix</th><th>Prix/m²</th></tr></thead><tbody>${table}</tbody></table></div></details><p><a href="${esc(d.source)}" target="_blank" rel="noopener">Source des transactions</a></p>`;
-  return true;
- }catch(e){status.textContent=e.name==='AbortError'?'La recherche DVF dépasse le délai prévu. Réessayez ou utilisez l’import DVF manuel. Aucun prix n’est inventé.':'Impossible de consulter les transactions : '+e.message+'. Aucun montant calculé.';return false;}
+  result.dataset.calculationPending='false';return true;
+ }catch(e){result.dataset.calculationPending='true';if(reuseBase&&result.querySelector('.estimationValueLabel'))result.querySelector('.estimationValueLabel').textContent='Dernier résultat conservé — ajustements à corriger';status.textContent=e.name==='AbortError'?'La recherche DVF dépasse le délai prévu. Réessayez ou utilisez l’import DVF manuel. Aucun prix n’est inventé.':'Impossible de consulter les transactions : '+e.message+'. Aucun montant calculé.';return false;}
  finally{clearTimeout(timer);btn.disabled=false;}
 }
 
@@ -213,16 +217,34 @@ q('#validateRetainedEstimate')?.addEventListener('click',()=>{
  renderMarketIndicators();displayAnnonces();if(roquesFound.length||found.length)loadRoques();
  q('#validatedPrice').dispatchEvent(new Event('input',{bubbles:true}));
 });
-for(const id of ['#surfaceHab','#type','#cadCommune','#address',...qualityIds])q(id)?.addEventListener('input',()=>{
+for(const id of ['#surfaceHab','#type','#cadCommune','#address','#notes','#correction','#propertyUnitsJSON'])q(id)?.addEventListener('input',()=>{
  if(q('#validatedPrice'))q('#validatedPrice').value='';if(q('#validatedReason'))q('#validatedReason').value='';
  if(q('#retainedEstimateText'))q('#retainedEstimateText').textContent='Le bien a été modifié : recalculer l’estimation avant validation.';
  if(q('#qualityAdjustmentStatus'))q('#qualityAdjustmentStatus').textContent='';
- const result=q('#estimationResults');if(result){result.replaceChildren();result.dataset.dvfMedian='';result.dataset.dvfCount='';delete result.dataset.unitValuation;delete result.dataset.originalEstimate;delete result.dataset.adjusted;}
+ const result=q('#estimationResults');if(result){result.replaceChildren();result.dataset.dvfMedian='';result.dataset.dvfCount='';delete result.dataset.unitValuation;delete result.dataset.originalEstimate;delete result.dataset.adjusted;delete result.dataset.dvfBase;delete result.dataset.dvfInputKey;delete result.dataset.calculationPending;}
  found=[];roquesFound=[];roquesReady=false;displayRoques();displayAnnonces();
 });
+function scheduleQuality(){
+ clearTimeout(qualityTimer);const result=q('#estimationResults');
+ if(estimateTask){pendingQuality=true;result.dataset.calculationPending='true';return;}
+ if(!result.dataset.dvfBase&&!result.querySelector('.estimationValueAmount')){q('#qualityAdjustmentStatus').textContent='Les ajustements sont enregistrés. Calculez les ventes DVF pour obtenir une première estimation.';return;}
+ result.dataset.calculationPending='true';q('#estimationStatus').textContent=result.dataset.dvfBase?'Actualisation des montants avec les ajustements saisis…':'Rechargement de la base DVF de cet ancien dossier pour recalculer les ajustements…';
+ qualityTimer=setTimeout(async()=>{const ok=await calculateEstimate({reuseBase:true});if(ok){renderMarketIndicators();displayAnnonces();if(roquesFound.length)loadRoques({calculate:false});}},220);
+}
+q('#estWorkBudget')?.addEventListener('input',()=>{const value=q('#estWorkBudget').value;if(value!==''&&Number(value)>=0)q('#estQualityMode').value='budget';else if(value===''&&q('#estQualityMode').value==='budget')q('#estQualityMode').value='etat';});
+q('#estQualityRate')?.addEventListener('input',()=>{if(q('#estQualityRate').value!=='')q('#estQualityMode').value='etat';});
+for(const id of qualityIds.filter(id=>!['#notes','#correction'].includes(id)))q(id)?.addEventListener('input',scheduleQuality);
+window.estimiaEnsureCurrentEstimate=async()=>{
+ clearTimeout(qualityTimer);const result=q('#estimationResults');
+ if(result.dataset.calculationPending==='true'){
+  if(estimateTask)await estimateTask;
+  if(result.dataset.calculationPending==='true')await calculateEstimate({reuseBase:true});
+  if(result.dataset.calculationPending==='true')throw Error('Les ajustements ne permettent pas un calcul valide. Corrigez-les avant l’impression ou le téléchargement.');
+ }
+};
 q('#estCondition')?.addEventListener('input',()=>{q('#estCondition').dataset.qualityManual='true';});
 for(const id of qualityIds)q(id)?.addEventListener('change',()=>q(id).dispatchEvent(new Event('input',{bubbles:true})));
-document.addEventListener('estimia:estimation-restored',()=>{renderMarketIndicators();if(q('#retainedEstimateText'))q('#retainedEstimateText').textContent=q('#estimationResults')?.dataset.adjusted==='true'?'Estimation modifiée restaurée : '+fmt(Number(q('#validatedPrice')?.value||0)):'';});
+document.addEventListener('estimia:estimation-restored',()=>{if(q('#estimationResults')?.dataset.calculationPending==='true')scheduleQuality();renderMarketIndicators();if(q('#retainedEstimateText'))q('#retainedEstimateText').textContent=q('#estimationResults')?.dataset.adjusted==='true'?'Estimation modifiée restaurée : '+fmt(Number(q('#validatedPrice')?.value||0)):'';});
 function safeAnnonceUrl(value){
  try{const u=new URL(value);return ['https:','http:'].includes(u.protocol)?u.href:'';}catch{return '';}
 }
@@ -309,12 +331,13 @@ async function loadRoques(options={}){
  if(!commune||!type_bien){roquesReady=true;status.textContent='Renseignez la commune et le type du bien.';return;}
  roquesReady=false;roquesFound=[];displayRoques();displayAnnonces();
  button.disabled=true;status.textContent='Recherche Roques : commune du bien puis communes voisines…';
- const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),25000);
+ let stale=false;const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),25000);
  try{
   const r=await fetch('/api/estimation/roques?'+new URLSearchParams({commune,type_bien,prix:price,surface:Number(q('#surfaceHab')?.value||0)}),{signal:controller.signal});const d=await r.json();
+  if(estimationReference()!==price||(q('#cadCommune')?.value||'').trim()!==commune){stale=true;return;}
   if(!r.ok)throw Error(d.detail||'Catalogue inaccessible');roquesFound=d.annonces||[];roquesReady=true;displayRoques();status.textContent=d.message;
  }catch(e){roquesFound=[];roquesReady=true;displayRoques();status.textContent=e.name==='AbortError'?'Recherche trop longue. Réessayez.':'Recherche Roques indisponible : '+e.message;}
- finally{clearTimeout(timer);button.disabled=false;displayAnnonces();}
+ finally{clearTimeout(timer);button.disabled=false;displayAnnonces();if(stale)setTimeout(()=>loadRoques({calculate:false}),0);}
 }
 q('#launchRoques')?.addEventListener('click',loadRoques);
 

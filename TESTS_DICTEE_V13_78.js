@@ -55,7 +55,7 @@ test('Vraie remise indépendante préservée',()=>assert.equal(c.normalizeElectr
 test('État par logement, sans état inventé au studio',()=>{const a=c.conditionSignals('Appartement de 97 m² à rénover entièrement. Studio de 17 m².');assert.equal(a.length,1);assert.equal(a[0].type,'appartement');assert.equal(a[0].condition,'À rénover')});
 test('Négation de rénovation',()=>assert.equal(c.conditionSignals('Appartement qui n’est pas à rénover.').length,0));
 test('Dernier état explicite conservé',()=>assert.equal(c.conditionSignals('Maison à rénover. Je corrige : maison en bon état.').at(-1).condition,'Bon état'));
-const quality93=fs.readFileSync(path.join(__dirname,'static/estimation_v13_44.js'),'utf8');vm.runInContext(quality93.slice(quality93.indexOf('function adjustQuality(d,c){'),quality93.indexOf('let estimateTask=null;')),c);
+const quality93=fs.readFileSync(path.join(__dirname,'static/estimation_v13_44.js'),'utf8');vm.runInContext(quality93.slice(quality93.indexOf('function adjustQuality(d,c){'),quality93.indexOf('let estimateTask=null')),c);
 const base93={centrale:100000,basse:85000,haute:115000},config93={mode:'etat',condition:'À rénover',rate:-15,budget:0,other:0,reason:'',works:'',unitStates:{}};
 test('Correction d’état : -15 %',()=>assert.equal(c.adjustQuality(base93,config93).centrale,85000));
 test('Budget remplace la décote sans doublon',()=>assert.equal(c.adjustQuality(base93,{...config93,mode:'budget',budget:20000}).centrale,80000));

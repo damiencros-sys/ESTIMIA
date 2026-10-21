@@ -205,3 +205,13 @@ textarea{resize:vertical}.cols{display:grid;grid-template-columns:1fr 1fr;gap:10
 .annonceDescription{margin:0;font-size:14px;line-height:1.5;color:#52655d}.annoncePrice{font-size:24px;font-weight:750;color:#0d705a;margin-top:auto;padding-top:8px}
 .annonceLink{display:inline-block;align-self:flex-start;margin-top:6px;color:#0d705a;font-weight:650}
 @media(max-width:640px){.annoncesCards{grid-template-columns:1fr}.annoncePhoto,.annoncePhoto img{height:200px}}
+
+/* V13.94 : champs lisibles à leur hauteur réelle. */
+main textarea{box-sizing:border-box;min-height:46px;line-height:1.45;overflow-y:hidden;overflow-wrap:anywhere;white-space:pre-wrap;resize:vertical}
+main select{width:100%;max-width:100%;min-height:46px;box-sizing:border-box;font:inherit;padding:9px;border:1px solid #cbd6dc;border-radius:10px;background:white}
+.cols>*{min-width:0}.addressLine textarea{flex:1;min-width:0}.estExtraSection textarea{width:100%}
+
+.selectFullValue{display:block;white-space:normal;overflow-wrap:anywhere;font-weight:400;margin-top:5px}.selectFullValue[hidden]{display:none}
+
+.proRow span,.proRow strong{min-width:0;overflow-wrap:anywhere;white-space:normal}
+.ownerFields textarea{width:100%;min-height:46px}
