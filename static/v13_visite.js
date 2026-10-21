@@ -37,12 +37,13 @@ function owner(t){
  m=t.match(/\bfamille\s+([\p{L}'’-]+)/iu); if(m)return 'Famille '+m[1].replace(/^./,c=>c.toUpperCase());
  m=t.match(/(?:propri[ée]taire(?:s)?|chez|pour|au\s+nom\s+de)\s+(monsieur et madame|monsieur|madame|m\. et mme|m\.|mme)\s+([\p{L}'’-]+)(?:\s+([\p{L}'’-]+))?/iu);
  if(m)return [m[1],m[2],(/^(?:au|à|de|dans|une|un|la|le|maison|adresse|téléphone)$/i.test(m[3]||'')?'':m[3])].filter(Boolean).join(' ');
- m=t.match(/\bpropri[ée]taire(?:s)?\s+(?:est|sont|:)?\s*([\p{L}'’-]+(?:\s+[\p{L}'’-]+){0,3}?)(?=\s*(?:,|\.|;|t[ée]l[ée]phone|son\s+t[ée]l[ée]phone|adresse|maison|appartement|villa|immeuble)\b)/iu);
+ m=t.match(/(?:\bpropri[ée]taire(?:s)?\s*(?:(?:est|sont)\s+|:\s*)?|\bappartient\s+[àa]\s+)([\p{L}'’-]+(?:\s+[\p{L}'’-]+){0,3}?)(?=\s*(?:[,.;!?]|$|\b(?:t[ée]l[ée]phone|adresse|maison|appartement|villa|immeuble|studio|terrain)\b))/iu);
  if(m)return clean(m[1]);
  return '';
 }
 function ownerNameParts(value){
  const t=clean(value).replace(/^(?:monsieur et madame|monsieur|madame|m\. et mme|m\.|mme)\s+/iu,'').trim();
+ if(/^(?:consorts?|famille)\s+/i.test(t))return {nom:t,prenom:''};
  const parts=t.split(/\s+/).filter(Boolean);
  if(parts.length<2)return {nom:t,prenom:''};
  if(/^[A-ZÀ-ÖØ-Þ'’-]+$/.test(parts[0]) && !/^[A-ZÀ-ÖØ-Þ'’-]+$/.test(parts[1]))return {nom:parts[0],prenom:parts.slice(1).join(' ')};
@@ -138,7 +139,7 @@ function parseCadParcels(t){
  });
 }
 function loadCadParcelsFromHidden(){
- try{const a=JSON.parse($('#cadParcelsJSON')?.value||'[]');cadParcels=Array.isArray(a)?a.map(x=>({...normParcel(x.section,x.numero),found:!!x.found})).filter(x=>x.section&&x.numero):[]}catch{cadParcels=[]}
+ try{const a=JSON.parse($('#cadParcelsJSON')?.value||'[]');cadParcels=Array.isArray(a)?a.map(x=>({...x,...normParcel(x.section,x.numero),found:!!x.found})).filter(x=>x.section&&x.numero):[]}catch{cadParcels=[]}
  renderCadParcelsList();renderMultiCadPlan();
 }
 function cad(t){
@@ -221,9 +222,13 @@ function announcedUnitRows(t){
  const units=propertyUnits(t);
  return units.length>1?units.map(u=>[u.label+' — surface annoncée',u.surface?fmt(u.surface):'Surface non précisée']).concat([['Total des logements annoncés',units.every(u=>u.surface>0)?fmt(units.reduce((v,u)=>v+u.surface,0)):'À compléter par logement'],['Portée des surfaces','Surfaces déclarées, sans présumer un mesurage Carrez. Les pièces sans logement explicite restent à affecter.']]):[];
 }
-function typeOf(t){return (t.match(/\b(maison de village|maison|villa|appartement|studio|immeuble|terrain|local commercial)\b/i)||[])[1]||''}
+function typeOf(t){return (t.match(/\b(maison de village|maison|villa|appartement|studio|immeuble|terrain de loisirs?|terrain constructible|terrain [àa] b[âa]tir|terrain|mas|local commercial)\b/i)||[])[1]||''}
 function buildInfo(t){
  const r=[['Type de bien',typeOf(t)]];
+ const coproMentions=[...t.matchAll(/\b(?:hors copropri[ée]t[ée]|sans copropri[ée]t[ée]|pas (?:de|en) copropri[ée]t[ée]|en copropri[ée]t[ée]|copropri[ée]t[ée] avec syndic)(?=[\s.,;!?]|$)/gi)];
+ const copro=coproMentions.at(-1);if(copro)r.push(['Régime de copropriété déclaré',/^(?:hors|sans|pas)/i.test(copro[0])?'Hors copropriété':'En copropriété']);
+ if(/^terrain/i.test(typeOf(t))){const areas=[...normalizeDictatedAreas(t).matchAll(/\bterrain(?:\s+(?:de loisirs?|constructible|[àa] b[âa]tir))?\s*(?:de|fait|mesure|:)\s*(\d+(?:[.,]\d+)?)\s*m[²2]/gi)];if(areas.length)r.push(['Surface du terrain déclarée',fmt(n(areas.at(-1)[1]))]);}
+
  const yr=(t.match(/(?:construite?|construction|ann[ée]e)[^0-9]{0,25}((?:18|19|20)\d{2})/)||[])[1];if(yr)r.push(['Année de construction',yr]);
  if(/(?:deux|2)\s+niveaux/i.test(t)||(/\brez[- ]de[- ]chauss[ée]e|\brdc\b/i.test(t)&&/\b[ée]tage\b/i.test(t)))r.push(['Organisation','2 niveaux : rez-de-chaussée + étage']);
  let mi='';if(/non mitoyenne?|sans mitoyennet[ée]/i.test(t))mi='Non mitoyenne';else if(/\bmitoyenne?\b/i.test(t))mi='Mitoyenneté mentionnée';if(mi)r.push(['Mitoyenneté',mi]);
@@ -723,6 +728,10 @@ function networks(t){
  if(/adoucisseur/i.test(t)){const c=cl.find(x=>/adoucisseur/i.test(x))||'';let loc=/buanderie/i.test(c)?'buanderie':'';rows.push(['Adoucisseur','Présent'+(loc?' — '+loc:'')]);}
  return rows;
 }
+function workRemiseAt(t,index,length){
+ const after=t.slice(index+length,index+length+70);
+ return /^\s+(?:(?:en|aux?|à)\s+(?:normes?|neuf|niveau|jour|service|[ée]tat)|[ée]normes?\s+[ée]lectri)/i.test(after);
+}
 function annexes(t){
  const text=clean(t),rows=[],shared=sharedAnnexAreas(t);
  const types=[
@@ -751,7 +760,7 @@ function annexes(t){
  const hits=[];
  for(const [name,rx] of types){
   for(const m of text.matchAll(rx)){
-   if(name==='Remise'&&/^\s+(?:en|aux?)\s+normes?\b/i.test(text.slice(m.index+m[0].length)))continue;
+   if(name==='Remise'&&workRemiseAt(text,m.index,m[0].length))continue;
    if(hits.some(h=>m.index>=h.pos&&m.index<h.end))continue;
    hits.push({name,pos:m.index,end:m.index+m[0].length,match:m[0]});
   }
@@ -1046,7 +1055,8 @@ async function parcelSearch(){
   $('#cadSection').value='';
   $('#cadParcel').value='';
  }
- if(!com||!cadParcels.length){$('#cadStatus').textContent='Commune et au moins une parcelle nécessaires.';return}
+ if(com&&!cadParcels.length){await verifyAddressV137();return}
+ if(!com||!cadParcels.length){$('#cadStatus').textContent='Renseignez la commune et une référence, ou utilisez la recherche depuis l’adresse.';return}
  $('#cadStatus').textContent='Vérification des parcelles…';
  try{
   let insee=field.dataset.insee||'';
@@ -1065,6 +1075,73 @@ async function parcelSearch(){
  }catch(e){$('#cadStatus').textContent='Recherche impossible : '+e.message}
 }
 
+const supplementGroups=[
+ ['Situation du bien',[['estAvailability','Disponibilité'],['estUsage','Usage'],['estRental','Location'],['estRent','Loyer mensuel (€)']]],
+ ['Caractéristiques générales',[['estFloor','Étage'],['estYear','Année de construction'],['estCondition','État général'],['estFeatures','Détails de la visite'],['estPlannedWorks','Travaux à prévoir — déclarations'],['estPartyWall','Mitoyenneté'],['estPMR','Accessibilité PMR'],['estElevator','Ascenseur'],['estParking','Stationnements']]],
+ ['Copropriété',[['estLot','Numéro de lot de copropriété'],['estSyndic','Syndic'],['estCharges','Charges annuelles déclarées (€)'],['estChargesDetails','Précisions sur les charges'],['estCoproWorks','Travaux votés — déclarations'],['estWorks','Travaux d’un ancien dossier — affectation à vérifier']]],
+ ['Environnement et accès',[['estOrientation','Orientation'],['estEnvironment','Environnement'],['estNuisances','Nuisances'],['estAccess','Accès']]],
+ ['Construction et équipements',[['estRoof','Toiture'],['estFacade','Façades'],['estWindows','Menuiseries'],['estHeating','Chauffage et éléments décoratifs'],['estHotWater','Production d’eau chaude'],['estNetworks','Réseaux']]]
+];
+function propertySupplementSections(){
+ const result=supplementGroups.map(([title,fields])=>({title,rows:fields.map(([id,label])=>[label,$('#'+id)?.value||'']).filter(r=>String(r[1]).trim())})).filter(s=>s.rows.length);
+ const docs=[['estDocTitle','Acte de propriété'],['estDocDpe','Diagnostics'],['estDocTax','Taxe foncière'],['estDocCopro','Documents de copropriété'],['estDocSpanc','SPANC']].filter(([id])=>$('#'+id)?.checked).map(([,label])=>[label,'Indiqué disponible — contenu non vérifié']);if(docs.length)result.push({title:'Documents disponibles déclarés',rows:docs});
+ return result;
+}
+function renderSupplementCards(){
+ const facts=$('#facts');if(!facts)return;
+ facts.querySelectorAll('.supplementCard').forEach(x=>x.remove());
+ for(const sec of propertySupplementSections())facts.insertAdjacentHTML('beforeend',card(sec.title,'',sec.rows).replace('proGroup','proGroup supplementCard'));
+ const legacy=$('#legacyWorksLabel');if(legacy)legacy.hidden=!$('#estWorks')?.value;
+}
+function fillVisitExtras(t){
+ const set=(id,value)=>{const el=$('#'+id);if(el&&(!el.value.trim()||el.value===el.dataset.dictationValue)){el.value=value;el.dataset.dictationValue=value;}};
+ const text=normalizeDictatedAreas(t);
+ const charges=[];
+ const rx=/\bcharges?\b[^.!?;\d]{0,85}?(\d+(?:[.,]\d+)?)\s*(?:euros?|€)?\s*(?:environ\s*)?(?:par\s+(an|mois)|annuell?e?s?|mensuell?e?s?)/gi;
+ for(const m of text.matchAll(rx)){const monthly=m[2]==='mois'||/mensuel/i.test(m[0]);charges.push({index:m.index,value:n(m[1])*(monthly?12:1),note:(/environ/i.test(m[0])?'Montant approximatif déclaré. ':'')+(monthly?'Charges mensuelles '+m[1]+' × 12 : montant annualisé. ':'Charges annuelles déclarées. ')})}
+ const prefix=/\bcharges?\s+annuell?e?s?\s*(?:de|:|sont|font|environ)?\s*(\d+(?:[.,]\d+)?)/gi;
+ for(const m of text.matchAll(prefix))charges.push({index:m.index,value:n(m[1]),note:(/environ/i.test(m[0])?'Montant approximatif déclaré. ':'')+'Charges annuelles déclarées. '});
+ const amount=charges.sort((a,b)=>a.index-b.index).at(-1);
+ if(amount){
+  const chargeField=$('#estCharges'),manualCharge=chargeField.value.trim()&&chargeField.value!==chargeField.dataset.dictationValue;
+  set('estCharges',String(Math.round(amount.value*100)/100));
+  const scope=[];if(/assurance\s+de\s+l[' ]immeuble/i.test(text))scope.push('assurance de l’immeuble');
+  if(/[ée]lectricit[ée]\s+(?:des?\s+)?parties?\s+communes?/i.test(text))scope.push('électricité des parties communes');
+  set('estChargesDetails',(manualCharge?'Montant annuel renseigné manuellement ; dernière dictée : '+amount.value.toLocaleString('fr-FR')+' € annualisés, à rapprocher du montant retenu. ':amount.note)+(scope.length?'Postes cités : '+scope.join(' ; ')+'. ':'')+'Périmètre appartement / studio à confirmer si non précisé.');
+ }else{set('estCharges','');set('estChargesDetails','')}
+ const syndic=text.match(/\bsyndic\s+(?:(?:est|:)\s+)?(b[ée]n[ée]vole|professionnel)\b/i);
+ const syndicNeg=syndic&&/(?:pas de|aucun)\s*$/i.test(text.slice(Math.max(0,syndic.index-20),syndic.index));
+ set('estSyndic',syndic&&!syndicNeg?'Syndic '+syndic[1].toLowerCase():'');
+ const floor=markers(text).filter(m=>/étage/.test(m.name)).at(-1);
+ set('estFloor',floor?floor.name+(/dernier\s+[ée]tage/i.test(text)?' — dernier étage':''):'');
+ set('estCondition',/[àa]\s+r[ée]nover|r[ée]novation\s+compl[èe]te/i.test(text)?'À rénover':/[àa]\s+rafra[iî]chir|rafra[iî]chissement/i.test(text)?'À rafraîchir':'');
+ const planned=text.match(/\b(?:en termes de travaux|travaux [àa] pr[ée]voir|travaux de r[ée]novation)\b\s*(?:je r[ée]p[eè]te\s*)?([^.!?;]{1,350})/i);
+ set('estPlannedWorks',planned?clean(planned[1].split(/\bje corrige\b|\bles surfaces\b/i)[0]):'');
+ const features=[];
+ if(/\btraversant\b/i.test(text)&&!/non\s+traversant/i.test(text))features.push('Traversant');
+ if(/\blumineux\b/i.test(text)&&!/(?:non|pas|peu)\s+lumineux/i.test(text))features.push('Lumineux');
+ if(/belle?\s+hauteur\s+sous\s+plafond/i.test(text))features.push('Belle hauteur sous plafond — non chiffrée');
+ if(/[ée]l[ée]ments?\s+anciens?\s+au\s+sol/i.test(text))features.push('Éléments anciens au sol mentionnés — matériaux à confirmer');
+ if(/studio\b[^.!?]{0,100}ind[ée]pendant/i.test(text))features.push('Studio indépendant');
+ if(/studio\b[^.!?]{0,100}accessible depuis le palier/i.test(text))features.push('Studio accessible depuis le palier');
+ if(/kitchenette\s+am[ée]nag[ée]e/i.test(text))features.push('Kitchenette aménagée');
+ set('estFeatures',features.join(' · '));
+ set('estUsage',/usage\s+mixte/i.test(text)?'Mixte':/usage\s+professionnel/i.test(text)?'Professionnel':/usage\s+(?:d[' ]|[àa]\s+l[' ])?habitation/i.test(text)?'Habitation':'');
+ const orientation=text.match(/orient[ée][^.!?;]{0,12}?\b(nord|sud|est|ouest)\s*(?:et|\/|-)\s*(nord|sud|est|ouest)\b/i)||text.match(/orient[ée][^.!?;]{0,12}?\b(nord|sud|est|ouest)\b/i);
+ set('estOrientation',orientation?orientation.slice(1).filter(Boolean).map(x=>x[0].toUpperCase()+x.slice(1).toLowerCase()).join(' / '):'');
+ set('estEnvironment',/centre[- ]ville/i.test(text)?'Centre-ville':'');
+ const voted=text.match(/\btravaux\s+vot[ée]s?\s*[:：]?\s*([^.!?;]{1,120})/i);
+ const noVote=/\b(?:pas de|aucuns?)\s+travaux\s+vot[ée]s?\b/i.test(text);
+ set('estCoproWorks',noVote?'Aucun travail voté déclaré':voted?clean(voted[1]):'');
+}
+function repairVisitSupplements(){
+ const t=clean(($('#notes')?.value||'')+' '+($('#correction')?.value||''));if(!t)return;
+ fillVisitExtras(t);fillConstructionExtras(t);
+ const mentions=[...t.matchAll(/\bremises?\b/gi)];
+ if(mentions.length&&mentions.every(m=>workRemiseAt(t,m.index,m[0].length)))$('#facts')?.querySelectorAll('.annexRow').forEach(row=>{if(/^remise$/i.test(row.children[0]?.textContent.trim()||''))row.remove()});
+ renderSupplementCards();estUpdateCounts();
+}
+document.addEventListener('estimia:contacts-restored',repairVisitSupplements);
 // Remplissage prudent des compléments, à partir de la dictée complète.
 // Ne remplace jamais une valeur renseignée manuellement.
 function fillConstructionExtras(t){
@@ -1083,7 +1160,8 @@ function fillConstructionExtras(t){
  if(/menuiseries?[^.!?]{0,30}pvc/i.test(norm))windows.push('PVC');
  set('#estWindows',uniq(windows).join(' · '));
  const equipmentRows=heating(norm);
- const equipmentText=r=>(r[1]==='—'?'':r[1]+' × ')+(r[2]||r[0]);
+ if(/^(?:décoratives?|décoratifs?)$/i.test($('#estHeating')?.value||''))$('#estHeating').value='';
+ const equipmentText=r=>(r[1]==='—'?'':r[1]+' × ')+r[0]+(r[2]?' — '+r[2]:'');
  set('#estHeating',equipmentRows.filter(r=>r[0]!=="Production d'eau chaude").map(equipmentText).join(' · '));
  set('#estHotWater',equipmentRows.filter(r=>r[0]==="Production d'eau chaude").map(equipmentText).join(' · '));
  const nets=[];
@@ -1102,7 +1180,7 @@ async function render(){
  const mail=emailFromDictation(t);
  // Synchroniser les cartes dès que la dictée a rempli les champs historiques.
  if(o||ph||mail)ownUpdateFromDictation(o,ph,mail);
- const a=address(t);if(a&&a.street){$('#address').value=a.street;$('#cadCommune').value=a.city;$('#cadCommune').dataset.postcode=a.postcode||'';$('#cadCommune').dataset.insee='';void normalizeCommune(a.city,a.postcode||'');}
+ const a=address(t);if(a&&a.street&&(!$('#address').value||$('#address').value===$('#address').dataset.dictationValue)){$('#address').value=a.street;$('#address').dataset.dictationValue=a.street;$('#cadCommune').value=a.city;$('#cadCommune').dataset.postcode=a.postcode||'';$('#cadCommune').dataset.insee='';void normalizeCommune(a.city,a.postcode||'');}
  const cps=parseCadParcels(t);if(cps.length){cps.forEach(p=>addCadParcel(p.section,p.numero,false));$('#cadSection').value='';$('#cadParcel').value='';}
  const cm=commune(t);
  if(cm&&!$('#cadCommune').value){
@@ -1121,6 +1199,7 @@ async function render(){
  $('#surfaceHab').dataset.needsReview=String(surfaceAlerts.length>0&&habDeclared==null);
  if(units.length>1&&units.every(u=>u.surface>0))$('#surfaceHab').value=declaredPropertySurface(t).toFixed(2);
  else if(habDeclared!=null)$('#surfaceHab').value=habDeclared.toFixed(2);
+ else if(units.length===1&&announced>0)$('#surfaceHab').value=announced.toFixed(2);
  else if(total&&!surfaceAlerts.length)$('#surfaceHab').value=total.toFixed(2);
  else $('#surfaceHab').value='';
  if(carrez!=null)$('#surfaceCarrez').value=carrez.toFixed(2);
@@ -1148,7 +1227,8 @@ async function render(){
  if(extras.length)out+=card('Informations complémentaires conservées','📌',extras);
  out+='<details class="rawNotes"><summary>📝 Voir la dictée originale complète</summary><div>'+E(raw)+'</div></details>';
  $('#facts').innerHTML=out;
- fillConstructionExtras(t);
+ fillVisitExtras(t);fillConstructionExtras(t);renderSupplementCards();estUpdateCounts();
+ if(!cadParcels.length&&$('#address').value&&$('#cadCommune').value)void verifyAddressV137({automatic:true});
  if(estimateBefore!==estimateFields())$('#surfaceHab').dispatchEvent(new Event('input',{bubbles:true}));
 }
 
@@ -1169,22 +1249,79 @@ function ficheTitle(){
  return `Fiche de visite — ${owner} — ${addr}`;
 }
 
-async function verifyAddressV137(){
- const input=$('#address'), original=input?.value?.trim(); if(!original)return;
- const commune=$('#cadCommune')?.value?.trim()||'';
- const insee=$('#cadCommune')?.dataset.insee||'';
- const cp=$('#cadCommune')?.dataset.postcode||((original.match(/\b\d{5}\b/)||[])[0]||'');
- $('#addressStatus').textContent='Vérification dans la Base Adresse Nationale (adresses issues des BAL)…';
- try{
-  const qs=new URLSearchParams({q:original}); if(cp)qs.set('postcode',cp); if(commune&&!/^\d{5}$/.test(commune))qs.set('city',commune); if(insee)qs.set('citycode',insee);
-  const r=await fetch('/api/geocode?'+qs.toString()), j=await r.json(); if(!r.ok)throw new Error(j.detail||'Recherche impossible');
-  const x=(j.results||[])[0];
-  if(!x){ $('#addressStatus').textContent='⚠ Adresse non retrouvée dans la BAL/BAN pour cette commune — adresse dictée conservée.'; return; }
-  input.value=x.label||original;
-  if(x.city){$('#cadCommune').value=x.city;$('#cadCommune').dataset.insee=x.citycode||insee;$('#cadCommune').dataset.postcode=x.postcode||cp}
-  $('#addressStatus').textContent='✓ Adresse vérifiée dans la BAL/BAN : '+(x.label||original);
- }catch(e){ $('#addressStatus').textContent='⚠ Vérification indisponible — adresse dictée conservée.'; }
+let addressTask=0,autoAddressTried='';
+function addressKey(){return JSON.stringify([$('#address')?.value||'',$('#cadCommune')?.value||''])}
+function addressChoiceBox(){
+ let box=$('#addressChoices');if(!box){box=document.createElement('div');box.id='addressChoices';$('#addressStatus').after(box)}return box;
 }
+function streetIdentity(value){return low(value).split(/\b\d{5}\b/)[0].replace(/\b(?:à|a)\s+lamalou.*$/i,'').replace(/[^a-zà-ÿ0-9]+/g,' ').trim()}
+async function lookupPointParcels(address,task){
+ const start=addressKey(),refsBefore=JSON.stringify(cadParcels),code=address.citycode||$('#cadCommune').dataset.insee||$('#cadCommune').value;
+ if(cadParcels.length){$('#cadStatus').textContent='Références existantes conservées. Vérifiez leur rattachement à l’adresse.';return}
+ const coords=address.coordinates;
+ if(!Array.isArray(coords)||coords.length<2||!coords.every(Number.isFinite)||(!address.housenumber&&address.type!=='housenumber')){$('#cadStatus').textContent='Adresse sans localisation précise au numéro : aucune parcelle déduite. Renseignez les références ou précisez l’adresse.';return}
+ $('#cadStatus').textContent='Recherche officielle des parcelles contenant le point de l’adresse…';
+ try{
+  const response=await fetch('/api/cadastre/point?'+new URLSearchParams({commune:code,lon:coords[0],lat:coords[1]})),result=await response.json();
+  if(task!==addressTask||addressKey()!==start||JSON.stringify(cadParcels)!==refsBefore)return;
+  if(!response.ok)throw Error(result.detail||'Recherche indisponible');
+  const refs=result.parcels||[];
+  const accept=ref=>{
+   if(task!==addressTask||addressKey()!==start)return;
+   const p=normParcel(ref.section,ref.numero);if(!p)return;
+   if(!cadParcels.some(x=>parcelKey(x)===parcelKey(p)))cadParcels.push({...p,found:true,origin:'adresse',address:$('#address').value,commune:code});
+   syncCadParcels();renderMultiCadPlan();
+   $('#cadStatus').textContent='Parcelle(s) au point d’adresse : '+cadParcels.map(p=>p.section+' '+p.numero).join(' ; ')+'. Rattachement au bien et autres parcelles éventuelles à confirmer. L’urbanisme est consulté automatiquement.';
+  };
+  if(refs.length===1)accept(refs[0]);
+  else if(refs.length>1){
+   $('#cadStatus').textContent='Plusieurs parcelles couvrent ce point : choisissez les références à retenir. Aucun choix automatique.';
+   const box=addressChoiceBox();refs.forEach(ref=>{const btn=document.createElement('button');btn.type='button';btn.textContent='Ajouter la parcelle '+ref.section+' '+ref.numero;btn.onclick=()=>{accept(ref);btn.disabled=true};box.appendChild(btn)});
+  }else $('#cadStatus').textContent='Aucune parcelle ne contient le point d’adresse renvoyé par le service. Le point peut se situer dans la rue : précisez les références, aucune parcelle voisine n’est attribuée au hasard.';
+ }catch(e){if(task===addressTask&&addressKey()===start)$('#cadStatus').textContent=e.message}
+}
+async function verifyAddressV137(options={}){
+ const input=$('#address'),original=input?.value?.trim();if(!original){$('#cadStatus').textContent='Renseignez l’adresse du bien et sa commune pour rechercher les parcelles.';return}
+ const automatic=options.automatic===true,start=addressKey();
+ if(automatic&&autoAddressTried===start)return;if(automatic)autoAddressTried=start;
+ const task=++addressTask,commune=$('#cadCommune')?.value?.trim()||'',insee=$('#cadCommune')?.dataset.insee||'';
+ const cp=$('#cadCommune')?.dataset.postcode||((original.match(/\b\d{5}\b/)||[])[0]||'');
+ addressChoiceBox().innerHTML='';$('#addressStatus').textContent='Vérification de l’adresse et recherche cadastrale…';
+ try{
+  const qs=new URLSearchParams({q:original});if(cp)qs.set('postcode',cp);if(commune&&!/^\d{5}$/.test(commune))qs.set('city',commune);if(insee)qs.set('citycode',insee);
+  const response=await fetch('/api/geocode?'+qs),result=await response.json();
+  if(task!==addressTask||addressKey()!==start)return;
+  if(!response.ok)throw Error(result.detail||'Recherche impossible');
+  const choices=(result.results||[]).filter(x=>!insee||x.citycode===insee);
+  const apply=async (x,chosen=false)=>{
+   if(task!==addressTask||addressKey()!==start)return;
+   const canonical=x.label||original;input.value=automatic&&!chosen?original:canonical;input.dataset.verifiedAddress=canonical;if(automatic||original===input.dataset.dictationValue)input.dataset.dictationValue=input.value;
+   if(x.city){$('#cadCommune').value=x.city;$('#cadCommune').dataset.insee=x.citycode||insee;$('#cadCommune').dataset.postcode=x.postcode||cp}
+   addressChoiceBox().innerHTML='';$('#addressStatus').textContent='Adresse vérifiée : '+input.value;
+   input.dispatchEvent(new Event('change',{bubbles:true}));
+   await lookupPointParcels(x,task);
+  };
+  if(!choices.length){$('#addressStatus').textContent='Adresse non retrouvée dans cette commune : texte conservé. Aucune parcelle ni zone déduite.';return}
+  const wanted=streetIdentity(original.replace(new RegExp('\\s*'+commune.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*$','i'),''));
+  const exact=choices.filter(x=>streetIdentity(x.housenumber&&x.street?x.housenumber+' '+x.street:x.label.replace(/\s+\d{5}\b[\s\S]*$/,''))===wanted&&Number(x.score)>=.75);
+  if(exact.length===1){await apply(exact[0]);return}
+  $('#addressStatus').textContent='Adresse à confirmer : le service propose une écriture différente ou plusieurs résultats. Le texte dicté est conservé.';
+  choices.slice(0,5).forEach(x=>{const btn=document.createElement('button');btn.type='button';btn.className='secondary';btn.textContent='Utiliser « '+x.label+' » et rechercher les parcelles';btn.onclick=()=>apply(x,true);addressChoiceBox().appendChild(btn)});
+ }catch(e){if(task===addressTask&&addressKey()===start)$('#addressStatus').textContent='Vérification indisponible : '+e.message+'. Adresse conservée.'}
+}
+$('#findAddressParcels')?.addEventListener('click',()=>verifyAddressV137());
+$('#address')?.addEventListener('input',()=>{
+ addressTask++;autoAddressTried='';addressChoiceBox().innerHTML='';
+ const kept=cadParcels.filter(p=>p.origin!=='adresse'||p.address===$('#address').value);
+ if(kept.length!==cadParcels.length){cadParcels=kept;syncCadParcels();renderMultiCadPlan();$('#cadStatus').textContent='Adresse modifiée : les parcelles déduites de l’ancienne adresse ont été retirées.';}
+});
+
+$('#cadCommune')?.addEventListener('input',()=>{
+ addressTask++;autoAddressTried='';addressChoiceBox().innerHTML='';
+ const kept=cadParcels.filter(p=>p.origin!=='adresse');
+ if(kept.length!==cadParcels.length){cadParcels=kept;syncCadParcels();renderMultiCadPlan();$('#cadStatus').textContent='Commune modifiée : relancez la recherche depuis l’adresse. Les références saisies manuellement sont conservées.';}
+});
+
 function cadMapURL(){
  const c=$('#cadCommune')?.value?.trim();
  if(c&&cadParcels.length)return '/api/cadastre/multi-map.png?commune='+encodeURIComponent($('#cadCommune').dataset.insee||c)+'&refs='+encodeURIComponent(multiRefsParam())+'&v=13.41';
@@ -1244,10 +1381,12 @@ async function optimizedPhotoDataURL(file,maxSide=800,quality=.58){
  });
 }
 async function buildExportPayload(){
+ renderSupplementCards();
  const sections=[];
  document.querySelectorAll('#facts .levelBlock').forEach(b=>{const title=b.querySelector('.levelName')?.value||b.dataset.level||'Niveau';const rows=[...b.querySelectorAll('.editableSurface')].map(r=>[r.querySelector('.pieceName')?.value||'',(r.querySelector('.pieceVal')?.value||'')+(r.querySelector('.pieceVal')?.value?' m²':'')]);const total=b.querySelector('.surfaceTotal');if(total)rows.push([total.querySelector('span')?.innerText||'',total.querySelector('strong')?.innerText||'']);sections.push({title,rows})});
  document.querySelectorAll('#facts .otherSurface').forEach(b=>sections.push({title:b.querySelector('h4')?.innerText||'Surfaces annexes',rows:[...b.querySelectorAll('.surfaceRow')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('b')?.innerText||''])}));
- document.querySelectorAll('#facts .proGroup').forEach(b=>sections.push({title:b.querySelector('h3')?.innerText||'Informations',rows:[...b.querySelectorAll('.proRow')].map(r=>r.classList.contains('annexRow')?[r.children[0]?.innerText||'',(r.children[1]?.innerText||'')+' — '+(r.children[2]?.innerText||'')]:[r.querySelector('span')?.innerText||'',r.querySelector('strong')?.innerText||''])}));
+ document.querySelectorAll('#facts .proGroup:not(.supplementCard)').forEach(b=>sections.push({title:b.querySelector('h3')?.innerText||'Informations',rows:[...b.querySelectorAll('.proRow')].map(r=>r.classList.contains('annexRow')?[r.children[0]?.innerText||'',(r.children[1]?.innerText||'')+' — '+(r.children[2]?.innerText||'')]:[r.querySelector('span')?.innerText||'',r.querySelector('strong')?.innerText||''])}));
+ sections.push(...propertySupplementSections());
  sections.push(...(window.estimiaUrbanismeExport?.()||[]));
  const estimateBox=document.querySelector('#estimationResults');
  const estimation={centrale:estimateBox?.querySelector('.estimationValueAmount')?.innerText||'',
@@ -1260,7 +1399,7 @@ async function buildExportPayload(){
  estimation.comparables=[...estimateBox.querySelectorAll('details tbody tr')].map(r=>[...r.querySelectorAll('td')].map(c=>c.innerText)).filter(r=>r.length===4);
  estimation.source=estimateBox.querySelector('a')?.href||'';
  const advisor={name:$('#exportAdvisorName')?.value||'',agency:$('#exportAgency')?.value||'',phone:$('#exportAdvisorPhone')?.value||''};
- const argumentaire={forts:$('#estStrongPoints')?.value||'',limites:$('#estLimitations')?.value||'',travaux:$('#estWorks')?.value||'',comparables:$('#estComparableReason')?.value||''};
+ const argumentaire={forts:$('#estStrongPoints')?.value||'',limites:$('#estLimitations')?.value||'',travaux:$('#estValueWorks')?.value||'',comparables:$('#estComparableReason')?.value||''};
  const annonces=[...document.querySelectorAll('#annoncesResults .annonceCard')].slice(0,6).map(card=>({
   titre:card.querySelector('h4')?.innerText||'',description:card.querySelector('.annonceDescription')?.innerText||'',
   prix:card.querySelector('.annoncePrice')?.innerText||'',site:card.querySelector('.annonceAgency')?.innerText||'',
@@ -1284,6 +1423,7 @@ async function downloadWord(){
 }
 
 async function printableHTML(){
+ renderSupplementCards();
  const title=ficheTitle(), facts=$('#facts')?.innerHTML||'', mapUrl=cadMapURL();
  const payload=await buildExportPayload(),v=payload.estimation;
  const urbanismePrint=(window.estimiaUrbanismeExport?.()||[]).map(s=>`<section class="proGroup"><h2>${E(s.title)}</h2>${s.rows.map(([k,v])=>`<p><b>${E(k)}</b> : ${E(v)}</p>`).join('')}</section>`).join('');

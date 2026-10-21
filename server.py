@@ -56,7 +56,8 @@ def geocode(q:str, postcode:str="", city:str="", citycode:str=""):
                 "label":pr.get("label") or pr.get("name") or "", "postcode":pc,
                 "city":cn, "citycode":cc, "score":pr.get("score"),
                 "parcels":pr.get("cad_parcelles") or pr.get("parcelles") or [],
-                "coordinates":(f.get("geometry") or {}).get("coordinates")
+                "coordinates":(f.get("geometry") or {}).get("coordinates"),
+                "type":pr.get("type") or "", "housenumber":pr.get("housenumber") or "", "street":pr.get("street") or ""
             })
         return {"results":out}
     except Exception:
@@ -161,6 +162,38 @@ def _parcel_feature(commune:str, section:str, numero:str):
     code_insee=str(resolved["code"]);commune_name=resolved.get("name") or commune
     f,sec_api,no=_fetch_parcel(code_insee,section,numero);display_sec=re.sub(r"^0(?=[A-Z]$)","",sec_api)
     return f,commune_name,code_insee,display_sec,no
+
+@app.get('/api/cadastre/point')
+def cadastre_point(commune:str, lon:float, lat:float):
+    """Parcelles contenant le point d'adresse, sans recherche du voisin le plus proche."""
+    import math
+    from shapely.geometry import Point,shape
+    from shapely.validation import make_valid
+    if not math.isfinite(lon) or not math.isfinite(lat) or not -180<=lon<=180 or not -90<=lat<=90:
+        raise HTTPException(400,'Coordonnées invalides.')
+    resolved=_resolve_commune(commune)
+    if not resolved or not re.fullmatch(r'\d{5}',str(resolved.get('code',''))):raise HTTPException(400,'Commune non reconnue.')
+    code=str(resolved['code']);point=Point(lon,lat)
+    params={'geom':json.dumps({'type':'Point','coordinates':[lon,lat]},separators=(',',':')),'source_ign':'PCI'}
+    try:data=get_json('https://apicarto.ign.fr/api/cadastre/parcelle?'+urllib.parse.urlencode(params))
+    except Exception:raise HTTPException(502,'La recherche cadastrale officielle depuis l’adresse est indisponible. Réessayez ou renseignez les références manuellement.')
+    refs={}
+    for f in data.get('features',[]):
+        pr=f.get('properties') or {};feature_code=str(pr.get('code_insee') or str(pr.get('code_dep') or '')+str(pr.get('code_com') or ''))
+        if feature_code!=code:continue
+        try:
+            polygon=make_valid(shape(f.get('geometry')))
+            if polygon.is_empty or polygon.geom_type not in ('Polygon','MultiPolygon') or polygon.area<=0 or not polygon.covers(point):continue
+        except Exception:continue
+        section=str(pr.get('section') or '').upper();numero=str(pr.get('numero') or '')
+        if not re.fullmatch(r'[0-9A-Z]{1,3}',section) or not re.fullmatch(r'\d{1,4}',numero):continue
+        if int(numero)<=0:continue
+        section=re.sub(r'^0(?=[A-Z]$)','',section);numero=str(int(numero))
+        refs[(section,numero)]={'section':section,'numero':numero,'id':str(pr.get('id') or pr.get('idu') or ''),'found':True}
+    return {'commune':resolved.get('name') or commune,'code_insee':code,'parcels':list(refs.values()),
+            'status':'unique' if len(refs)==1 else 'ambiguous' if refs else 'not_found',
+            'source':'IGN API Carto — Parcellaire Express PCI','source_url':'https://apicarto.ign.fr/api/doc/cadastre',
+            'message':'Parcelle(s) contenant le point de l’adresse. Le rattachement au bien et les éventuelles autres parcelles doivent être confirmés ; ce résultat ne détermine pas les lots de copropriété.'}
 
 def _geom_rings(g):
     if not g:return []
