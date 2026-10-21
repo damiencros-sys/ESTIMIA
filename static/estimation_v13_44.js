@@ -2,6 +2,12 @@
 const q=s=>document.querySelector(s);
 const fmt=n=>Number(n).toLocaleString('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0});
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const transactionDataset='https://www.data.gouv.fr/datasets/demandes-de-valeurs-foncieres-geolocalisees';
+window.estimiaTransactionSourceUrl=value=>{
+ try{const u=new URL(String(value||''));if(!['https:','http:'].includes(u.protocol))return '';if(u.hostname==='files.data.gouv.fr'&&u.pathname.startsWith('/geo-dvf/'))return transactionDataset;return u.href;}catch{return '';}
+};
+function repairTransactionLinks(){document.querySelectorAll('#estimationResults a[href]').forEach(a=>{const fixed=window.estimiaTransactionSourceUrl(a.getAttribute('href'));if(fixed)a.href=fixed;});}
+document.addEventListener('estimia:estimation-restored',repairTransactionLinks);
 const btn=q('#launchEstimation');if(!btn)return;
 
 const qualityIds=['#estCondition','#estPlannedWorks','#estQualityMode','#estQualityRate','#estWorkBudget','#estOtherAdjustment','#estQualityReason','#notes','#correction'];
@@ -100,7 +106,7 @@ async function performEstimate(reuseBase=false){
   status.textContent=units.length>1?`${units.length} logements calculés séparément — ${d.nombre} références affichées dédoublonnées. Valeur indicative de l’ensemble.`:`${d.nombre} ventes filtrées — base statistique DVF et corrections détaillées ci-dessous.`;
   if(d.qualityChanged)status.textContent+=' État / travaux pris en compte : voir le calcul détaillé.';
   const table=d.comparables.map(c=>`<tr><td>${esc(c.date)}</td><td>${esc(c.surface)} m²</td><td>${fmt(c.prix)}</td><td>${fmt(c.prix_m2)}/m²</td></tr>`).join('');
-  result.innerHTML=`<div class="estimationValueMain"><div class="estimationValueLabel">${d.qualityChanged?"Estimation indicative en l’état — hypothèse à vérifier":"Estimation du bien — valeur centrale"}</div><div class="estimationValueAmount">${fmt(d.centrale)}</div><div class="small">Valeur indicative après prise en compte de l’état et des ajustements déclarés</div></div><div class="estimationRange"><div><strong>Fourchette basse</strong><div class="estimationRangeAmount">${fmt(d.basse)}</div></div><div><strong>Fourchette haute</strong><div class="estimationRangeAmount">${fmt(d.haute)}</div></div></div><p class="estimationExplanation">${esc(d.avertissement)}</p><details><summary>Voir les ventes retenues</summary><div style="overflow:auto"><table><thead><tr><th>Date</th><th>Surface</th><th>Prix</th><th>Prix/m²</th></tr></thead><tbody>${table}</tbody></table></div></details><p><a href="${esc(d.source)}" target="_blank" rel="noopener">Source des transactions</a></p>`;
+  result.innerHTML=`<div class="estimationValueMain"><div class="estimationValueLabel">${d.qualityChanged?"Estimation indicative en l’état — hypothèse à vérifier":"Estimation du bien — valeur centrale"}</div><div class="estimationValueAmount">${fmt(d.centrale)}</div><div class="small">Valeur indicative après prise en compte de l’état et des ajustements déclarés</div></div><div class="estimationRange"><div><strong>Fourchette basse</strong><div class="estimationRangeAmount">${fmt(d.basse)}</div></div><div><strong>Fourchette haute</strong><div class="estimationRangeAmount">${fmt(d.haute)}</div></div></div><p class="estimationExplanation">${esc(d.avertissement)}</p><details><summary>Voir les ventes retenues</summary><div style="overflow:auto"><table><thead><tr><th>Date</th><th>Surface</th><th>Prix</th><th>Prix/m²</th></tr></thead><tbody>${table}</tbody></table></div></details><p><a href="${esc(window.estimiaTransactionSourceUrl(d.source))}" target="_blank" rel="noopener">Source des transactions</a></p>`;
   result.dataset.calculationPending='false';return true;
  }catch(e){result.dataset.calculationPending='true';if(reuseBase&&result.querySelector('.estimationValueLabel'))result.querySelector('.estimationValueLabel').textContent='Dernier résultat conservé — ajustements à corriger';status.textContent=e.name==='AbortError'?'La recherche DVF dépasse le délai prévu. Réessayez ou utilisez l’import DVF manuel. Aucun prix n’est inventé.':'Impossible de consulter les transactions : '+e.message+'. Aucun montant calculé.';return false;}
  finally{clearTimeout(timer);btn.disabled=false;}

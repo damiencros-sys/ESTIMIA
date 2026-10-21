@@ -63,3 +63,11 @@ test('Plus-value explicitement chiffrée',()=>assert.equal(c.adjustQuality(base9
 test('Comparables de même état : aucune correction',()=>assert.equal(c.adjustQuality(base93,{...config93,mode:'aucun'}).centrale,100000));
 test('Budget supérieur à la valeur : refus sans montant négatif',()=>assert.throws(()=>c.adjustQuality(base93,{...config93,mode:'budget',budget:200000})));
 console.log('Total V13.93 : '+tests+' tests exécutés');
+
+// V13.95 — lien de consultation distinct du répertoire technique DVF.
+c.window={};c.URL=URL;vm.runInContext(quality93.slice(quality93.indexOf('const transactionDataset='),quality93.indexOf('function repairTransactionLinks()')),c);
+test('Répertoire technique DVF vers page officielle',()=>assert.equal(c.window.estimiaTransactionSourceUrl('https://files.data.gouv.fr/geo-dvf/latest/'),'https://www.data.gouv.fr/datasets/demandes-de-valeurs-foncieres-geolocalisees'));
+test('Fichier DVF vers page de consultation',()=>assert.equal(c.window.estimiaTransactionSourceUrl('https://files.data.gouv.fr/geo-dvf/latest/csv/2025/communes/34/34126.csv'),'https://www.data.gouv.fr/datasets/demandes-de-valeurs-foncieres-geolocalisees'));
+test('Autre source HTTPS conservée',()=>assert.equal(c.window.estimiaTransactionSourceUrl('https://www.data.gouv.fr/'),'https://www.data.gouv.fr/'));
+test('Protocole non navigable refusé',()=>assert.equal(c.window.estimiaTransactionSourceUrl('javascript:alert(1)'),''));
+console.log('Total V13.95 : '+tests+' tests exécutés');

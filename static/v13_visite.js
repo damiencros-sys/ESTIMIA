@@ -1427,8 +1427,8 @@ async function buildExportPayload(){
   reperes:[...document.querySelectorAll('#marketIndicators tr')].filter(r=>estimateBox?.dataset.adjusted!=='true'||!/estimation statistique/i.test(r.querySelector('th')?.innerText||'')).map(r=>[r.querySelector('th')?.innerText||'',r.querySelector('td')?.innerText||'']).concat([['Avis d’ajustement',document.querySelector('#marketAdjustmentAdvice')?.innerText||'']]),
   retenue:estimateBox?.dataset.adjusted!=='true'&&document.querySelector('#validatedPrice')?.value?Number(document.querySelector('#validatedPrice').value).toLocaleString('fr-FR')+' €':'',
   justification:document.querySelector('#validatedReason')?.value||''};
- estimation.comparables=[...estimateBox.querySelectorAll('details tbody tr')].map(r=>[...r.querySelectorAll('td')].map(c=>c.innerText)).filter(r=>r.length===4);
- estimation.source=estimateBox.querySelector('a')?.href||'';
+ estimation.comparables=[...estimateBox.querySelectorAll('details tbody tr')].map(r=>[...r.querySelectorAll('td')].map(c=>(c.textContent||'').trim())).filter(r=>r.length===4&&r.some(v=>v));
+ const transactionSource=estimateBox.querySelector('a')?.href||'';estimation.source=window.estimiaTransactionSourceUrl?.(transactionSource)||transactionSource;
  const advisor={name:$('#exportAdvisorName')?.value||'',agency:$('#exportAgency')?.value||'',phone:$('#exportAdvisorPhone')?.value||''};
  const argumentaire={forts:$('#estStrongPoints')?.value||'',limites:$('#estLimitations')?.value||'',travaux:$('#estValueWorks')?.value||'',comparables:$('#estComparableReason')?.value||''};
  const annonces=[...document.querySelectorAll('#annoncesResults .annonceCard')].slice(0,6).map(card=>({
