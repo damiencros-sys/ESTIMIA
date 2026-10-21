@@ -657,7 +657,7 @@ def pdf_export(p:WordPayload):
             rows=s.get('rows') or []
             rows=[(x[0],x[1]) for x in rows if isinstance(x,(list,tuple)) and len(x)>=2 and str(x[1]).strip()]
             if rows:
-                story.append(Paragraph(text(s.get('title') or 'Informations'),h));add_table(rows)
+                story.append(Paragraph(text(re.sub('[\U0001F000-\U0001FAFF\u2600-\u27BF\uFE0F]', '', str(s.get('title') or 'Informations')).strip()),h));add_table(rows)
     elif p.facts.strip():
         story.extend([Paragraph('RELEVÉ DE VISITE',h),Paragraph(text(p.facts).replace('\n','<br/>'),normal)])
     if p.photos:
@@ -671,7 +671,7 @@ def pdf_export(p:WordPayload):
             t=Table([[row[0][0],row[1][0]],[row[0][1],row[1][1]]],colWidths=[82*mm,82*mm],hAlign='CENTER')
             t.setStyle(TableStyle([('BOX',(0,0),(-1,-1),.35,colors.HexColor('#CCD5DB')),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('ALIGN',(0,0),(-1,-1),'CENTER'),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)]));story.append(KeepTogether(t));story.append(Spacer(1,2*mm))
     if p.estimation.get('comparables'):
-        story.extend([Paragraph('VENTES RÉALISÉES — RÉFÉRENCES DVF',h),Paragraph('Transactions utilisées dans le calcul statistique ; leur comparabilité qualitative doit être appréciée lors de la visite.',normal)])
+        story.extend([Paragraph('VENTES RÉALISÉES — RÉFÉRENCES DVF',h),Paragraph('Transactions utilisées dans le calcul statistique ; leur comparabilité qualitative doit être appréciée lors de la visite.',market_intro)])
         rows=[['Date','Surface','Prix de vente','Prix / m²']]+[r for r in p.estimation['comparables'][:30] if isinstance(r,list) and len(r)==4]
         table=Table([[Paragraph(text(v),normal) for v in row] for row in rows],colWidths=[35*mm,35*mm,47*mm,47*mm],repeatRows=1)
         table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),.4,colors.HexColor('#CCD5DB')),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#F2F6F5')),('VALIGN',(0,0),(-1,-1),'TOP')]))

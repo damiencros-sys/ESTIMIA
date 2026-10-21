@@ -40,14 +40,58 @@ function cleanDictation(text){
   x=x.replace(/\b([\p{L}\d'-]{2,})\s+\1\b/giu,'$1');
   return x.trim();
 }
+// V13.89 — chaque séquence reste modifiable, même après réouverture du dossier.
+function historyText(){return dictationHistory.map(d=>String(d.cleaned||'').trim()).filter(Boolean).join(' ')}
+function rebaseDictations(){
+ let before='';
+ for(const d of dictationHistory){d.before=before;before=(before+' '+String(d.cleaned||'').trim()).trim()}
+ return before;
+}
+function syncNotesToHistory(){
+ if(recognizing||recordStopping)return;
+ const current=$('#notes').value,previous=historyText();
+ if(current===previous)return;
+ if(!dictationHistory.length){
+   if(current.trim())dictationHistory.push({before:'',raw:current,cleaned:current,date:null,legacy:true});
+ }else{
+   // Reporter une correction du texte complet dans les séquences touchées,
+   // sans écraser les corrections manuelles lors d'une édition de l'historique.
+   let start=0,oldEnd=previous.length,newEnd=current.length;
+   while(start<oldEnd&&start<newEnd&&previous[start]===current[start])start++;
+   while(oldEnd>start&&newEnd>start&&previous[oldEnd-1]===current[newEnd-1]){oldEnd--;newEnd--}
+   const delta=newEnd-oldEnd;
+   const boundary=n=>n<=start?n:n>=oldEnd?n+delta:newEnd;
+   let offset=0,last=0;
+   const values=dictationHistory.map(d=>String(d.cleaned||'').trim());
+   values.forEach((value,i)=>{
+     offset+=value.length;
+     if(value&&values.slice(i+1).some(Boolean))offset++;
+     const end=i===values.length-1?current.length:Math.max(last,boundary(offset));
+     dictationHistory[i].cleaned=current.slice(last,end).trim();last=end;
+   });
+ }
+ rebaseDictations();persistDictations();renderHistory();
+}
 function renderHistory(){
   const b=$('#dictationHistory');
   if(!b) return;
   b.innerHTML=dictationHistory.length
-    ? dictationHistory.map((d,i)=>`<div class="historyItem"><small>Dictée ${i+1}${d.date?' — '+new Date(d.date).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}):''}</small><div>${esc(d.cleaned)}</div></div>`).join('')
+    ? dictationHistory.map((d,i)=>`<div class="historyItem"><small>Dictée ${i+1}${d.date?' — '+new Date(d.date).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}):''}</small><label for="dictationEdit${i}">Texte de la dictée ${i+1}</label><textarea id="dictationEdit${i}" data-dictation-index="${i}" rows="3" spellcheck="true" aria-label="Modifier la dictée ${i+1}"${recognizing||recordStopping?' disabled':''}>${esc(d.cleaned)}</textarea></div>`).join('')
     : '<div class="empty">Aucune dictée.</div>';
 }
+$('#dictationHistory')?.addEventListener('input',e=>{
+ const field=e.target.closest('textarea[data-dictation-index]');
+ if(!field)return;
+ if(recognizing||recordStopping){setStatus('#recordStatus','Termine la dictée en cours avant de modifier l’historique.');return}
+ const index=Number(field.dataset.dictationIndex),item=dictationHistory[index];
+ if(!item)return;
+ item.cleaned=field.value;item.modified=new Date().toISOString();
+ $('#notes').value=rebaseDictations();persistDictations();
+ $('#notes').dispatchEvent(new Event('input',{bubbles:true}));
+ setStatus('#recordStatus','✓ Dictée '+(index+1)+' corrigée. Clique sur « Transformer en fiche » pour actualiser la fiche.');
+});
 function appendTranscript(text){
+  syncNotesToHistory();
   const cleaned=cleanDictation(text);
   if(!cleaned) return;
   const n=$('#notes');
@@ -67,6 +111,7 @@ function recordingButtons(mode){
  if(start){start.hidden=(mode==='recording'||hasText);start.textContent='🎙️ Démarrer la dictée';}
  if(stop)stop.hidden=(mode!=='recording');
  if(again)again.hidden=(mode==='recording'||!hasText);
+ document.querySelectorAll('#dictationHistory textarea').forEach(el=>{el.disabled=mode==='recording'||recordStopping});
 
 }
 function commitCurrentDictation(){
@@ -87,6 +132,7 @@ function beginDictation(){
    setStatus('#recordStatus',"Micro indisponible dans ce navigateur. Utilise Chrome ou le micro du clavier.");
    $('#notes').focus();return;
  }
+ syncNotesToHistory();
  if(!dictationHistory.length&&$('#notes').value.trim()){
    dictationHistory=[{before:'',raw:$('#notes').value,cleaned:$('#notes').value,date:null,legacy:true}];
    persistDictations();renderHistory();
@@ -130,7 +176,7 @@ $('#finishDictation')?.addEventListener('click',()=>{
  try{recognition.stop()}catch(e){recordStopping=false}
 });
 recordingButtons('idle');
-$('#notes')?.addEventListener('input',()=>{if(!recognizing)recordingButtons('idle')});
+$('#notes')?.addEventListener('input',()=>{if(!recognizing){syncNotesToHistory();recordingButtons('idle')}});
 
 
 document.addEventListener('DOMContentLoaded',()=>{

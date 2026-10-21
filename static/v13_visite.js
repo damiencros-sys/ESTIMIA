@@ -170,6 +170,8 @@ function addressV1310(t){
 
 function address(t){
  const s=clean(t);
+ const withoutPostcode=s.match(/\b(\d{1,4}(?:\s*(?:bis|ter))?\s+(?:rue|avenue|boulevard|route|chemin|impasse|place|all[ée]e|lotissement|quai|cours|traverse|mont[ée]e)\s+[^,.;!?]{2,75}?)\s+[àa]\s+([\p{L}][\p{L}'’ -]{1,55}?)(?=\s+(?:en\s+centre[- ]ville|en\s+centre|il\s+appartient|elle\s+appartient|il\s+se\s+situe|l[' ]appartement|le\s+studio|section|parcelle)\b|[,.;!?]|$)/iu);
+ if(withoutPostcode&&!/\d{5}/.test(withoutPostcode[1]))return {street:clean(withoutPostcode[1]),city:clean(withoutPostcode[2]),postcode:''};
  // Ex: "une maison 2 impasse de la Fontette 34240 à Lamalou-les-Bains".
  const spoken=s.match(/\b(\d{1,4}(?:\s*(?:bis|ter))?\s+(?:rue|avenue|boulevard|route|chemin|impasse|place|all[ée]e|lotissement|quai|cours|traverse|mont[ée]e)\s+[^,.;!?]{3,85}?)\s*,?\s*(\d{5})\s+(?:à\s+|a\s+|sur\s+)?([\p{L}][\p{L}'’ -]{1,55}?)(?=\s+(?:section|parcelle|cadastr[ée]e?|maison|sur\s+deux|avec|un\s+s[ée]jour|une\s+cuisine)\b|[,.;!?]|$)/iu);
  if(spoken)return {street:clean(spoken[1]),postcode:spoken[2],city:clean(spoken[3])};
@@ -187,6 +189,37 @@ function address(t){
   if(m)return {street:clean(m[1]+' '+m[2]).replace(/[,:;.\s]+$/,''),postcode:cp[1],city:clean(cp[2]).replace(/[,:;.\s]+$/,'')};
  }
  return {street:'',postcode:'',city:''};
+}
+// Surfaces annoncées par logement : la dernière mention chiffrée remplace la précédente.
+function propertyUnits(text){
+ const t=normalizeDictatedAreas(text),units=new Map();
+ const rx=/\b(appartement|studio|maison|villa)(?:\s+(\d+)(?=\s+(?:fait|de|mesure|:)))?\s*(?:(?:principal|ind[ée]pendant)\s*)?(?:fait|de|mesure|d[' ]une surface de|surface de|:)?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/gi;
+ for(const m of t.matchAll(rx)){
+  const type=m[1].toLowerCase(),key=type+(m[2]?' '+m[2]:''),surface=n(m[3]);
+  if(surface>0&&surface<=1000)units.set(key,{key,label:key[0].toUpperCase()+key.slice(1),type:/studio|appartement/.test(type)?'appartement':'maison',surface});
+ }
+ if(/\bappartement\b/i.test(t)&&/\bstudio\b/i.test(t)){
+  for(const type of ['appartement','studio'])if(![...units.values()].some(u=>u.key===type||u.key.startsWith(type+' ')))units.set(type,{key:type,label:type[0].toUpperCase()+type.slice(1),type:'appartement',surface:null});
+ }
+ return [...units.values()];
+}
+function unitScopeAt(t,index,units){
+ if(units.length<2)return '';
+ const prefix=t.slice(0,index);
+ // Une liste générique de pièces n'est pas arbitrairement attribuée au dernier studio cité.
+ const generic=[...prefix.matchAll(/\b(?:les\s+)?surfaces\s+des\s+pi[eè]ces\b/gi)].at(-1);
+ const switches=[];
+ for(const unit of units){
+  const label=unit.key.replace(/\s+/g,'\\s+');
+  const rx=new RegExp("\\b(?:dans|pour|concernant)\\s+(?:l[' ]|le\\s+|la\\s+)?"+label+"\\b|\\b(?:l[' ]|le\\s+)?"+label+"\\s*(?:[:;]|au\\b|comprend\\b|comporte\\b)",'gi');
+  for(const m of prefix.matchAll(rx))switches.push({index:m.index,label:unit.label});
+ }
+ const last=switches.sort((a,b)=>a.index-b.index).at(-1);
+ return last&&(!generic||last.index>generic.index)?last.label:'Logement non précisé';
+}
+function announcedUnitRows(t){
+ const units=propertyUnits(t);
+ return units.length>1?units.map(u=>[u.label+' — surface annoncée',u.surface?fmt(u.surface):'Surface non précisée']).concat([['Total des logements annoncés',units.every(u=>u.surface>0)?fmt(units.reduce((v,u)=>v+u.surface,0)):'À compléter par logement'],['Portée des surfaces','Surfaces déclarées, sans présumer un mesurage Carrez. Les pièces sans logement explicite restent à affecter.']]):[];
 }
 function typeOf(t){return (t.match(/\b(maison de village|maison|villa|appartement|studio|immeuble|terrain|local commercial)\b/i)||[])[1]||''}
 function buildInfo(t){
@@ -303,7 +336,7 @@ function sanitarySurfaceWarnings(text){
  return surfaces(text,true).filter(r=>{const max=roomSurfaceLimit(r.name);return max!=null&&r.val>max}).map(r=>[r.name+' — '+r.lvl,fmt(r.val)+' dictés — surface non attribuée : supérieure au seuil de contrôle de '+roomSurfaceLimit(r.name)+' m². Corrigez la valeur sur la ligne de cette pièce dans Surfaces calculées ; aucune correction numérique inventée.']);
 }
 function surfaces(text,includeSuspicious=false){
- const t=normalizeDictatedAreas(text), ms=markers(t), out=[],shared=sharedAnnexAreas(t);
+ const t=normalizeDictatedAreas(text), ms=markers(t), out=[],shared=sharedAnnexAreas(t),units=propertyUnits(t);
  const levelAt=i=>{let lvl='Rez-de-chaussée';for(const z of ms){if(z.i<=i)lvl=z.name;else break}return lvl};
  const canon=name=>{
   name=clean(name);
@@ -316,7 +349,8 @@ function surfaces(text,includeSuspicious=false){
   const limit=roomSurfaceLimit(name);if(val>250&&(!includeSuspicious||limit==null))return;if(!includeSuspicious&&limit!=null&&val>limit)return;
   const locatedInAnnex=isSanitaryRoom(name)&&/^(?:(?![!?;]|\.(?!\d)|\b(?:wc|toilettes?|chambre|cuisine|salon|s[ée]jour|salle)\b)[\s\S]){0,65}\b(?:dans|situ[ée]\s+dans)\s+(?:la|le|une?|les)\s+(?:cave|garage)\b/i.test(t.slice(index+name.length));
   const cat=locatedInAnnex?'Sanitaire':/garage|cave|grenier|atelier|dépendance|local|abri|cabanon|carport/i.test(name)?'Annexe':/terrasse|balcon|loggia/i.test(name)?'Extérieur':'Intérieur';
-  const lvl=/cabanon|abri/i.test(name)?'Extérieur':levelAt(index);
+  const level=/cabanon|abri/i.test(name)?'Extérieur':levelAt(index);
+  const scope=unitScopeAt(t,index,units),lvl=scope?scope+' — '+level:level;
   out.push({lvl,name,val,cat});
  };
  for(const g of shared)push(g.name,g.val,g.start);
@@ -335,7 +369,7 @@ function surfaces(text,includeSuspicious=false){
   let chunk=t.slice(m.end,stop);
   // Une surface ne peut être attribuée à une pièce que dans son groupe immédiat.
   // Les informations terrain/parcelle, niveaux, annexes ou dates coupent la portée.
-  chunk=chunk.split(/\b(?:terrain|parcelle|cadastr[ée]e?|section|surface\s+du\s+terrain|superficie\s+du\s+terrain|au\s+rez[- ]de[- ]chauss[ée]e|au\s+premier\s+[ée]tage|au\s+deuxi[eè]me\s+[ée]tage|[àa]\s+l['’][ée]tage|combles|[àa]\s+l['’]ext[ée]rieur)\b/i)[0];
+  chunk=chunk.split(/\b(?:appartement|studio|terrain|parcelle|cadastr[ée]e?|section|surface\s+du\s+terrain|superficie\s+du\s+terrain|au\s+rez[- ]de[- ]chauss[ée]e|au\s+premier\s+[ée]tage|au\s+deuxi[eè]me\s+[ée]tage|[àa]\s+l['’][ée]tage|combles|[àa]\s+l['’]ext[ée]rieur)\b/i)[0];
   // Au-delà de 65 caractères, une valeur risque d'appartenir à une autre information.
   chunk=chunk.slice(0,65);
 
@@ -346,6 +380,8 @@ function surfaces(text,includeSuspicious=false){
   // wins over earlier values for the same level/name.
   // A correction is applied only by the named-room correction pass below.
   // This prevents a later correction (e.g. corridor) being stolen by mezzanine/garage/entry.
+  const reversed=isSanitaryRoom(m.name)&&t.slice(Math.max(0,m.i-55),m.i).match(/(?:avec\s+)?(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)\s+de\s*$/i);
+  if(reversed){push(m.name,n(reversed[1]),m.i);continue;}
   let sm=chunk.match(/(?:\bde\b|\bmesurant\b|\bfait\b|\b:)?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/i);
   if(sm){
    if(isSanitaryRoom(m.name)&&(!sanitaryAreaPrefix(chunk.slice(0,sm.index))||/\b(?:le\s+tout|au\s+total|totalit[ée]|ensemble|surface\s+(?:totale|globale)|font|repr[ée]sentent)\b/i.test(chunk.slice(0,sm.index))))continue;
@@ -362,25 +398,25 @@ function surfaces(text,includeSuspicious=false){
   }
  }
  // Last explicit correction for named room replaces previous candidates.
- const corrections=/\b(?:tu\s+prends|je\s+corrige|rectification|finalement)\b[^.!?]{0,90}?\b(s[ée]jour|salon|cuisine|chambre(?:\s+(?:(?:num[ée]ro|n[°o])\s*)?\d+(?![\d.,])(?=\s*(?:fait\b|de\b|[àa]\b)))?|bureau|salle d[' ]eau|salle de bains?|wc|d[ée]gagement|couloir|entr[ée]e|cellier|buanderie|garage)\b[^.!?]{0,60}?\b(?:fait|de|à|a)\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/ig;
+ const corrections=/\b(?:tu\s+prends|je\s+corrige|rectification|finalement)\s+(?:(?:pour|le|la|les|du|de|au|à)\s+|l[' ]){0,4}(s[ée]jour|salon|cuisine|chambre(?:\s+(?:(?:num[ée]ro|n[°o])\s*)?\d+(?![\d.,])(?=\s*(?:fait\b|de\b|[àa]\b)))?|bureau|salle d[' ]eau|salle de bains?|wc|d[ée]gagement|couloir|entr[ée]e|cellier|buanderie|garage)\s*(?:qui\s+)?(?:fait|mesure|de|à|a|:|=)\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/ig;
  for(const c of t.matchAll(corrections)){
-   const lvl=levelAt(c.index), nm=clean(c[1]).toLowerCase();
+   const scope=unitScopeAt(t,c.index,units),lvl=(scope?scope+' — ':'')+levelAt(c.index), nm=clean(c[1]).toLowerCase();
    for(let i=out.length-1;i>=0;i--)if(out[i].lvl===lvl&&out[i].name.toLowerCase()===nm)out.splice(i,1);
    push(c[1],n(c[2]),c.index);
  }
  const final=[];
  for(const x of out){
   const nm=x.name.toLowerCase();
-  if(/^chambre/.test(nm)){final.push(x);continue;}
+  if(/^chambre/.test(nm)||/privati/i.test(t)&&isSanitaryRoom(nm)&&!/^wc|toilettes/i.test(nm)){final.push(x);continue;}
   const pos=final.findIndex(y=>y.lvl===x.lvl&&y.name.toLowerCase()===nm);
   if(pos>=0)final[pos]=x;else final.push(x);
  }
  const seen=new Set();
- return final.filter(x=>{if(/^chambre\b/i.test(x.name))return true;const k=x.lvl+'|'+x.name.toLowerCase()+'|'+x.val;if(seen.has(k))return false;seen.add(k);return true});
+ return final.filter(x=>{if(/^chambre\b/i.test(x.name)||/privati/i.test(t)&&isSanitaryRoom(x.name)&&!/^wc|toilettes/i.test(x.name))return true;const k=x.lvl+'|'+x.name.toLowerCase()+'|'+x.val;if(seen.has(k))return false;seen.add(k);return true});
 }
 function declaredPropertySurface(text){
- const m=clean(text).match(/\b(?:maison|villa|appartement|studio|immeuble|local commercial)\s+(?:d['’]une\s+surface\s+de|de|fait|mesure)\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/i);
- return m?n(m[1]):null;
+ const units=propertyUnits(text);
+ return units.length&&units.every(u=>u.surface>0)?Math.round(units.reduce((total,u)=>total+u.surface,0)*100)/100:null;
 }
 
 // V13.12 — surfaces : distinction surface habitable / Carrez.
@@ -570,6 +606,11 @@ function sanitary(t){
  if(m){const local=sanitaryLocalFragment(s,m.index,m.index+m[0].length),c=m[0]+local.tail;let v='1 salle de bains';if(local.area!=null&&local.area<=15&&!sharedAnnexAreas(s).some(g=>g.valueIndex===local.index))v+=' — '+fmt(local.area);const eq=[];if(/\bdouche\b/i.test(c))eq.push('douche');if(/\bbaignoire\b/i.test(c))eq.push('baignoire');if(/(?:deux|2|double)\s+vasques?|double vasque/i.test(c))eq.push('double vasque');else if(/\bvasque\b/i.test(c))eq.push('vasque');if(eq.length)v+=' — '+eq.join(' · ');rows.push(['Salle de bains',v]);}
  const e=s.match(/\bsalle d[' ]eau\b/i);
  if(e){const local=sanitaryLocalFragment(s,e.index,e.index+e[0].length),c=e[0]+local.tail;let v="1 salle d’eau";if(local.area!=null&&local.area<=15&&!sharedAnnexAreas(s).some(g=>g.valueIndex===local.index))v+=' — '+fmt(local.area);if(/douche\s+pmr/i.test(c))v+=" — douche PMR";else if(/douche à l[' ]italienne/i.test(c))v+=" — douche à l’italienne";if(/\bsans\s+wc\b/i.test(s.slice(e.index,e.index+120).split(/(?<!\d)\.(?!\d)|[!?;]/)[0]))v+=" — sans WC";rows.push(["Salle d’eau",v]);}
+ const measuredBaths=surfaces(s).filter(r=>/^salle de bains?$/i.test(r.name));
+ if(measuredBaths.length>1){
+  const old=rows.findIndex(r=>r[0]==='Salle de bains');if(old>=0)rows.splice(old,1);
+  measuredBaths.forEach((r,i)=>rows.push(['Salle de bains '+(i+1)+' — '+r.lvl,'1 salle de bains — '+fmt(r.val)]));
+ }
  const positive=s.replace(/\b(?:sans|pas\s+de)\s+(?:wc|toilettes?)\b/gi,'');
  const wc=countExplicit(positive,'wc|toilettes?');
  const wm=positive.match(/\b(?:wc|toilettes?)\b/i);
@@ -643,11 +684,12 @@ function heating(t){
   }else if(/pompe|pac/i.test(m[0])){label='Pompe à chaleur';const type=fragment.match(/air\s*[/\-]\s*(?:air|eau)/i);if(type)label+=' '+type[0];}
   else if(/clim/i.test(m[0]))label='Climatisation';
   else if(/plancher|chauffage au sol/i.test(m[0]))label='Plancher chauffant';
+  if(/chemin[ée]e|foyer/i.test(m[0])&&/d[ée]corati(?:f|ve)s?/i.test(fragment))label='Cheminée décorative (hors chauffage)';
   if(/r[ée]versible/i.test(fragment))label+=' réversible';
   // Ne jamais utiliser un fragment libre comme détail : seuls des attributs
   // d'équipement explicitement reconnus peuvent alimenter cette rubrique.
   const attributes=[];
-  for(const rx of [/\b\d+(?:[.,]\d+)?\s*(?:litres?|l\b|kwh?\b|watts?|w\b)/gi,/\b(?:hors service|condamn[ée]e?|d[ée]corati(?:f|ve)|en panne|bon [ée]tat|[àa] remplacer)\b/gi,/\b(?:install[ée]e?|remplac[ée]e?)\s+en\s+\d{4}\b/gi]){
+  for(const rx of [/\b\d+(?:[.,]\d+)?\s*(?:litres?|l\b|kwh?\b|watts?|w\b)/gi,/\b(?:hors service|condamn[ée]e?|d[ée]corati(?:f|ve)s?|en panne|bon [ée]tat|[àa] remplacer)\b/gi,/\b(?:install[ée]e?|remplac[ée]e?)\s+en\s+\d{4}\b/gi]){
    for(const x of fragment.matchAll(rx))attributes.push(x[0]);
   }
   if(isWater){
@@ -709,6 +751,7 @@ function annexes(t){
  const hits=[];
  for(const [name,rx] of types){
   for(const m of text.matchAll(rx)){
+   if(name==='Remise'&&/^\s+(?:en|aux?)\s+normes?\b/i.test(text.slice(m.index+m[0].length)))continue;
    if(hits.some(h=>m.index>=h.pos&&m.index<h.end))continue;
    hits.push({name,pos:m.index,end:m.index+m[0].length,match:m[0]});
   }
@@ -1025,7 +1068,7 @@ async function parcelSearch(){
 // Remplissage prudent des compléments, à partir de la dictée complète.
 // Ne remplace jamais une valeur renseignée manuellement.
 function fillConstructionExtras(t){
- const set=(id,value)=>{const el=$(id);if(el&&value&&!String(el.value||'').trim()){el.value=value;el.dispatchEvent(new Event('change',{bubbles:true}));}};
+ const set=(id,value)=>{const el=$(id);if(el&&(!String(el.value||'').trim()||el.value===el.dataset.dictationValue)){el.value=value;el.dataset.dictationValue=value;el.dispatchEvent(new Event('change',{bubbles:true}));}};
  const norm=clean(t);
  const roof=[];
  if(/toiture[^.!?]{0,65}(?:isol[ée]e?|isolation)|isolation[^.!?]{0,65}toiture/i.test(norm))roof.push('Isolation de toiture mentionnée — caractéristiques à vérifier');
@@ -1051,6 +1094,8 @@ function fillConstructionExtras(t){
  requestAnimationFrame(()=>window.estimiaRefreshEquipmentHeights?.());
 }
 async function render(){
+ const estimateFields=()=>JSON.stringify(['#type','#address','#cadCommune','#surfaceHab','#propertyUnitsJSON'].map(id=>$(id)?.value||''));
+ const estimateBefore=estimateFields();
  const raw=$('#notes').value||'',corr=$('#correction').value||'',t=clean(raw+' '+corr);
  const o=owner(t);if(o&&!$('#owner').value)$('#owner').value=o;
  const ph=phone(t);if(ph)$('#ownerPhone').value=ph;
@@ -1065,16 +1110,22 @@ async function render(){
   $('#cadCommune').dataset.postcode=cm.postcode||'';
   void normalizeCommune(cm.name,cm.postcode);
  }
- const typ=typeOf(t);if(typ&&!$('#type').value)$('#type').value=typ;applyPropertyTheme();
+ const typ=typeOf(t),units=propertyUnits(t),typeField=$('#type');
+ const suggestedType=units.length>1?units.map(u=>u.label).join(' + '):typ;
+ if(suggestedType&&(!typeField.value||typeField.value===typeField.dataset.dictationValue||low(typeField.value)===low(typ))){typeField.value=suggestedType;typeField.dataset.dictationValue=suggestedType;}
+ applyPropertyTheme();
+ $('#propertyUnitsJSON').value=JSON.stringify(units.length>1?units:[]);
  const surfaceAlerts=sanitarySurfaceWarnings(t);
  const ss=surfaces(t), habRows=habitableRows(ss,t), total=habRows.reduce((a,x)=>a+x.val,0);
  const habDeclared=explicitHabitable(t), announced=declaredPropertySurface(t), carrez=explicitCarrez(t);
  $('#surfaceHab').dataset.needsReview=String(surfaceAlerts.length>0&&habDeclared==null);
- if(habDeclared!=null)$('#surfaceHab').value=habDeclared.toFixed(2);
+ if(units.length>1&&units.every(u=>u.surface>0))$('#surfaceHab').value=declaredPropertySurface(t).toFixed(2);
+ else if(habDeclared!=null)$('#surfaceHab').value=habDeclared.toFixed(2);
  else if(total&&!surfaceAlerts.length)$('#surfaceHab').value=total.toFixed(2);
  else $('#surfaceHab').value='';
  if(carrez!=null)$('#surfaceCarrez').value=carrez.toFixed(2);
- let topRows=buildInfo(t);
+ let topRows=buildInfo(t);if(units.length>1)topRows[0][1]=suggestedType;
+ if(units.length>1)topRows.push(...announcedUnitRows(t));
  if(announced!=null)topRows.push(['Surface annoncée / dictée',fmt(announced)]);
  let out='<div class="proGrid">'+card('Bien & construction','🏠',topRows)+'</div>';
  out+=surfaceEditorHTML(surfaces(t,true).map(x=>x.cat==='Intérieur'&&!habitableRows([x],t).length?{...x,cat:isSanitaryRoom(x.name)?'Sanitaire':'Annexe'}:x));
@@ -1098,6 +1149,7 @@ async function render(){
  out+='<details class="rawNotes"><summary>📝 Voir la dictée originale complète</summary><div>'+E(raw)+'</div></details>';
  $('#facts').innerHTML=out;
  fillConstructionExtras(t);
+ if(estimateBefore!==estimateFields())$('#surfaceHab').dispatchEvent(new Event('input',{bubbles:true}));
 }
 
 function propertyTheme(){
