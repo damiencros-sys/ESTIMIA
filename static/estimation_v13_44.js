@@ -23,22 +23,24 @@ function qualityConfig(){
  if(mode==='budget'&&budgetText==='')throw Error('Renseignez le budget net de travaux à déduire ou choisissez la méthode par état');
  const needsReason=((mode==='etat'&&rateText!==''&&rate!==defaultRate)||other!==0)&&!reason;
  const unitStates={};if(q('#estCondition')?.dataset.qualityManual!=='true'&&rateText==='')for(const s of window.estimiaConditionSignals?.(notes)||[])if(s.type)unitStates[s.type]=s.condition;
+ let essential={};try{essential=JSON.parse(q('#essentialDataJSON')?.value||'{}')}catch{}
+ for(const [key,state]of Object.entries(essential.units||{}))if(state.manual?.condition&&rateText===''){const chosen=state.answers?.condition?.[0]||'';if(key==='principal'){/* Le champ global est synchronisé par le sélecteur. */}else unitStates[key]=chosen;}
  return {mode,condition,rate,budget,other,reason:needsReason?'Ajustement saisi par l’utilisateur — justification à compléter':reason,unitStates,works:q('#estPlannedWorks')?.value||''};
 }
 function adjustQuality(d,c){
  const factor=c.mode==='etat'?1+c.rate/100:1,cost=c.mode==='budget'?c.budget:0;
  const scoped=c.mode==='etat'&&d.unitBases?.length>1&&Object.keys(c.unitStates).length>0;
- const rateFor=u=>{const state=c.unitStates[u.key.split(' ')[0]]||'';return /réhabiliter/.test(state)?-25:/rénover/.test(state)?-15:/rafraîchir/.test(state)?-5:0;};
+ const rateFor=u=>{const state=c.unitStates[u.key]||c.unitStates[u.key.split(' ')[0]]||'';return /réhabiliter/.test(state)?-25:/rénover/.test(state)?-15:/rafraîchir/.test(state)?-5:0;};
  const calc=(value,key)=>Math.round(((scoped?d.unitBases.reduce((v,x)=>v+Number(x.value[key])*(1+rateFor(x.unit)/100),0):Number(value)*factor)-cost+c.other)/1000)*1000;
  const values={centrale:calc(d.centrale,'centrale'),basse:calc(d.basse,'basse'),haute:calc(d.haute,'haute')};
  if(Object.values(values).some(x=>!Number.isFinite(x)||x<=0))throw Error('Les corrections dépassent la valeur disponible. Revoyez les comparables et les travaux ; aucun montant nul ou négatif n’est retenu');
  // Preserve exact DVF values when there is no correction.
  const changed=(scoped?d.unitBases.some(x=>rateFor(x.unit)!==0):factor!==1)||cost!==0||c.other!==0;
- const formula=scoped?'hypothèses internes provisoires par logement, non issues d’un barème officiel : '+d.unitBases.map(x=>x.unit.label+' '+(c.unitStates[x.unit.key.split(' ')[0]]||'état non précisé')+' '+rateFor(x.unit)+' %').join(' ; '):c.mode==='budget'?'budget net de travaux déduit : '+fmt(cost)+' ; aucune décote d’état ajoutée':c.mode==='aucun'?'comparables déclarés de même état : aucune correction d’état':'état '+(c.condition||'non précisé')+' : '+(c.rate>0?'+':'')+c.rate+' % (hypothèse interne, non issue d’un barème officiel)';
+ const formula=scoped?'hypothèses internes provisoires par logement, non issues d’un barème officiel : '+d.unitBases.map(x=>x.unit.label+' '+(c.unitStates[x.unit.key]||c.unitStates[x.unit.key.split(' ')[0]]||'état non précisé')+' '+rateFor(x.unit)+' %').join(' ; '):c.mode==='budget'?'budget net de travaux déduit : '+fmt(cost)+' ; aucune décote d’état ajoutée':c.mode==='aucun'?'comparables déclarés de même état : aucune correction d’état':'état '+(c.condition||'non précisé')+' : '+(c.rate>0?'+':'')+c.rate+' % (hypothèse interne, non issue d’un barème officiel)';
  const note='Base DVF avant correction : '+fmt(d.centrale)+'. Calcul en l’état : '+formula+(c.other?' ; autres ajustements '+fmt(c.other):'')+'.'+(c.reason?' Justification : '+c.reason+'.':'')+(c.works?' Travaux déclarés : '+c.works+'.':'')+' L’état des ventes DVF n’est pas documenté ; vérifier que la correction n’est pas déjà reflétée par les comparables. Aucun DPE présumé.';
  const components=[];
- if(scoped){for(const x of d.unitBases){const rate=rateFor(x.unit);if(rate)components.push([x.unit.label+' — état '+rate+' %',Number(x.value.centrale)*rate/100]);}}
- else if(c.mode==='etat'&&c.rate)components.push(['Correction d’état '+c.rate+' %',Number(d.centrale)*c.rate/100]);
+ if(scoped){for(const x of d.unitBases){const rate=rateFor(x.unit);components.push([x.unit.label+' — base '+fmt(x.value.centrale)+' ; état '+rate+' %',Number(x.value.centrale)*rate/100]);}}
+ else if(c.mode==='etat'&&c.rate)components.push(['Votre bien — correction d’état '+c.rate+' %',Number(d.centrale)*c.rate/100]);
  if(cost)components.push(['Budget net de travaux (remplace la décote d’état)',-cost]);
  if(c.other)components.push(['Autre ajustement déclaré',c.other]);
  const beforeRound=Number(d.centrale)+components.reduce((a,x)=>a+x[1],0),final=changed?values.centrale:Number(d.centrale),rounding=Math.round((final-beforeRound)*100)/100;
@@ -242,6 +244,7 @@ for(const id of ['#surfaceHab','#type','#cadCommune','#address','#notes','#corre
  const result=q('#estimationResults');if(result){result.replaceChildren();result.dataset.dvfMedian='';result.dataset.dvfCount='';delete result.dataset.unitValuation;delete result.dataset.originalEstimate;delete result.dataset.adjusted;delete result.dataset.dvfBase;delete result.dataset.dvfInputKey;delete result.dataset.calculationPending;}
  found=[];roquesFound=[];roquesReady=false;displayRoques();displayAnnonces();
 });
+document.addEventListener('estimia:condition-changed',()=>scheduleQuality());
 function scheduleQuality(){
  clearTimeout(qualityTimer);const result=q('#estimationResults');
  if(estimateTask){pendingQuality=true;result.dataset.calculationPending='true';return;}

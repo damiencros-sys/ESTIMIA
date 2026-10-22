@@ -216,7 +216,7 @@ main select{width:100%;max-width:100%;min-height:46px;box-sizing:border-box;font
 .proRow span,.proRow strong{min-width:0;overflow-wrap:anywhere;white-space:normal}
 .ownerFields textarea{width:100%;min-height:46px}
 
-/* V14.01 : navigation libre et lisibilité du dossier. */
+/* V14.02 : navigation libre et lisibilité du dossier. */
 :root{--visit-ink:#173a52;--visit-line:#dbe5eb}
 body{background:#f3f6fa;color:#203745}main{max-width:1220px;margin:auto;padding:20px}
 main>.card{background:#fff;border:1px solid var(--visit-line);border-radius:18px;padding:26px;margin:20px 0;box-shadow:0 5px 20px #173a5208}
@@ -231,10 +231,10 @@ main>.card[hidden],[hidden]{display:none!important}
 @media(max-width:650px){main{padding:10px}main>.card{padding:16px}.stepNav{grid-template-columns:repeat(2,1fr);gap:7px}.stepNav button{padding:11px;min-height:64px;font-size:13px}.stepToolbar{align-items:flex-start;font-size:13px}#calculationLedger dl>div{grid-template-columns:1fr;gap:5px}.previewToolbar h2{flex-basis:100%;font-size:18px}#dossierPreviewDialog{padding:12px}#dossierPreviewFrame{height:calc(100% - 180px)}}
 @media print{.stepNav,.stepToolbar,.stepFooter,#dossierPreviewDialog{display:none!important}main>.card[hidden]{display:block!important}}
 
-/* V14.01 — affectation explicite et contrôles du dossier. */
+/* V14.02 — affectation explicite et contrôles du dossier. */
 .assignPieceUnit{min-width:145px!important;flex:1}.assignLevelUnit{max-width:240px}.editableSurface{flex-wrap:wrap}.levelHead{flex-wrap:wrap}#dossierChecks{border-left:4px solid #c99632;background:#fffaf0}#dossierChecks p{white-space:normal;overflow-wrap:anywhere}
 
-/* V14.01 : suppression toujours à droite de la pièce, sans retour sous son nom. */
+/* V14.02 : suppression toujours à droite de la pièce, sans retour sous son nom. */
 #facts .editableSurface{grid-template-columns:minmax(130px,1fr) 82px minmax(28px,auto) 32px 32px 36px!important;gap:6px;align-items:center}
 #facts .editableSurface>.pieceName{grid-column:1;grid-row:1;width:100%;box-sizing:border-box}
 #facts .editableSurface>.pieceVal{grid-column:2;grid-row:1;width:100%;box-sizing:border-box}
@@ -257,10 +257,10 @@ main>.card[hidden],[hidden]{display:none!important}
  #facts .editableSurface>.assignPieceUnit{grid-column:1/-1;grid-row:4}
 }
 
-/* V14.01 — réponses essentielles et étapes validées. */
+/* V14.02 — réponses essentielles et étapes validées. */
 #essentialValidation{margin:18px 0;background:#fff;border:1px solid #cadbe7;padding:20px;border-radius:14px}#essentialValidation input[type=checkbox]{width:auto}#essentialValidation fieldset{min-width:0;border:1px solid #d9e5ed;border-radius:12px;margin:16px 0;padding:16px}.essentialGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}.essentialGrid>*{min-width:0}.essentialGrid label{display:block;font-weight:600}.essentialGrid select,.essentialGrid input{width:100%;box-sizing:border-box;min-height:44px}.essentialAnswers{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0}.essentialAnswers button{white-space:normal;text-align:left;padding:6px 10px;border:1px solid #a8c6d9;border-radius:8px;background:#eef6fb;color:#173a52}.essentialMissing{color:#8b451c}.stepNav button.stepValidated{box-shadow:inset 0 -4px #339775}#essentialProgress{font-weight:700}@media(max-width:650px){.essentialGrid{grid-template-columns:1fr}#essentialValidation{padding:14px}}
 #validateEssentialStep{background:#173a52;color:#fff;border:0;border-radius:8px;padding:12px 18px;font:inherit;max-width:100%;cursor:pointer}#validateEssentialStep:focus-visible{outline:3px solid #49a6df;outline-offset:3px}
-/* V14.01 — lecture douce et surfaces sans répétitions */
+/* V14.02 — lecture douce et surfaces sans répétitions */
 @media screen{
  body{background:#dce5e1!important;color:#243b43}
  #estimiaMain>.card,.card{background:#edf1eb!important;border-color:#c3d0c9!important}
@@ -290,3 +290,17 @@ main>.card[hidden],[hidden]{display:none!important}
 @media screen{#caseSidebar,.ownerCard,.contactCard{background:#e4ece6!important}}
 .levelName{white-space:pre-wrap;overflow-wrap:anywhere;resize:vertical;line-height:1.5;width:100%;box-sizing:border-box}
 @media(max-width:700px){.levelHead>.levelName{flex-basis:100%}.levelActions{margin-left:auto}}
+/* V14.02 — réponses dans les cases, manques visibles, charges éditables */
+.essentialControl{display:block;min-width:0;font-size:15px}
+.essentialSelect{margin-top:5px;border:1px solid #b5c5bc;border-radius:9px;background:#f1f3e9;position:relative;color:#203842}
+.essentialSelect>summary{padding:13px 30px 13px 12px;cursor:pointer;list-style:none;white-space:normal;overflow-wrap:anywhere;font-weight:500;line-height:1.5}
+.essentialSelect>summary::-webkit-details-marker{display:none}
+.essentialSelect>summary:after{content:'▾';position:absolute;right:12px;top:13px}
+.essentialSelect[open]>summary{border-bottom:1px solid #b5c5bc}
+.essentialOptions{padding:8px 12px;max-height:260px;overflow:auto}
+.essentialOptions label{display:flex;align-items:center;gap:10px;padding:8px 0;font-weight:400}
+.essentialOptions input{flex:0 0 auto;width:18px;height:18px;margin:0}
+.essentialUnanswered>select,.essentialUnanswered>.essentialSelect,.essentialUnanswered>input,.essentialInvalid{border:2px solid #bc4141!important;background:#fff0ec!important}
+.essentialUnanswered>span,.essentialUnanswered{color:#8d2929}
+.essentialInvalid:focus,.essentialUnanswered select:focus,.essentialUnanswered summary:focus{outline:2px solid #b63333;outline-offset:2px}
+#essentialChargesAmount{font-size:16px!important;min-height:47px;width:100%;box-sizing:border-box}
