@@ -1433,6 +1433,7 @@ function renderPhotoManager(){
    <img src="${p.url}" alt="${E(p.label)}">
    <label class="photoRoomField">Pièce ou lieu reconnu<select class="photoRoomSelect" aria-label="Affecter la photo à une pièce"><option value="">Choisir une pièce ou un lieu</option>${photoRoomChoices().map(label=>'<option '+(p.label===label?'selected':'')+'>'+E(label)+'</option>').join('')}<option value="__custom__">Autre nom à saisir…</option></select></label>
    <label class="photoRoomField">Légende personnalisable<textarea class="photoLabel" rows="2" title="Nom de la photo" placeholder="Ex. puits, hangar, vue de la terrasse…">${E(p.label)}</textarea></label>
+   <button type="button" class="photoCoverButton" data-photo-act="cover" aria-pressed="${i===0}" ${i===0?'disabled':''}>${i===0?'✓ Photo de couverture':'Choisir comme photo de couverture'}</button>
    <div class="photoActions">
     <button type="button" data-photo-act="left" title="Déplacer avant">←</button>
     <button type="button" data-photo-act="right" title="Déplacer après">→</button>
@@ -1664,6 +1665,7 @@ document.addEventListener('click',e=>{
  if(pb){
   const card=pb.closest('.photoManageCard'),i=Number(card?.dataset.photo),act=pb.dataset.photoAct;
   if(!Number.isInteger(i)||!photoItemsState[i])return;
+  if(act==='cover'&&i>0){const [chosen]=photoItemsState.splice(i,1);photoItemsState.unshift(chosen);}
   if(act==='left'&&i>0)[photoItemsState[i-1],photoItemsState[i]]=[photoItemsState[i],photoItemsState[i-1]];
   if(act==='right'&&i<photoItemsState.length-1)[photoItemsState[i+1],photoItemsState[i]]=[photoItemsState[i],photoItemsState[i+1]];
   if(act==='delete')photoItemsState.splice(i,1);
@@ -1855,7 +1857,7 @@ ownLoad();
  window.estimiaRefreshEquipmentHeights=refresh;
 })();
 
-/* V14.02 — parcours libre, valeur expliquée et dossier client. */
+/* V14.03 — parcours libre, valeur expliquée et dossier client. */
 (()=>{'use strict';
 const q=s=>document.querySelector(s),field=id=>q('#'+id)?.value||'',escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),money=n=>Number(n).toLocaleString('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0});
 const cards=[...document.querySelectorAll('#estimiaMain>section.card')],groups=[0,0,1,1,2,2,3],names=['Dictée et cadastre','Vérification du bien et photos','Comparables et estimation','Dossier client'];
@@ -1887,7 +1889,7 @@ q('#previewDossier')?.addEventListener('click',preview);q('#refreshDossierPrevie
 document.addEventListener('input',e=>{if(conclusionIds.includes(e.target?.id))checkConclusion();});new MutationObserver(()=>{renderLedger();checkConclusion();}).observe(q('#estimationResults'),{childList:true,subtree:true,characterData:true});document.addEventListener('estimia:contacts-restored',()=>{showStep(field('visitStep'));refreshAssets();});document.addEventListener('estimia:case-ready',()=>{renderLedger();checkConclusion();closePreview();});renderLedger();refreshAssets();showStep(field('visitStep'));
 })();
 
-/* V14.02 : contrôle de cohérence du dossier avant remise. */
+/* V14.03 : contrôle de cohérence du dossier avant remise. */
 (()=>{'use strict';const q=s=>document.querySelector(s),v=id=>q('#'+id)?.value||'';
 function checks(){const rows=[];if(Number(v('estOtherAdjustment'))&&!v('estQualityReason').trim())rows.push(['Ajustement financier','Un autre ajustement de '+Number(v('estOtherAdjustment')).toLocaleString('fr-FR')+' € est appliqué sans justification renseignée. Vérifier son motif et son éventuel cumul avec la décote d’état ou le budget de travaux.']);
 if(!v('estClientConclusion').trim()||!q('#includeClientConclusion')?.checked)rows.push(['Conclusion','Conclusion personnalisée absente ou non validée après relecture. Utiliser « Rédiger la conclusion », puis relire et cocher son inclusion.']);
@@ -1897,7 +1899,7 @@ if([...document.querySelectorAll('#facts .levelBlock')].some(e=>/Logement non pr
 window.estimiaDossierChecks=()=>{const rows=checks(),box=q('#dossierChecks');if(box){box.replaceChildren();const title=document.createElement('h3');title.textContent=rows.length?'Points à vérifier avant remise':'Dossier : contrôles disponibles sans anomalie signalée';box.append(title);for(const[k,val]of rows){const p=document.createElement('p');p.textContent=k+' : '+val;box.append(p);}}return rows.length?[{title:'Points à vérifier avant remise',rows}]:[];};
 let timer;const update=()=>{clearTimeout(timer);timer=setTimeout(()=>window.estimiaDossierChecks(),50);};document.addEventListener('input',update);document.addEventListener('change',update);document.addEventListener('estimia:case-ready',update);document.querySelectorAll('#visitSteps button,#visitNext,#showAllSteps').forEach(e=>e.addEventListener('click',update));new MutationObserver(update).observe(q('#estimationResults'),{childList:true,subtree:true,characterData:true});window.estimiaDossierChecks();})();
 
-/* V14.02 — réponses essentielles et validation libre des étapes. */
+/* V14.03 — réponses essentielles et validation libre des étapes. */
 (()=>{'use strict';
 const q=s=>document.querySelector(s),val=id=>q('#'+id)?.value||'',esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const unknown='À vérifier',none='Absent',na='Non concerné';let data={units:{},common:{},validated:{}},current=0,loading=false,lastPrice='';
