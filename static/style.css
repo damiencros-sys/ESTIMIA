@@ -216,7 +216,7 @@ main select{width:100%;max-width:100%;min-height:46px;box-sizing:border-box;font
 .proRow span,.proRow strong{min-width:0;overflow-wrap:anywhere;white-space:normal}
 .ownerFields textarea{width:100%;min-height:46px}
 
-/* V13.98 : navigation libre et lisibilité du dossier. */
+/* V13.99 : navigation libre et lisibilité du dossier. */
 :root{--visit-ink:#173a52;--visit-line:#dbe5eb}
 body{background:#f3f6fa;color:#203745}main{max-width:1220px;margin:auto;padding:20px}
 main>.card{background:#fff;border:1px solid var(--visit-line);border-radius:18px;padding:26px;margin:20px 0;box-shadow:0 5px 20px #173a5208}
@@ -231,5 +231,28 @@ main>.card[hidden],[hidden]{display:none!important}
 @media(max-width:650px){main{padding:10px}main>.card{padding:16px}.stepNav{grid-template-columns:repeat(2,1fr);gap:7px}.stepNav button{padding:11px;min-height:64px;font-size:13px}.stepToolbar{align-items:flex-start;font-size:13px}#calculationLedger dl>div{grid-template-columns:1fr;gap:5px}.previewToolbar h2{flex-basis:100%;font-size:18px}#dossierPreviewDialog{padding:12px}#dossierPreviewFrame{height:calc(100% - 180px)}}
 @media print{.stepNav,.stepToolbar,.stepFooter,#dossierPreviewDialog{display:none!important}main>.card[hidden]{display:block!important}}
 
-/* V13.98 — affectation explicite et contrôles du dossier. */
+/* V13.99 — affectation explicite et contrôles du dossier. */
 .assignPieceUnit{min-width:145px!important;flex:1}.assignLevelUnit{max-width:240px}.editableSurface{flex-wrap:wrap}.levelHead{flex-wrap:wrap}#dossierChecks{border-left:4px solid #c99632;background:#fffaf0}#dossierChecks p{white-space:normal;overflow-wrap:anywhere}
+
+/* V13.99 : suppression toujours à droite de la pièce, sans retour sous son nom. */
+#facts .editableSurface{grid-template-columns:minmax(130px,1fr) 82px minmax(28px,auto) 32px 32px 36px!important;gap:6px;align-items:center}
+#facts .editableSurface>.pieceName{grid-column:1;grid-row:1;width:100%;box-sizing:border-box}
+#facts .editableSurface>.pieceVal{grid-column:2;grid-row:1;width:100%;box-sizing:border-box}
+#facts .editableSurface>.unit{grid-column:3;grid-row:1;white-space:normal}
+#facts .editableSurface>[data-act="piece-up"]{grid-column:4;grid-row:1}
+#facts .editableSurface>[data-act="piece-down"]{grid-column:5;grid-row:1}
+#facts .editableSurface>[data-act="delete-piece"]{grid-column:6;grid-row:1;justify-self:end;width:32px;height:32px;padding:0;color:#b34b4b;border-color:#efbcbc;background:#fff;border-radius:6px}
+#facts .editableSurface>.pieceLevel{grid-column:1;grid-row:2;width:100%;max-width:100%;box-sizing:border-box}
+#facts .editableSurface>.assignPieceUnit{grid-column:2/-1;grid-row:2;min-width:0!important;width:100%;max-width:100%;box-sizing:border-box}
+#facts .editableSurface>[data-act="piece-up"],#facts .editableSurface>[data-act="piece-down"]{width:30px;height:32px;padding:0}
+@media(max-width:700px){
+ #facts .editableSurface{grid-template-columns:minmax(0,1fr) 72px 28px 36px!important}
+ #facts .editableSurface>.pieceName{grid-column:1/4;grid-row:1}
+ #facts .editableSurface>[data-act="delete-piece"]{grid-column:4;grid-row:1}
+ #facts .editableSurface>.pieceVal{grid-column:1;grid-row:2}
+ #facts .editableSurface>.unit{grid-column:2;grid-row:2}
+ #facts .editableSurface>[data-act="piece-up"]{grid-column:3;grid-row:2}
+ #facts .editableSurface>[data-act="piece-down"]{grid-column:4;grid-row:2}
+ #facts .editableSurface>.pieceLevel{grid-column:1/-1;grid-row:3}
+ #facts .editableSurface>.assignPieceUnit{grid-column:1/-1;grid-row:4}
+}

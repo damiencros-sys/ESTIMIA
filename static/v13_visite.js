@@ -1797,7 +1797,7 @@ ownLoad();
  window.estimiaRefreshEquipmentHeights=refresh;
 })();
 
-/* V13.98 — parcours libre, valeur expliquée et dossier client. */
+/* V13.99 — parcours libre, valeur expliquée et dossier client. */
 (()=>{'use strict';
 const q=s=>document.querySelector(s),field=id=>q('#'+id)?.value||'',escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),money=n=>Number(n).toLocaleString('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0});
 const cards=[...document.querySelectorAll('#estimiaMain>section.card')],groups=[0,0,1,1,2,2,3],names=['Dictée et cadastre','Vérification du bien et photos','Comparables et estimation','Dossier client'];
@@ -1829,7 +1829,7 @@ q('#previewDossier')?.addEventListener('click',preview);q('#refreshDossierPrevie
 document.addEventListener('input',e=>{if(conclusionIds.includes(e.target?.id))checkConclusion();});new MutationObserver(()=>{renderLedger();checkConclusion();}).observe(q('#estimationResults'),{childList:true,subtree:true,characterData:true});document.addEventListener('estimia:contacts-restored',()=>{showStep(field('visitStep'));refreshAssets();});document.addEventListener('estimia:case-ready',()=>{renderLedger();checkConclusion();closePreview();});renderLedger();refreshAssets();showStep(field('visitStep'));
 })();
 
-/* V13.98 : contrôle de cohérence du dossier avant remise. */
+/* V13.99 : contrôle de cohérence du dossier avant remise. */
 (()=>{'use strict';const q=s=>document.querySelector(s),v=id=>q('#'+id)?.value||'';
 function checks(){const rows=[];if(Number(v('estOtherAdjustment'))&&!v('estQualityReason').trim())rows.push(['Ajustement financier','Un autre ajustement de '+Number(v('estOtherAdjustment')).toLocaleString('fr-FR')+' € est appliqué sans justification renseignée. Vérifier son motif et son éventuel cumul avec la décote d’état ou le budget de travaux.']);
 if(!v('estClientConclusion').trim()||!q('#includeClientConclusion')?.checked)rows.push(['Conclusion','Conclusion personnalisée absente ou non validée après relecture. Utiliser « Rédiger la conclusion », puis relire et cocher son inclusion.']);
