@@ -368,9 +368,10 @@ function surfaces(text,includeSuspicious=false){
  const push=(name,val,index)=>{
   if(!Number.isFinite(val)||val<=0)return;
   name=canon(name);
-  const limit=roomSurfaceLimit(name);if(val>250&&(!includeSuspicious||limit==null))return;if(!includeSuspicious&&limit!=null&&val>limit)return;
+  const annexName=/garage|cave|grenier|atelier|d[ée]pendance|local|abri|cabanon|carport|hangar|grange|remise|v[ée]randa/i.test(name);
+  const limit=roomSurfaceLimit(name);if(val>(annexName?100000:250)&&(!includeSuspicious||limit==null))return;if(!includeSuspicious&&limit!=null&&val>limit)return;
   const locatedInAnnex=isSanitaryRoom(name)&&/^(?:(?![!?;]|\.(?!\d)|\b(?:wc|toilettes?|chambre|cuisine|salon|s[ée]jour|salle)\b)[\s\S]){0,65}\b(?:dans|situ[ée]\s+dans)\s+(?:la|le|une?|les)\s+(?:cave|garage)\b/i.test(t.slice(index+name.length));
-  const cat=locatedInAnnex?'Sanitaire':/garage|cave|grenier|atelier|dépendance|local|abri|cabanon|carport/i.test(name)?'Annexe':/terrasse|balcon|loggia/i.test(name)?'Extérieur':'Intérieur';
+  const cat=locatedInAnnex?'Sanitaire':annexName?'Annexe':/terrasse|balcon|loggia/i.test(name)?'Extérieur':'Intérieur';
   const level=/cabanon|abri/i.test(name)?'Extérieur':levelAt(index);
   const scope=unitScopeAt(t,index,units),lvl=scope?scope+' — '+level:level;
   out.push({lvl,name,val,cat});
@@ -380,13 +381,13 @@ function surfaces(text,includeSuspicious=false){
  const grp=/\b(?:deux|2)\s+chambres?\s*(?:de|mesurant|:)?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)?\s*(?:et|,)\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/ig;
  for(const m of t.matchAll(grp)){push('Chambre 1',n(m[1]),m.index);push('Chambre 2',n(m[2]),m.index);grouped.push([m.index,m.index+m[0].length]);}
 
- const token=/\b(s[ée]jour|salon|salle à manger|cuisine|chambre(?:\s+(?:(?:num[ée]ro|n[°o])\s*\d+|\d+(?![\d.,])(?=\s*(?:de\b|fait\b|mesure\b|[:=]|\d))|un|une|deux|trois|parentale|suppl[ée]mentaire))?|bureau|pi[eè]ce|salle d[' ]eau|salle de bains?|wc|toilettes?|d[ée]gagement|couloir|entr[ée]e|hall|cellier|buanderie|dressing|palier|mezzanine|garage|cave|grenier|atelier|d[ée]pendance|local|abri|cabanon|carport|terrasse|balcon|loggia)\b/ig;
+ const token=/\b(s[ée]jour|salon|salle à manger|cuisine|chambre(?:\s+(?:(?:num[ée]ro|n[°o])\s*\d+|\d+(?![\d.,])(?=\s*(?:de\b|fait\b|mesure\b|[:=]|\d))|un|une|deux|trois|parentale|suppl[ée]mentaire))?|bureau|pi[eè]ce|salle d[' ]eau|salle de bains?|wc|toilettes?|d[ée]gagement|couloir|entr[ée]e|hall|cellier|buanderie|dressing|palier|mezzanine|garage|cave|grenier|atelier|d[ée]pendance|local|abri|cabanon|carport|hangars?|granges?|remise(?!\s+(?:aux?\s+normes?|[ée]norme))|v[ée]randas?|terrasse|balcon|loggia)\b/ig;
  const marks=[...t.matchAll(token)].map(m=>({name:m[1],i:m.index,end:m.index+m[0].length}));
  for(let k=0;k<marks.length;k++){
   const m=marks[k]; if(grouped.some(([a,b])=>m.i>=a&&m.i<b))continue;
   // Ignore negated WC ("sans WC", "pas de WC")
   const pre=t.slice(Math.max(0,m.i-14),m.i);
-  if(/(?:sans|pas\s+de)\s*$/i.test(pre)&&/^(wc|toilettes?)$/i.test(m.name))continue;
+  if(/(?:sans|pas\s+de)\s*$/i.test(pre))continue;
   const stop=k+1<marks.length?marks[k+1].i:Math.min(t.length,m.end+140);
   let chunk=t.slice(m.end,stop);
   // Une surface ne peut être attribuée à une pièce que dans son groupe immédiat.
@@ -452,7 +453,7 @@ function habitableRows(rows,text){
  return rows.filter(x=>{
   if(x.cat!=='Intérieur')return false;
   if(/^Sous-sol$/i.test(x.lvl))return false;
-  if(/garage|cave|remise|grenier|atelier|d[ée]pendance|local|abri|carport|terrasse|balcon|loggia|v[ée]randa/i.test(x.name))return false;
+  if(/garage|cave|remise|grenier|atelier|d[ée]pendance|local|abri|carport|hangar|grange|terrasse|balcon|loggia|v[ée]randa/i.test(x.name))return false;
   // Si une hauteur <1,80 m est signalée sans ventilation de surface, on ne peut pas
   // retrancher un chiffre fiable : le total est conservé mais signalé à vérifier.
   return true;
@@ -483,14 +484,17 @@ function renderSurfaceEditor(){
  const ins=manualSurfaceRows.filter(x=>x.cat==='Intérieur');
  let unitOptions=[];try{unitOptions=JSON.parse($('#propertyUnitsJSON')?.value||'[]')}catch{}
  const unitSelect=(lvl,cls)=>unitOptions.length>1?'<select class="'+cls+'" aria-label="Affectation au logement"><option value="">Logement à préciser</option>'+unitOptions.map(u=>'<option value="'+E(u.label)+'" '+(lvl.startsWith(u.label+' — ')?'selected':'')+'>'+E(u.label)+'</option>').join('')+'</select>':'';
+ for(const u of unitOptions)if(!manualLevels.some(l=>l.startsWith(u.label+' — ')))manualLevels.push(u.label+' — Niveau non précisé');
  let s='<section class="surfaceHero surfaceEditor"><div class="surfaceHead"><h3>📐 SURFACES CALCULÉES PAR NIVEAU</h3><div class="surfaceToolbar"><button type="button" class="miniEditBtn" data-act="add-level">＋ Ajouter un niveau</button></div></div>';
  manualLevels.forEach(lv=>{
   const rr=ins.filter(x=>x.lvl===lv),total=rr.filter(x=>!x._needsReview).reduce((a,x)=>a+x.val,0);
-  s+=`<div class="levelBlock" data-level="${E(lv)}"><div class="levelHead"><input class="levelName" value="${E(lv)}">${unitSelect(lv,'assignLevelUnit')}<div class="levelActions"><button type="button" data-act="level-up" title="Monter le niveau">↑</button><button type="button" data-act="level-down" title="Descendre le niveau">↓</button><button type="button" data-act="delete-level" title="Supprimer le niveau">🗑</button></div></div>`;
+  s+=`<div class="levelBlock" data-level="${E(lv)}"><div class="levelHead"><textarea class="levelName" rows="1" aria-label="Nom du bien et du niveau">${E(lv)}</textarea><div class="levelActions"><button type="button" data-act="level-up" title="Monter le niveau">↑</button><button type="button" data-act="level-down" title="Descendre le niveau">↓</button><button type="button" data-act="delete-level" title="Supprimer le niveau">🗑</button></div></div>`;
   rr.forEach(x=>{const opts=manualLevels.map(z=>`<option ${z===lv?'selected':''}>${E(z)}</option>`).join('');
-   s+=`<div class="surfaceRow editableSurface" data-id="${E(x._id)}"><input class="pieceName" value="${E(x.name)}"><input class="pieceVal" type="number" step=".01" value="${Number(x.val)}"><span class="unit">${x._needsReview?'⚠ m² à vérifier':'m²'}</span><select class="pieceLevel">${opts}</select>${unitSelect(lv,'assignPieceUnit')}<button type="button" data-act="piece-up" title="Monter">↑</button><button type="button" data-act="piece-down" title="Descendre">↓</button><button type="button" data-act="delete-piece" title="Supprimer">×</button></div>`;
+   s+=`<div class="surfaceRow editableSurface" data-id="${E(x._id)}"><input class="pieceName" value="${E(x.name)}"><input class="pieceVal" type="number" step=".01" value="${Number(x.val)}"><span class="unit">${x._needsReview?'⚠ m² à vérifier':'m²'}</span><details class="pieceMove"><summary>Déplacer vers un autre bien / niveau</summary><label>Destination<select class="pieceLevel" aria-label="Destination de la pièce">${opts}</select></label></details><button type="button" data-act="piece-up" title="Monter">↑</button><button type="button" data-act="piece-down" title="Descendre">↓</button><button type="button" data-act="delete-piece" title="Supprimer">×</button></div>`;
   });
-  s+=`<button type="button" class="miniEditBtn" data-act="add-piece">＋ Ajouter une pièce</button><div class="surfaceTotal"><span>Total ${E(lv)}</span><strong>${fmt(total)}</strong></div></div>`;
+  const declaredUnit=unitOptions.find(u=>lv.startsWith(u.label+' — '))||(!unitOptions.length&&manualLevels.length===1?{surface:Number($('#surfaceHab')?.value)}:null);
+  if(!rr.length)s+=`<p class="unitDeclaredOnly">${declaredUnit?.surface>0?'Surface globale annoncée : <strong>'+fmt(declaredUnit.surface)+'</strong>. ':''}Aucune surface de pièce détaillée. Le total annoncé n’est pas ajouté aux pièces.</p>`;
+  s+=`<button type="button" class="miniEditBtn" data-act="add-piece">＋ Ajouter une pièce</button>${rr.length?`<div class="surfaceTotal"><span>Total des pièces détaillées — ${E(lv)}</span><strong>${fmt(total)}</strong></div>`:''}</div>`;
  });
  const total=ins.filter(x=>!x._needsReview).reduce((a,x)=>a+x.val,0);
  s+=`<div class="grandTotal"><span>TOTAL DES PIÈCES INTÉRIEURES RENSEIGNÉES</span><strong>${fmt(total)}</strong></div><button type="button" class="miniEditBtn" data-act="confirm-surface-total">Utiliser ce total vérifié pour l’estimation</button><p class="small">À confirmer après vérification des pièces, niveaux et surfaces manquantes. Les annexes sont exclues.</p>`;
@@ -498,8 +502,28 @@ function renderSurfaceEditor(){
  if(ann.length)s+=`<div class="otherSurface"><h4 contenteditable="true">🏚️ Annexes — hors total intérieur</h4>${ann.map(x=>`<div class="surfaceRow"><span contenteditable="true">${E(x.name)} — ${E(x.lvl)}</span><b contenteditable="true">${fmt(x.val)}</b></div>`).join('')}</div>`;
  const sanitaires=manualSurfaceRows.filter(x=>x.cat==='Sanitaire');if(sanitaires.length)s+=`<div class="otherSurface"><h4>🚿 Sanitaires — hors surface habitable</h4>${sanitaires.map(x=>`<div class="surfaceRow"><span>${E(x.name)} — ${E(x.lvl)}</span><b>${fmt(x.val)}${x._needsReview?' — à vérifier':''}</b></div>`).join('')}</div>`;
  if(ext.length)s+=`<div class="otherSurface"><h4 contenteditable="true">🌳 Extérieurs — hors total intérieur</h4>${ext.map(x=>`<div class="surfaceRow"><span contenteditable="true">${E(x.name)} — ${E(x.lvl)}</span><b contenteditable="true">${fmt(x.val)}</b></div>`).join('')}</div>`;
- return s+'</section>';
+ return s+surfaceOverviewHTML()+'</section>';
 }
+// Une surface globale et les pièces qui la détaillent ne sont jamais additionnées.
+function surfaceOverviewSections(){
+ let units=[];try{units=JSON.parse($('#propertyUnitsJSON')?.value||'[]')}catch{}
+ const interior=manualSurfaceRows.filter(r=>r.cat==='Intérieur');
+ let totals=units.length?units.map(u=>{const rr=interior.filter(r=>r.lvl.startsWith(u.label+' — ')),sum=rr.filter(r=>!r._needsReview).reduce((v,r)=>v+r.val,0);return [u.label,'Annoncée : '+(u.surface>0?fmt(u.surface):'Non renseignée')+' ; pièces détaillées : '+(rr.length?fmt(sum):'non détaillées')+(u.surface>0&&rr.length&&Math.abs(u.surface-sum)>.01?' ; écart à vérifier : '+fmt(Math.abs(u.surface-sum)):'')]}):[['Bien principal','Annoncée : '+(Number($('#surfaceHab')?.value)>0?fmt(Number($('#surfaceHab').value)):'Non renseignée')+' ; pièces détaillées : '+(interior.length?fmt(interior.filter(r=>!r._needsReview).reduce((v,r)=>v+r.val,0)):'non détaillées')]];
+ if(/^terrain/i.test($('#type')?.value||'')){const land=buildInfo($('#notes')?.value||'').find(r=>r[0]==='Surface du terrain déclarée');totals=[['Surface habitable','Non applicable à un terrain'],['Surface du terrain annoncée',land?.[1]||'Non renseignée']];}
+ const details=interior.map(r=>[r.name+' — '+r.lvl,fmt(r.val)+(r._needsReview?' — à vérifier':'')]);
+ const ann=manualSurfaceRows.filter(r=>r.cat==='Annexe').map(r=>[r.name+' — '+r.lvl,fmt(r.val)+' — hors habitable']);
+ // Les annexes sans surface restent visibles, sans inventer de métrage.
+ document.querySelectorAll('#facts .annexCard .annexRow').forEach(row=>{const name=row.children[0]?.textContent?.trim();if(name&&!ann.some(r=>r[0].toLocaleLowerCase('fr').startsWith(name.toLocaleLowerCase('fr')+' — ')))ann.push([name,'Surface non renseignée — hors habitable']);});
+ if(ann.length){const validAnn=manualSurfaceRows.filter(r=>r.cat==='Annexe'&&!r._needsReview);if(validAnn.length)ann.push(['Total des surfaces annexes chiffrées',fmt(validAnn.reduce((v,r)=>v+r.val,0))+' — surfaces non renseignées exclues']);}
+ if(units.length>1&&units.every(u=>u.surface>0))totals.push(['Total habitable annoncé',fmt(units.reduce((v,u)=>v+u.surface,0))+' — sans ajout du détail des pièces']);
+ return [{title:'Surfaces habitables — synthèse par logement (sans double comptage)',rows:totals},{title:'Surfaces habitables — détail des pièces',rows:details},{title:'Surfaces annexes — hors habitable',rows:ann.length?ann:[['Annexes','Aucune surface annexe renseignée']]}];
+}
+function surfaceOverviewHTML(){return '<div class="surfaceOverview"><h3>Tableaux récapitulatifs des surfaces</h3><p class="small">Les surfaces annoncées et le détail des pièces sont deux lectures du même bien. Les annexes sont séparées ; les écarts restent à vérifier.</p>'+surfaceOverviewSections().map(section=>'<h4>'+E(section.title)+'</h4><table><thead><tr><th>Bien / désignation</th><th>Surface / statut</th></tr></thead><tbody>'+section.rows.map(row=>'<tr><td>'+E(row[0])+'</td><td>'+E(row[1])+'</td></tr>').join('')+'</tbody></table>').join('')+'</div>';}
+window.estimiaRefreshSurfaceOverview=()=>refreshSurfaceOverview();
+function refreshSurfaceOverview(){const box=document.querySelector('#facts .surfaceOverview');if(box){const d=document.createElement('div');d.innerHTML=surfaceOverviewHTML();box.replaceWith(d.firstElementChild);}}
+document.addEventListener('input',e=>{if(e.target.closest('#facts .annexCard'))refreshSurfaceOverview();});
+document.addEventListener('focusout',e=>{if(e.target.closest('#facts .otherSurface')){hydrateSurfaceRows();refreshSurfaceOverview();}});
+document.addEventListener('click',e=>{if(e.target.closest('#facts .annexCard button'))setTimeout(refreshSurfaceOverview,0);});
 let surfaceUndo=[],surfaceRedo=[],surfaceRestoring=false;
 function surfaceSnapshot(){return JSON.stringify({rows:manualSurfaceRows,levels:manualLevels})}
 function rememberSurfaceState(){
@@ -523,8 +547,9 @@ function redoSurface(){
  const s=surfaceRedo.pop();surfaceUndo.push(s);restoreSurfaceState(s);
 }
 function refreshSurfaceEditor(preserveDeclared=false){
+ try{if(JSON.parse($('#propertyUnitsJSON')?.value||'[]').length>1)preserveDeclared=true;}catch{}
  const box=document.querySelector('#facts .surfaceEditor');if(!box)return;
- const d=document.createElement('div');d.innerHTML=renderSurfaceEditor();box.replaceWith(d.firstElementChild);
+ const d=document.createElement('div');d.innerHTML=renderSurfaceEditor();box.replaceWith(d.firstElementChild);renderPhotoManager();
  const pending=manualSurfaceRows.filter(x=>x._needsReview),total=manualSurfaceRows.filter(x=>x.cat==='Intérieur'&&!x._needsReview).reduce((a,x)=>a+x.val,0);
  const field=$('#surfaceHab');if(field&&!preserveDeclared){field.dataset.needsReview=String(pending.length>0);field.value=!pending.length&&total?total.toFixed(2):'';field.dispatchEvent(new Event('input',{bubbles:true}));}
  const alerts=$('#surfaceReviewAlerts');if(alerts)alerts.innerHTML=card('Surfaces à vérifier','⚠️',pending.map(x=>[x.name+' — '+x.lvl,fmt(x.val)+' à vérifier : corrigez la surface sur la ligne de cette pièce, ou renseignez une surface habitable globale confirmée.']));
@@ -617,7 +642,7 @@ function surfaceRowById(id){return manualSurfaceRows.find(x=>x._id===id)}
 function movePiece(id,dir){
  const x=surfaceRowById(id);if(!x)return;const same=manualSurfaceRows.filter(y=>y.cat==='Intérieur'&&y.lvl===x.lvl);
  const pos=same.findIndex(y=>y._id===id),other=same[pos+dir];if(!other)return;
- const ia=manualSurfaceRows.indexOf(x),ib=manualSurfaceRows.indexOf(other);[manualSurfaceRows[ia],manualSurfaceRows[ib]]=[manualSurfaceRows[ib],manualSurfaceRows[ia]];refreshSurfaceEditor();
+ const ia=manualSurfaceRows.indexOf(x),ib=manualSurfaceRows.indexOf(other);[manualSurfaceRows[ia],manualSurfaceRows[ib]]=[manualSurfaceRows[ib],manualSurfaceRows[ia]];refreshSurfaceEditor(true);
 }
 function deleteLevel(lv){
  const pieces=manualSurfaceRows.filter(x=>x.cat==='Intérieur'&&x.lvl===lv),others=manualLevels.filter(x=>x!==lv);
@@ -749,7 +774,7 @@ function heating(t){
  if(ecs&&!rows.some(r=>r[0]==="Production d'eau chaude"))rows.push(["Production d'eau chaude",'—',ecs]);
  return rows;
 }
-document.addEventListener('estimia:case-ready',repairDeclaredUnitScopes);
+document.addEventListener('estimia:case-ready',()=>{repairDeclaredUnitScopes();if(hydrateSurfaceRows())refreshSurfaceEditor(true);});
 window.estimiaEssentialTextForUnit=(text,key)=>unitNarrativeText(text,propertyUnits(text),key);
 window.estimiaEssentialNormalizeText=normalizeDictatedAreas;
 window.estimiaEssentialExtract=(text)=>({heating:heating(text),condition:conditionSignals(text).at(-1)?.condition||''});
@@ -1385,6 +1410,13 @@ function cadMapURL(){
 
 let photoItemsState=[];
 function photoDisplayName(file){return (file?.name||'Photo').replace(/\.[^.]+$/,'')}
+function photoRoomChoices(){
+ const labels=new Set();
+ const text=$('#notes')?.value||'';for(const match of text.matchAll(/\b(chambre(?:\s+[1-9])?|salon|s[ée]jour|cuisine|kitchenette|salle d['’]eau|salle de bain[s]?|wc|couloir|buanderie|terrasse|garage|cave|hangar|v[ée]randa)\b/gi))labels.add(match[0][0].toUpperCase()+match[0].slice(1));
+ document.querySelectorAll('#facts .levelBlock').forEach(b=>{const level=b.querySelector('.levelName')?.value||b.dataset.level;labels.add(level);b.querySelectorAll('.pieceName').forEach(el=>labels.add(el.value+' — '+level));});
+ document.querySelectorAll('#facts .annexCard .annexRow').forEach(r=>{if(r.children[0]?.textContent)labels.add(r.children[0].textContent.trim());});
+ return [...labels].filter(Boolean);
+}
 function renderPhotoManager(){
  const box=$('#photoManager');if(!box)return;
  if(!photoItemsState.length){box.innerHTML='';return}
@@ -1399,7 +1431,8 @@ function renderPhotoManager(){
   <div class="photoManageCard ${p.selected?'selected':''}" data-photo="${i}">
    <label class="photoCheck" title="Sélectionner cette photo"><input type="checkbox" class="photoSelect" ${p.selected?'checked':''}></label>
    <img src="${p.url}" alt="${E(p.label)}">
-   <input class="photoLabel" value="${E(p.label)}" title="Nom de la photo">
+   <label class="photoRoomField">Pièce ou lieu reconnu<select class="photoRoomSelect" aria-label="Affecter la photo à une pièce"><option value="">Choisir une pièce ou un lieu</option>${photoRoomChoices().map(label=>'<option '+(p.label===label?'selected':'')+'>'+E(label)+'</option>').join('')}<option value="__custom__">Autre nom à saisir…</option></select></label>
+   <label class="photoRoomField">Légende personnalisable<textarea class="photoLabel" rows="2" title="Nom de la photo" placeholder="Ex. puits, hangar, vue de la terrasse…">${E(p.label)}</textarea></label>
    <div class="photoActions">
     <button type="button" data-photo-act="left" title="Déplacer avant">←</button>
     <button type="button" data-photo-act="right" title="Déplacer après">→</button>
@@ -1407,6 +1440,7 @@ function renderPhotoManager(){
    </div>
   </div>`).join('')+'</div>';
 }
+window.estimiaRefreshPhotoChoices=renderPhotoManager;
 const photoSaveCache=new WeakMap();
 window.estimiaPhotosForSave=async()=>Promise.all(photoItemsState.map(async p=>{
  if(!photoSaveCache.has(p.file))photoSaveCache.set(p.file,optimizedPhotoDataURL(p.file));
@@ -1455,8 +1489,8 @@ function exportPhotoLabel(label){const value=String(label||'').trim();return /^(
 async function buildExportPayload(){
  await window.estimiaEnsureCurrentEstimate?.();
  renderSupplementCards();
- const sections=[];
- document.querySelectorAll('#facts .levelBlock').forEach(b=>{const title=b.querySelector('.levelName')?.value||b.dataset.level||'Niveau';const rows=[...b.querySelectorAll('.editableSurface')].map(r=>[r.querySelector('.pieceName')?.value||'',(r.querySelector('.pieceVal')?.value||'')+(r.querySelector('.pieceVal')?.value?' m²':'')]);if(!rows.length)return;const total=b.querySelector('.surfaceTotal');if(total)rows.push([total.querySelector('span')?.textContent||'',total.querySelector('strong')?.textContent||'']);sections.push({title,rows})});
+ hydrateSurfaceRows();
+ const sections=surfaceOverviewSections();
  document.querySelectorAll('#facts .otherSurface').forEach(b=>sections.push({title:b.querySelector('h4')?.textContent||'Surfaces annexes',rows:[...b.querySelectorAll('.surfaceRow')].map(r=>[r.querySelector('span')?.textContent||'',r.querySelector('b')?.textContent||''])}));
  document.querySelectorAll('#facts .proGroup:not(.supplementCard)').forEach(b=>sections.push({title:b.querySelector('h3')?.textContent||'Informations',rows:[...b.querySelectorAll('.proRow')].map(r=>r.classList.contains('annexRow')?[r.children[0]?.textContent||'',(r.children[1]?.textContent||'')+' — '+(r.children[2]?.textContent||'')]:[r.querySelector('span')?.textContent||'',r.querySelector('strong')?.textContent||''])}));
  sections.push(...propertySupplementSections());
@@ -1580,7 +1614,7 @@ document.addEventListener('change',e=>{
   for(const row of manualSurfaceRows)if(e.target.classList.contains('assignLevelUnit')?row.lvl===level:row===x)row.lvl=(unit||'Logement non précisé')+' — '+base(row.lvl);
   manualLevels=manualLevels.filter(l=>manualSurfaceRows.some(r=>r.lvl===l));refreshSurfaceEditor(true);return;
  }
- if(x&&e.target.classList.contains('pieceLevel')){x.lvl=e.target.value;refreshSurfaceEditor();return}
+ if(x&&e.target.classList.contains('pieceLevel')){x.lvl=e.target.value;refreshSurfaceEditor(true);return}
  if(x&&e.target.classList.contains('pieceVal')){const value=Number(e.target.value);if(!Number.isFinite(value)||value<=0){e.target.value=x.val;return}x.val=value;x._needsReview=roomSurfaceLimit(x.name)!=null&&value>roomSurfaceLimit(x.name);refreshSurfaceEditor();return}
  if(x&&e.target.classList.contains('pieceName')){x.name=clean(e.target.value)||'Pièce';x._needsReview=roomSurfaceLimit(x.name)!=null&&x.val>roomSurfaceLimit(x.name);refreshSurfaceEditor();return}
  if(e.target.classList.contains('levelName')){const block=e.target.closest('.levelBlock'),old=block?.dataset.level,neu=clean(e.target.value);if(!old||!neu||neu===old)return;if(manualLevels.includes(neu)){alert('Ce niveau existe déjà.');e.target.value=old;return}manualLevels=manualLevels.map(x=>x===old?neu:x);manualSurfaceRows.forEach(x=>{if(x.lvl===old)x.lvl=neu});refreshSurfaceEditor();}
@@ -1640,6 +1674,7 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('change',e=>{
  if(e.target.id==='photos'){initPhotos(e.target.files);return}
+ if(e.target.classList.contains('photoRoomSelect')){const i=Number(e.target.closest('.photoManageCard')?.dataset.photo);if(e.target.value==='__custom__'){e.target.closest('.photoManageCard').querySelector('.photoLabel').focus();return;}if(photoItemsState[i]&&e.target.value){photoItemsState[i].label=e.target.value;renderPhotoManager();globalCheckpoint();}return;}
  if(e.target.classList.contains('photoLabel')){
   const i=Number(e.target.closest('.photoManageCard')?.dataset.photo);
   if(photoItemsState[i]){photoItemsState[i].label=clean(e.target.value)||photoDisplayName(photoItemsState[i].file);renderPhotoManager();globalCheckpoint()}
@@ -1819,7 +1854,7 @@ ownLoad();
  window.estimiaRefreshEquipmentHeights=refresh;
 })();
 
-/* V14.00 — parcours libre, valeur expliquée et dossier client. */
+/* V14.01 — parcours libre, valeur expliquée et dossier client. */
 (()=>{'use strict';
 const q=s=>document.querySelector(s),field=id=>q('#'+id)?.value||'',escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),money=n=>Number(n).toLocaleString('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0});
 const cards=[...document.querySelectorAll('#estimiaMain>section.card')],groups=[0,0,1,1,2,2,3],names=['Dictée et cadastre','Vérification du bien et photos','Comparables et estimation','Dossier client'];
@@ -1828,7 +1863,7 @@ cards.forEach((c,i)=>{c.dataset.visitStep=String(groups[i]??3);const tag=c.query
 function showStep(index,scroll=false){step=Math.max(0,Math.min(3,Number(index)||0));all=field('visitMode')==='all';if(q('#visitStep'))q('#visitStep').value=String(step);cards.forEach(c=>{c.hidden=!all&&Number(c.dataset.visitStep)!==step;});q('#visitStepStatus').textContent=all?'Toutes les étapes sont affichées':'Étape '+(step+1)+' sur 4 — '+names[step];document.querySelectorAll('#visitSteps [data-step]').forEach(b=>{b.classList.toggle('active',Number(b.dataset.step)===step);if(Number(b.dataset.step)===step)b.setAttribute('aria-current','step');else b.removeAttribute('aria-current');});q('#visitPrev').disabled=all||step===0;q('#visitNext').hidden=all||step===3;q('#showAllSteps').textContent=all?'Revenir aux étapes':'Tout afficher';q('#showAllSteps').setAttribute('aria-expanded',String(all));window.estimiaRefreshEquipmentHeights?.();if(scroll)q('#visitSteps').scrollIntoView({behavior:'smooth',block:'start'});}
 function go(index){q('#visitMode').value='steps';showStep(index,true);q('#visitStep').dispatchEvent(new Event('input',{bubbles:true}));}
 document.querySelectorAll('#visitSteps [data-step]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.step)));q('#visitPrev')?.addEventListener('click',()=>go(step-1));q('#visitNext')?.addEventListener('click',()=>go(step+1));q('#showAllSteps')?.addEventListener('click',()=>{q('#visitMode').value=all?'steps':'all';showStep(step);});
-q('#analyse')?.addEventListener('click',()=>setTimeout(async()=>{try{await window.estimiaFicheReady;if(field('notes').trim())go(1);}catch{}},0));
+// La transformation conserve l’étape et la position courantes pour relire la dictée et le cadastre.
 const amount=selector=>Number((q(selector)?.textContent||'').replace(/[^0-9,.-]/g,'').replace(',','.'))||0;
 function ledgerRows(forExport=false){const box=q('#estimationResults');if(!box?.querySelector('.estimationValueAmount'))return [];if(forExport&&box.dataset.adjusted==='true')return [['Méthode','Montant retenu après décision du conseiller'],['Justification',field('validatedReason')||'À préciser'],['Fourchettes','Montant retenu ±15 %, arrondi au millier']];let raw={},proposal={};try{raw=JSON.parse(box.dataset.rawDvfEstimate||'{}');proposal=JSON.parse(box.dataset.originalEstimate||'{}');}catch{}const rows=[];if(raw.centrale>0)rows.push(['Base des ventes DVF avant correction',money(raw.centrale)]);const components=proposal.qualityComponents?.length?proposal.qualityComponents:(window.estimiaQualityComponentsForExport?.()||[]);if(components.length)for(const [label,value]of components)rows.push([label,money(value)]);if(raw.centrale>0&&proposal.centrale>0)rows.push(['Incidence totale des corrections',money(proposal.centrale-raw.centrale)]);if(field('estQualityReason'))rows.push(['Justification des ajustements',field('estQualityReason')]);else if(Number(field('estOtherAdjustment')))rows.push(['Justification des ajustements','Non renseignée — ajustement à justifier avant remise au propriétaire']);if(proposal.centrale>0)rows.push(['Proposition après corrections',money(proposal.centrale)]);if(box.dataset.adjusted==='true')rows.push(['Montant retenu par le conseiller',money(amount('#estimationResults .estimationValueAmount'))]);rows.push(['Portée des corrections',q('#estimationResults .estimationExplanation')?.textContent||'']);return forExport?rows.filter(([k])=>k!=='Portée des corrections'):rows;}
 window.estimiaCalculationRows=()=>ledgerRows(true);
@@ -1851,7 +1886,7 @@ q('#previewDossier')?.addEventListener('click',preview);q('#refreshDossierPrevie
 document.addEventListener('input',e=>{if(conclusionIds.includes(e.target?.id))checkConclusion();});new MutationObserver(()=>{renderLedger();checkConclusion();}).observe(q('#estimationResults'),{childList:true,subtree:true,characterData:true});document.addEventListener('estimia:contacts-restored',()=>{showStep(field('visitStep'));refreshAssets();});document.addEventListener('estimia:case-ready',()=>{renderLedger();checkConclusion();closePreview();});renderLedger();refreshAssets();showStep(field('visitStep'));
 })();
 
-/* V14.00 : contrôle de cohérence du dossier avant remise. */
+/* V14.01 : contrôle de cohérence du dossier avant remise. */
 (()=>{'use strict';const q=s=>document.querySelector(s),v=id=>q('#'+id)?.value||'';
 function checks(){const rows=[];if(Number(v('estOtherAdjustment'))&&!v('estQualityReason').trim())rows.push(['Ajustement financier','Un autre ajustement de '+Number(v('estOtherAdjustment')).toLocaleString('fr-FR')+' € est appliqué sans justification renseignée. Vérifier son motif et son éventuel cumul avec la décote d’état ou le budget de travaux.']);
 if(!v('estClientConclusion').trim()||!q('#includeClientConclusion')?.checked)rows.push(['Conclusion','Conclusion personnalisée absente ou non validée après relecture. Utiliser « Rédiger la conclusion », puis relire et cocher son inclusion.']);
@@ -1861,7 +1896,7 @@ if([...document.querySelectorAll('#facts .levelBlock')].some(e=>/Logement non pr
 window.estimiaDossierChecks=()=>{const rows=checks(),box=q('#dossierChecks');if(box){box.replaceChildren();const title=document.createElement('h3');title.textContent=rows.length?'Points à vérifier avant remise':'Dossier : contrôles disponibles sans anomalie signalée';box.append(title);for(const[k,val]of rows){const p=document.createElement('p');p.textContent=k+' : '+val;box.append(p);}}return rows.length?[{title:'Points à vérifier avant remise',rows}]:[];};
 let timer;const update=()=>{clearTimeout(timer);timer=setTimeout(()=>window.estimiaDossierChecks(),50);};document.addEventListener('input',update);document.addEventListener('change',update);document.addEventListener('estimia:case-ready',update);document.querySelectorAll('#visitSteps button,#visitNext,#showAllSteps').forEach(e=>e.addEventListener('click',update));new MutationObserver(update).observe(q('#estimationResults'),{childList:true,subtree:true,characterData:true});window.estimiaDossierChecks();})();
 
-/* V14.00 — réponses essentielles et validation libre des étapes. */
+/* V14.01 — réponses essentielles et validation libre des étapes. */
 (()=>{'use strict';
 const q=s=>document.querySelector(s),val=id=>q('#'+id)?.value||'',esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const unknown='À vérifier',none='Absent',na='Non concerné';let data={units:{},common:{},validated:{}},current=0,loading=false,lastPrice='';
@@ -1902,14 +1937,14 @@ html+='<div class="essentialGrid">'+selectCommon('copro','Copropriété',['Oui',
 }
 if(step===2)html+='<p class="small">État renseigné dans le calcul : '+esc(val('estCondition')||'non précisé')+'. Vérifie sa concordance avec les réponses essentielles ; utilise les réglages existants pour modifier les corrections.</p><label><input type="checkbox" data-common="methodReviewed" '+(data.common.methodReviewed?'checked':'')+'> J’ai vérifié la base de calcul, l’état, les travaux et les autres corrections, sans double comptage.</label>';
 if(step===3)html+='<label><input type="checkbox" data-common="finalReviewed" '+(data.common.finalReviewed?'checked':'')+'> J’ai vérifié le montant, les documents et les informations restant à confirmer.</label>';
-if(items.length)html+='<ul class="essentialMissing">'+items.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>';html+='<button type="button" id="validateEssentialStep">Valider cette étape</button><p id="essentialMessage" role="status"></p>';host.innerHTML=html;
+if(items.length)html+='<ul class="essentialMissing">'+items.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>';html+='<button type="button" id="validateEssentialStep">'+(step<3?'Valider et continuer':'Valider le dossier')+'</button><p id="essentialMessage" tabindex="-1" role="status"></p>';host.innerHTML=html;
 document.querySelectorAll('#visitSteps [data-step]').forEach(b=>{const i=Number(b.dataset.step);b.classList.toggle('stepValidated',valid(i));b.title=valid(i)?'Étape validée':'Étape à valider';});}
-function validate(){if(current===3)window.estimiaClientConclusionForExport?.();const list=missing(current);if(list.length){render();q('#essentialMessage').textContent='Complète les éléments indiqués. Tu peux poursuivre librement avec les onglets ou enregistrer un brouillon.';return false;}data.validated[current]={signature:signature(current)};store();render();return true;}
+function validate(){if(current===3)window.estimiaClientConclusionForExport?.();const list=missing(current);if(list.length){render();q('#essentialMessage').textContent='Étape non validée : complète les informations listées ci-dessus, ou choisis « À vérifier » si tu ne les connais pas. Les onglets restent accessibles pour relire la fiche.';return false;}data.validated[current]={signature:signature(current)};store();render();return true;}
 q('#essentialValidation').addEventListener('change',e=>{const el=e.target;if(el.dataset.common){data.common[el.dataset.common]=el.type==='checkbox'?el.checked:el.value;data.common[el.dataset.common+'Manual']=true;}else if(el.dataset.unit){const st=unitData(el.dataset.unit),key=el.dataset.field,a=el.value;if(!a)return;st.answers[key]=['condition','works'].includes(key)||[unknown,none,na].includes(a)?[a]:[...new Set([...(st.answers[key]||[]).filter(v=>![unknown,none,na].includes(v)),a])];st.manual[key]=true;st.source[key]='Réponse manuelle';}if(!['methodReviewed','finalReviewed'].includes(el.dataset.common)){data.common.methodReviewed=false;data.common.finalReviewed=false;}store();render();});
-q('#essentialValidation').addEventListener('click',e=>{if(e.target.id==='validateEssentialStep')validate();if(e.target.dataset.remove){const st=unitData(e.target.dataset.unit),key=e.target.dataset.field;st.answers[key]=(st.answers[key]||[]).filter(a=>a!==e.target.dataset.remove);st.manual[key]=true;st.source[key]='Réponse manuelle';data.common.methodReviewed=false;data.common.finalReviewed=false;store();render();}});
+q('#essentialValidation').addEventListener('click',e=>{if(e.target.id==='validateEssentialStep'){if(validate()){if(current<3)q('#visitSteps [data-step="'+(current+1)+'"]').click();else q('#essentialMessage').textContent='Dossier validé. Vous pouvez télécharger les documents.';}else{q('#essentialProgress').scrollIntoView({behavior:'smooth',block:'center'});q('#essentialMessage').focus();}}if(e.target.dataset.remove){const st=unitData(e.target.dataset.unit),key=e.target.dataset.field;st.answers[key]=(st.answers[key]||[]).filter(a=>a!==e.target.dataset.remove);st.manual[key]=true;st.source[key]='Réponse manuelle';data.common.methodReviewed=false;data.common.finalReviewed=false;store();render();}});
 q('#visitNext').addEventListener('click',e=>{if(!validate()){e.preventDefault();e.stopImmediatePropagation();q('#essentialValidation').scrollIntoView({behavior:'smooth',block:'start'});}},true);
-q('#analyse').addEventListener('click',()=>setTimeout(async()=>{await window.estimiaFicheReady;prefill();render();store();},0));
-let timer;document.addEventListener('input',e=>{if(loading||window.estimiaRestoringCase||e.target.id==='essentialDataJSON'||e.target.closest('#essentialValidation'))return;clearTimeout(timer);if(['notes','correction','surfaceHab','type','estCondition','estQualityRate','estWorkBudget','estOtherAdjustment','estQualityMode','estQualityReason'].includes(e.target.id)){data.common.methodReviewed=false;data.common.finalReviewed=false;store(false);}timer=setTimeout(()=>{if(['estHeating','estHotWater','estWindows','estCondition','estPlannedWorks','estCharges','estSyndic'].includes(e.target.id))prefill();render();},100);});document.querySelectorAll('#visitSteps button,#visitNext,#visitPrev,#showAllSteps').forEach(e=>e.addEventListener('click',render));document.addEventListener('estimia:case-ready',()=>{loading=true;load();prefill();lastPrice=amount();render();loading=false;});new MutationObserver(()=>{if(loading||window.estimiaRestoringCase)return;if(lastPrice!==amount()){data.common.methodReviewed=false;data.common.finalReviewed=false;lastPrice=amount();store(false);}clearTimeout(timer);timer=setTimeout(render,100);}).observe(q('#estimationResults'),{subtree:true,childList:true,characterData:true});
+q('#analyse').addEventListener('click',()=>setTimeout(async()=>{await window.estimiaFicheReady;window.estimiaRefreshSurfaceOverview?.();window.estimiaRefreshPhotoChoices?.();prefill();render();store();},0));
+let timer;document.addEventListener('input',e=>{if(loading||window.estimiaRestoringCase||e.target.id==='essentialDataJSON'||e.target.closest('#essentialValidation'))return;clearTimeout(timer);if(['notes','correction','surfaceHab','type','estCondition','estQualityRate','estWorkBudget','estOtherAdjustment','estQualityMode','estQualityReason'].includes(e.target.id)){data.common.methodReviewed=false;data.common.finalReviewed=false;store(false);}timer=setTimeout(()=>{if(['estHeating','estHotWater','estWindows','estCondition','estPlannedWorks','estCharges','estSyndic'].includes(e.target.id))prefill();render();},100);});document.querySelectorAll('#visitSteps button,#visitNext,#visitPrev,#showAllSteps').forEach(e=>e.addEventListener('click',render));document.addEventListener('estimia:case-ready',()=>{window.estimiaRefreshSurfaceOverview?.();loading=true;load();prefill();lastPrice=amount();render();loading=false;});new MutationObserver(()=>{if(loading||window.estimiaRestoringCase)return;if(lastPrice!==amount()){data.common.methodReviewed=false;data.common.finalReviewed=false;lastPrice=amount();store(false);}clearTimeout(timer);timer=setTimeout(render,100);}).observe(q('#estimationResults'),{subtree:true,childList:true,characterData:true});
 window.estimiaEssentialExport=()=>{const result=[];if(residential())for(const u of units()){const st=unitData(u.key),rows=Object.keys(labels).map(k=>[labels[k],(st.answers[k]||[]).join(' ; ')||'Non renseigné']).concat([['Portée','Réponses déclarées ; les caractéristiques détaillées et quantités restent dans le relevé de visite.']]);result.push({title:'Informations essentielles — '+u.label,rows});}else if(terrain())result.push({title:'Informations essentielles — terrain',rows:[['Surface',(data.common.landArea||'Non renseignée')+' m²'],['Constructibilité',data.common.constructibility||'Non renseignée'],['Accès',data.common.access||'Non renseigné']]});
 const common=[];for(const[key,label]of [['copro','Copropriété'],['syndic','Syndic'],['charges','Charges'],['assainissement','Assainissement']])if(data.common[key]&&(data.common.copro==='Oui'||!['syndic','charges'].includes(key)))common.push([label,data.common[key]]);if(common.length)result.push({title:'Réponses complémentaires essentielles',rows:common});result.push({title:'État de validation du dossier',rows:[0,1,2,3].map(i=>['Étape '+(i+1),valid(i)?'Validée':'Brouillon — étape non validée']).concat(reserves().length?[['À vérifier',reserves().join(' ; ')]]:[])});return result;};
 window.estimiaValidationStatus=()=>[0,1,2,3].map(i=>({step:i,valid:valid(i),missing:missing(i)}));load();prefill();render();})();
