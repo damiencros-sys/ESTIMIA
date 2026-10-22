@@ -372,6 +372,8 @@ class WordPayload(BaseModel):
     facts:str=""
     photos:list=[]
     generated_date:str=""
+    branding:dict={}
+    client_conclusion:str=""
     theme_color:str=""
     estimation:dict={}
     annonces:list=[]
@@ -388,6 +390,14 @@ def _property_color(t):
     if any(x in s for x in ["garage","parking","box"]): return "64748B"
     if any(x in s for x in ["maison","villa","pavillon"]): return "2F7D5A"
     return "49697D"
+
+
+def _dossier_color(p):
+    value=str(p.theme_color or '').lstrip('#')
+    return value.upper() if re.fullmatch(r'[0-9a-fA-F]{6}',value) else _property_color(p.property_type)
+
+def _brand_photo(p,key):
+    return _dossier_photos([{'data':p.branding.get(key,'')}])
 
 
 def _export_market_images(annonces):
@@ -474,12 +484,15 @@ def word_export(p:WordPayload):
             for r in cells[0].paragraphs[0].runs: r.bold=True; r.font.size=Pt(9)
             for r in cells[1].paragraphs[0].runs: r.font.size=Pt(9)
         keep_table(table); return table
-    property_color=_property_color(p.property_type)
+    property_color=_dossier_color(p)
     def heading(text):
         para=doc.add_paragraph(); para.paragraph_format.space_before=Pt(7); para.paragraph_format.space_after=Pt(3); para.paragraph_format.keep_with_next=True
         r=para.add_run(text); r.bold=True; r.font.size=Pt(11); r.font.color.rgb=RGBColor.from_string(property_color)
         return para
 
+    for _,raw,w,hp in _brand_photo(p,'logo'):
+        para=doc.add_paragraph();para.alignment=WD_ALIGN_PARAGRAPH.CENTER
+        scale=min(1.6/w,.6/hp);para.add_run().add_picture(io.BytesIO(raw),width=Inches(w*scale),height=Inches(hp*scale))
     title=doc.add_paragraph(); title.alignment=WD_ALIGN_PARAGRAPH.CENTER; title.paragraph_format.space_after=Pt(4)
     r=title.add_run('DOSSIER D’ESTIMATION IMMOBILIÈRE'); r.bold=True; r.font.size=Pt(18); r.font.color.rgb=RGBColor(0x17,0x21,0x2B)
     sub=doc.add_paragraph(); sub.alignment=WD_ALIGN_PARAGRAPH.CENTER; sub.paragraph_format.space_after=Pt(7)
@@ -498,6 +511,9 @@ def word_export(p:WordPayload):
         para=doc.add_paragraph();para.alignment=WD_ALIGN_PARAGRAPH.CENTER
         para.add_run().add_picture(io.BytesIO(raw),width=Inches(w*scale),height=Inches(h*scale))
         para=doc.add_paragraph(name);para.alignment=WD_ALIGN_PARAGRAPH.CENTER
+    for _,raw,w,hp in _brand_photo(p,'advisor_photo'):
+        para=doc.add_paragraph();para.alignment=WD_ALIGN_PARAGRAPH.CENTER
+        scale=min(.7/w,.8/hp);para.add_run().add_picture(io.BytesIO(raw),width=Inches(w*scale),height=Inches(hp*scale))
     for line in _dossier_advisor(p):
         para=doc.add_paragraph(line);para.alignment=WD_ALIGN_PARAGRAPH.CENTER
     doc.add_page_break()
@@ -625,6 +641,13 @@ def word_export(p:WordPayload):
             heading(label);doc.add_paragraph(str(p.argumentaire[key]))
     doc.add_paragraph('Les prix demandés des annonces ne sont pas des prix de vente. Les caractéristiques non vérifiées et les diagnostics non communiqués restent à confirmer. Les corrections d’état et les budgets de travaux retenus sont détaillés dans le calcul. Leur pertinence reste à vérifier par comparaison et sur devis ; aucun DPE ni montant de travaux non déclaré n’est présumé.')
 
+    if p.estimation.get('calcul'):
+        heading('DÉCOMPOSITION DE LA VALEUR');label_value_table(p.estimation['calcul'])
+    if p.client_conclusion.strip():
+        heading('AVIS AU PROPRIÉTAIRE')
+        for paragraph in p.client_conclusion.split('\n\n'):
+            para=doc.add_paragraph(paragraph);para.alignment=WD_ALIGN_PARAGRAPH.LEFT if '\n' in paragraph else WD_ALIGN_PARAGRAPH.JUSTIFY
+
     # footer + page number field
     footer=sec.footer.paragraphs[0]; footer.alignment=WD_ALIGN_PARAGRAPH.CENTER
     fr=footer.add_run(_dossier_advisor(p)[0]+'  •  ESTIM’IA  •  Page '); fr.font.size=Pt(8); fr.font.color.rgb=RGBColor(0x77,0x77,0x77)
@@ -640,11 +663,11 @@ def pdf_export(p:WordPayload):
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
     from reportlab.lib.units import mm
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, KeepTogether, PageBreak
     import base64
-    theme=colors.HexColor('#'+_property_color(p.property_type))
+    theme=colors.HexColor('#'+_dossier_color(p))
     out=io.BytesIO(); doc=SimpleDocTemplate(out,pagesize=A4,rightMargin=14*mm,leftMargin=14*mm,topMargin=13*mm,bottomMargin=14*mm)
     styles=getSampleStyleSheet()
     title=ParagraphStyle('TitleX',parent=styles['Title'],fontName='Helvetica-Bold',fontSize=17,leading=20,textColor=theme,alignment=TA_CENTER,spaceAfter=3*mm)
@@ -656,6 +679,8 @@ def pdf_export(p:WordPayload):
     from xml.sax.saxutils import escape
     def text(value):return escape(str(value or ''))
     story=[Paragraph('DOSSIER D’ESTIMATION IMMOBILIERE',title),Paragraph('ESTIM’IA - visite et estimation',date_style),Paragraph('Document genere le '+(p.generated_date or datetime.now().strftime('%d/%m/%Y')),date_style)]
+    for _,raw,w,hp in _brand_photo(p,'logo'):
+        story.insert(0,RLImage(io.BytesIO(raw),width=42*mm,height=16*mm,kind='proportional'))
     estimate_value=ParagraphStyle('EstimateValue',parent=normal,fontName='Helvetica-Bold',fontSize=14,leading=18,textColor=theme)
     def add_table(rows,highlight_estimate=False):
         data=[]
@@ -672,6 +697,8 @@ def pdf_export(p:WordPayload):
     if valid_photos:
         name,raw,w,hp=valid_photos[0]
         story.extend([RLImage(io.BytesIO(raw),width=164*mm,height=95*mm,kind='proportional'),Paragraph(text(name),cap),Spacer(1,8*mm)])
+    for _,raw,w,hp in _brand_photo(p,'advisor_photo'):
+        story.extend([RLImage(io.BytesIO(raw),width=18*mm,height=21*mm,kind='proportional'),Spacer(1,2*mm)])
     for line in _dossier_advisor(p):story.append(Paragraph(text(line),date_style))
     story.extend([PageBreak(),Paragraph('SYNTHÈSE DU BIEN',h)])
     story.append(Paragraph('DOSSIER',h))
@@ -744,6 +771,13 @@ def pdf_export(p:WordPayload):
         if str(p.argumentaire.get(key,'')).strip():story.extend([Paragraph(label,h),Paragraph(text(p.argumentaire[key]),normal)])
     story.append(Spacer(1,3*mm))
     story.append(Paragraph('Les prix demandés des annonces ne sont pas des prix de vente. Les caractéristiques non vérifiées et les diagnostics non communiqués restent à confirmer. Les corrections d’état et les budgets de travaux retenus sont détaillés dans le calcul. Leur pertinence reste à vérifier par comparaison et sur devis ; aucun DPE ni montant de travaux non déclaré n’est présumé.',normal))
+    if p.estimation.get('calcul'):
+        story.append(Paragraph('DÉCOMPOSITION DE LA VALEUR',h));add_table(p.estimation['calcul'])
+    if p.client_conclusion.strip():
+        story.append(Paragraph('AVIS AU PROPRIÉTAIRE',h))
+        client_style=ParagraphStyle('ClientConclusion',parent=normal,alignment=TA_JUSTIFY,spaceAfter=3*mm)
+        for paragraph in p.client_conclusion.split('\n\n'):
+            story.append(Paragraph(text(paragraph).replace('\n','<br/>'),client_style))
     def footer(canvas,docx):
         canvas.saveState();canvas.setFont('Helvetica',7);canvas.setFillColor(colors.HexColor('#777777'));canvas.drawCentredString(A4[0]/2,7*mm,f'{_dossier_advisor(p)[0]} - ESTIM’IA - Page {docx.page}');canvas.restoreState()
     doc.build(story,onFirstPage=footer,onLaterPages=footer);out.seek(0)
