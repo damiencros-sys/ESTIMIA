@@ -464,12 +464,14 @@ function surfaceEditorHTML(rows){
 function renderSurfaceEditor(){
  normalizeManualLevels(manualSurfaceRows);
  const ins=manualSurfaceRows.filter(x=>x.cat==='Intérieur');
+ let unitOptions=[];try{unitOptions=JSON.parse($('#propertyUnitsJSON')?.value||'[]')}catch{}
+ const unitSelect=(lvl,cls)=>unitOptions.length>1?'<select class="'+cls+'" aria-label="Affectation au logement"><option value="">Logement à préciser</option>'+unitOptions.map(u=>'<option value="'+E(u.label)+'" '+(lvl.startsWith(u.label+' — ')?'selected':'')+'>'+E(u.label)+'</option>').join('')+'</select>':'';
  let s='<section class="surfaceHero surfaceEditor"><div class="surfaceHead"><h3>📐 SURFACES CALCULÉES PAR NIVEAU</h3><div class="surfaceToolbar"><button type="button" class="miniEditBtn" data-act="add-level">＋ Ajouter un niveau</button></div></div>';
  manualLevels.forEach(lv=>{
   const rr=ins.filter(x=>x.lvl===lv),total=rr.filter(x=>!x._needsReview).reduce((a,x)=>a+x.val,0);
-  s+=`<div class="levelBlock" data-level="${E(lv)}"><div class="levelHead"><input class="levelName" value="${E(lv)}"><div class="levelActions"><button type="button" data-act="level-up" title="Monter le niveau">↑</button><button type="button" data-act="level-down" title="Descendre le niveau">↓</button><button type="button" data-act="delete-level" title="Supprimer le niveau">🗑</button></div></div>`;
+  s+=`<div class="levelBlock" data-level="${E(lv)}"><div class="levelHead"><input class="levelName" value="${E(lv)}">${unitSelect(lv,'assignLevelUnit')}<div class="levelActions"><button type="button" data-act="level-up" title="Monter le niveau">↑</button><button type="button" data-act="level-down" title="Descendre le niveau">↓</button><button type="button" data-act="delete-level" title="Supprimer le niveau">🗑</button></div></div>`;
   rr.forEach(x=>{const opts=manualLevels.map(z=>`<option ${z===lv?'selected':''}>${E(z)}</option>`).join('');
-   s+=`<div class="surfaceRow editableSurface" data-id="${E(x._id)}"><input class="pieceName" value="${E(x.name)}"><input class="pieceVal" type="number" step=".01" value="${Number(x.val)}"><span class="unit">${x._needsReview?'⚠ m² à vérifier':'m²'}</span><select class="pieceLevel">${opts}</select><button type="button" data-act="piece-up" title="Monter">↑</button><button type="button" data-act="piece-down" title="Descendre">↓</button><button type="button" data-act="delete-piece" title="Supprimer">×</button></div>`;
+   s+=`<div class="surfaceRow editableSurface" data-id="${E(x._id)}"><input class="pieceName" value="${E(x.name)}"><input class="pieceVal" type="number" step=".01" value="${Number(x.val)}"><span class="unit">${x._needsReview?'⚠ m² à vérifier':'m²'}</span><select class="pieceLevel">${opts}</select>${unitSelect(lv,'assignPieceUnit')}<button type="button" data-act="piece-up" title="Monter">↑</button><button type="button" data-act="piece-down" title="Descendre">↓</button><button type="button" data-act="delete-piece" title="Supprimer">×</button></div>`;
   });
   s+=`<button type="button" class="miniEditBtn" data-act="add-piece">＋ Ajouter une pièce</button><div class="surfaceTotal"><span>Total ${E(lv)}</span><strong>${fmt(total)}</strong></div></div>`;
  });
@@ -503,11 +505,11 @@ function redoSurface(){
  if(!surfaceRedo.length)return;
  const s=surfaceRedo.pop();surfaceUndo.push(s);restoreSurfaceState(s);
 }
-function refreshSurfaceEditor(){
+function refreshSurfaceEditor(preserveDeclared=false){
  const box=document.querySelector('#facts .surfaceEditor');if(!box)return;
  const d=document.createElement('div');d.innerHTML=renderSurfaceEditor();box.replaceWith(d.firstElementChild);
  const pending=manualSurfaceRows.filter(x=>x._needsReview),total=manualSurfaceRows.filter(x=>x.cat==='Intérieur'&&!x._needsReview).reduce((a,x)=>a+x.val,0);
- const field=$('#surfaceHab');if(field){field.dataset.needsReview=String(pending.length>0);field.value=!pending.length&&total?total.toFixed(2):'';field.dispatchEvent(new Event('input',{bubbles:true}));}
+ const field=$('#surfaceHab');if(field&&!preserveDeclared){field.dataset.needsReview=String(pending.length>0);field.value=!pending.length&&total?total.toFixed(2):'';field.dispatchEvent(new Event('input',{bubbles:true}));}
  const alerts=$('#surfaceReviewAlerts');if(alerts)alerts.innerHTML=card('Surfaces à vérifier','⚠️',pending.map(x=>[x.name+' — '+x.lvl,fmt(x.val)+' à vérifier : corrigez la surface sur la ligne de cette pièce, ou renseignez une surface habitable globale confirmée.']));
  $('#surfaceCalculationNotice')?.remove();
  if(!surfaceRestoring)rememberSurfaceState();
@@ -1427,21 +1429,23 @@ async function optimizedPhotoDataURL(file,maxSide=800,quality=.58){
   im.onerror=()=>resolve(src);im.src=src;
  });
 }
+function exportSurface(value){return String(value??'').replace(/(\d+(?:[.,]\d+)?)\s*m²/g,(_,v)=>Number(v.replace(',','.')).toLocaleString('fr-FR',{maximumFractionDigits:2})+' m²');}
+function exportPhotoLabel(label){const value=String(label||'').trim();return /^(?:(?:IMG|DSC|PXL|PHOTO|IMAGE|VID)[_ -]*)?\d{6,}(?:[_ -]\d+)*(?:\.[a-z0-9]+)?$/i.test(value)?'':value;}
 async function buildExportPayload(){
  await window.estimiaEnsureCurrentEstimate?.();
  renderSupplementCards();
  const sections=[];
- document.querySelectorAll('#facts .levelBlock').forEach(b=>{const title=b.querySelector('.levelName')?.value||b.dataset.level||'Niveau';const rows=[...b.querySelectorAll('.editableSurface')].map(r=>[r.querySelector('.pieceName')?.value||'',(r.querySelector('.pieceVal')?.value||'')+(r.querySelector('.pieceVal')?.value?' m²':'')]);const total=b.querySelector('.surfaceTotal');if(total)rows.push([total.querySelector('span')?.innerText||'',total.querySelector('strong')?.innerText||'']);sections.push({title,rows})});
- document.querySelectorAll('#facts .otherSurface').forEach(b=>sections.push({title:b.querySelector('h4')?.innerText||'Surfaces annexes',rows:[...b.querySelectorAll('.surfaceRow')].map(r=>[r.querySelector('span')?.innerText||'',r.querySelector('b')?.innerText||''])}));
- document.querySelectorAll('#facts .proGroup:not(.supplementCard)').forEach(b=>sections.push({title:b.querySelector('h3')?.innerText||'Informations',rows:[...b.querySelectorAll('.proRow')].map(r=>r.classList.contains('annexRow')?[r.children[0]?.innerText||'',(r.children[1]?.innerText||'')+' — '+(r.children[2]?.innerText||'')]:[r.querySelector('span')?.innerText||'',r.querySelector('strong')?.innerText||''])}));
+ document.querySelectorAll('#facts .levelBlock').forEach(b=>{const title=b.querySelector('.levelName')?.value||b.dataset.level||'Niveau';const rows=[...b.querySelectorAll('.editableSurface')].map(r=>[r.querySelector('.pieceName')?.value||'',(r.querySelector('.pieceVal')?.value||'')+(r.querySelector('.pieceVal')?.value?' m²':'')]);const total=b.querySelector('.surfaceTotal');if(total)rows.push([total.querySelector('span')?.textContent||'',total.querySelector('strong')?.textContent||'']);sections.push({title,rows})});
+ document.querySelectorAll('#facts .otherSurface').forEach(b=>sections.push({title:b.querySelector('h4')?.textContent||'Surfaces annexes',rows:[...b.querySelectorAll('.surfaceRow')].map(r=>[r.querySelector('span')?.textContent||'',r.querySelector('b')?.textContent||''])}));
+ document.querySelectorAll('#facts .proGroup:not(.supplementCard)').forEach(b=>sections.push({title:b.querySelector('h3')?.textContent||'Informations',rows:[...b.querySelectorAll('.proRow')].map(r=>r.classList.contains('annexRow')?[r.children[0]?.textContent||'',(r.children[1]?.textContent||'')+' — '+(r.children[2]?.textContent||'')]:[r.querySelector('span')?.textContent||'',r.querySelector('strong')?.textContent||''])}));
  sections.push(...propertySupplementSections());
  sections.push(...(window.estimiaUrbanismeExport?.()||[]));
  const estimateBox=document.querySelector('#estimationResults');
- const estimation={calcul:window.estimiaCalculationRows?.()||[],centrale:estimateBox?.querySelector('.estimationValueAmount')?.innerText||'',
-  basse:estimateBox?.querySelectorAll('.estimationRangeAmount')[0]?.innerText||'',
-  haute:estimateBox?.querySelectorAll('.estimationRangeAmount')[1]?.innerText||'',
-  texte:estimateBox?.querySelector('.estimationExplanation')?.innerText||estimateBox?.querySelector('p:not(.originalEstimateReference)')?.innerText||'',
-  reperes:[...document.querySelectorAll('#marketIndicators tr')].filter(r=>estimateBox?.dataset.adjusted!=='true'||!/estimation statistique/i.test(r.querySelector('th')?.innerText||'')).map(r=>[r.querySelector('th')?.innerText||'',r.querySelector('td')?.innerText||'']).concat([['Avis d’ajustement',document.querySelector('#marketAdjustmentAdvice')?.innerText||'']]),
+ const estimation={calcul:window.estimiaCalculationRows?.()||[],centrale:estimateBox?.querySelector('.estimationValueAmount')?.textContent||'',
+  basse:estimateBox?.querySelectorAll('.estimationRangeAmount')[0]?.textContent||'',
+  haute:estimateBox?.querySelectorAll('.estimationRangeAmount')[1]?.textContent||'',
+  texte:estimateBox?.querySelector('.estimationExplanation')?.textContent||estimateBox?.querySelector('p:not(.originalEstimateReference)')?.textContent||'',
+  reperes:[...document.querySelectorAll('#marketIndicators tr')].filter(r=>estimateBox?.dataset.adjusted!=='true'||!/estimation statistique/i.test(r.querySelector('th')?.textContent||'')).map(r=>[r.querySelector('th')?.textContent||'',r.querySelector('td')?.textContent||'']).concat([['Avis d’ajustement',document.querySelector('#marketAdjustmentAdvice')?.textContent||'']]),
   retenue:estimateBox?.dataset.adjusted!=='true'&&document.querySelector('#validatedPrice')?.value?Number(document.querySelector('#validatedPrice').value).toLocaleString('fr-FR')+' €':'',
   justification:document.querySelector('#validatedReason')?.value||''};
  estimation.comparables=[...estimateBox.querySelectorAll('details tbody tr')].map(r=>[...r.querySelectorAll('td')].map(c=>(c.textContent||'').trim())).filter(r=>r.length===4&&r.some(v=>v));
@@ -1449,13 +1453,14 @@ async function buildExportPayload(){
  const advisor={name:$('#exportAdvisorName')?.value||'',agency:$('#exportAgency')?.value||'',phone:$('#exportAdvisorPhone')?.value||''};
  const argumentaire={forts:$('#estStrongPoints')?.value||'',limites:$('#estLimitations')?.value||'',travaux:$('#estValueWorks')?.value||'',comparables:$('#estComparableReason')?.value||''};
  const annonces=[...document.querySelectorAll('#annoncesResults .annonceCard')].slice(0,6).map(card=>({
-  titre:card.querySelector('h4')?.innerText||'',description:card.querySelector('.annonceDescription')?.innerText||'',
-  prix:card.querySelector('.annoncePrice')?.innerText||'',site:card.querySelector('.annonceAgency')?.innerText||'',
+  titre:card.querySelector('h4')?.textContent||'',description:card.querySelector('.annonceDescription')?.textContent||'',
+  prix:card.querySelector('.annoncePrice')?.textContent||'',site:card.querySelector('.annonceAgency')?.textContent||'',
   photo:card.querySelector('img')?.src||'',url:card.querySelector('.annonceLink')?.href||''}));
  const roques_annonces=[...document.querySelectorAll('#roquesResults .annonceCard')].slice(0,4).map(card=>({
-  titre:card.querySelector('h4')?.innerText||'',description:card.querySelector('.annonceDescription')?.innerText||'',prix:card.querySelector('.annoncePrice')?.innerText||'',site:card.querySelector('.annonceAgency')?.innerText||'',photo:card.querySelector('img')?.src||'',url:card.querySelector('.annonceLink')?.href||''}));
- const photos=[];for(const p of currentPhotos()){try{photos.push({name:p.label||photoDisplayName(p.file),data:await optimizedPhotoDataURL(p.file)})}catch{}}
- return {branding:window.estimiaBrandingExport?.()||{},theme_color:window.estimiaBrandColor?.()||'',client_conclusion:window.estimiaClientConclusionForExport?.()||'',advisor,argumentaire,owner:$('#owner')?.value||'',phone:$('#ownerPhone')?.value||'',owners:ownerCardsState,address:$('#address')?.value||'',commune:$('#cadCommune')?.value||'',section:$('#cadSection')?.value||'',parcel:$('#cadParcel')?.value||'',property_type:$('#type')?.value||'',surface:$('#surfaceHab')?.value||'',surface_carrez:$('#surfaceCarrez')?.value||'',sections,parcels:cadParcels.map(p=>({section:p.section,numero:p.numero})),facts:$('#facts')?.innerText||'',photos,estimation,annonces,roques_annonces,generated_date:new Date().toLocaleDateString('fr-FR')};
+  titre:card.querySelector('h4')?.textContent||'',description:card.querySelector('.annonceDescription')?.textContent||'',prix:card.querySelector('.annoncePrice')?.textContent||'',site:card.querySelector('.annonceAgency')?.textContent||'',photo:card.querySelector('img')?.src||'',url:card.querySelector('.annonceLink')?.href||''}));
+ sections.forEach(s=>s.rows=s.rows.map(([k,v])=>[k,exportSurface(v)]));sections.push(...(window.estimiaDossierChecks?.(true)||[]));
+ const photos=[];for(const p of currentPhotos()){try{photos.push({name:exportPhotoLabel(p.label||photoDisplayName(p.file)),data:await optimizedPhotoDataURL(p.file)})}catch{}}
+ return {branding:window.estimiaBrandingExport?.()||{},theme_color:window.estimiaBrandColor?.()||'',client_conclusion:window.estimiaClientConclusionForExport?.()||'',advisor,argumentaire,owner:$('#owner')?.value||'',phone:$('#ownerPhone')?.value||'',owners:ownerCardsState,address:$('#address')?.value||'',commune:$('#cadCommune')?.value||'',section:$('#cadSection')?.value||'',parcel:$('#cadParcel')?.value||'',property_type:$('#type')?.value||'',surface:($('#surfaceHab')?.value?Number($('#surfaceHab').value).toLocaleString('fr-FR',{maximumFractionDigits:2}):''),surface_carrez:($('#surfaceCarrez')?.value?Number($('#surfaceCarrez').value).toLocaleString('fr-FR',{maximumFractionDigits:2}):''),sections,parcels:cadParcels.map(p=>({section:p.section,numero:p.numero})),facts:$('#facts')?.textContent||'',photos,estimation,annonces,roques_annonces,generated_date:new Date().toLocaleDateString('fr-FR')};
 }
 async function downloadWord(){
  const payload=await buildExportPayload();
@@ -1484,7 +1489,7 @@ async function printableHTML(){
  const refsTxt=cadParcels.map(p=>`${E(p.section)} ${E(String(parseInt(p.numero,10)))}`).join(' • ');
  const mapBlock=mapUrl?`<section class="cadPrint"><h2>Plan cadastral</h2><img src="${mapUrl}" alt="Plan cadastral"><div>Parcelles : ${refsTxt}</div></section>`:'';
  const photoItems=[];
- for(const p of currentPhotos()){try{const data=await optimizedPhotoDataURL(p.file),label=p.label||photoDisplayName(p.file);photoItems.push(`<figure class="photoPrint"><img src="${data}" alt="${E(label)}"><figcaption>${E(label)}</figcaption></figure>`)}catch{}}
+ for(const p of currentPhotos()){try{const data=await optimizedPhotoDataURL(p.file),label=exportPhotoLabel(p.label||photoDisplayName(p.file));photoItems.push(`<figure class="photoPrint"><img src="${data}" alt="${E(label)}"><figcaption>${E(label)}</figcaption></figure>`)}catch{}}
  const photosBlock=photoItems.length?`<section class="photosPrint"><h2>Photographies du bien</h2><div class="photoGrid">${photoItems.join('')}</div></section>`:'';
  const meta=[
   ['Propriétaire',$('#owner')?.value||''],
@@ -1547,6 +1552,12 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('change',e=>{
  const sr=e.target.closest('.editableSurface'),id=sr?.dataset.id,x=id&&surfaceRowById(id);
+ if(e.target.matches('.assignLevelUnit,.assignPieceUnit')){
+  const level=e.target.closest('.levelBlock')?.dataset.level,unit=e.target.value;
+  const base=value=>value.includes(' — ')?value.split(' — ').slice(1).join(' — '):value;
+  for(const row of manualSurfaceRows)if(e.target.classList.contains('assignLevelUnit')?row.lvl===level:row===x)row.lvl=(unit||'Logement non précisé')+' — '+base(row.lvl);
+  manualLevels=manualLevels.filter(l=>manualSurfaceRows.some(r=>r.lvl===l));refreshSurfaceEditor(true);return;
+ }
  if(x&&e.target.classList.contains('pieceLevel')){x.lvl=e.target.value;refreshSurfaceEditor();return}
  if(x&&e.target.classList.contains('pieceVal')){const value=Number(e.target.value);if(!Number.isFinite(value)||value<=0){e.target.value=x.val;return}x.val=value;x._needsReview=roomSurfaceLimit(x.name)!=null&&value>roomSurfaceLimit(x.name);refreshSurfaceEditor();return}
  if(x&&e.target.classList.contains('pieceName')){x.name=clean(e.target.value)||'Pièce';x._needsReview=roomSurfaceLimit(x.name)!=null&&x.val>roomSurfaceLimit(x.name);refreshSurfaceEditor();return}
@@ -1786,7 +1797,7 @@ ownLoad();
  window.estimiaRefreshEquipmentHeights=refresh;
 })();
 
-/* V13.97 — parcours libre, valeur expliquée et dossier client. */
+/* V13.98 — parcours libre, valeur expliquée et dossier client. */
 (()=>{'use strict';
 const q=s=>document.querySelector(s),field=id=>q('#'+id)?.value||'',escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),money=n=>Number(n).toLocaleString('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0});
 const cards=[...document.querySelectorAll('#estimiaMain>section.card')],groups=[0,0,1,1,2,2,3],names=['Dictée et cadastre','Vérification du bien et photos','Comparables et estimation','Dossier client'];
@@ -1797,7 +1808,7 @@ function go(index){q('#visitMode').value='steps';showStep(index,true);q('#visitS
 document.querySelectorAll('#visitSteps [data-step]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.step)));q('#visitPrev')?.addEventListener('click',()=>go(step-1));q('#visitNext')?.addEventListener('click',()=>go(step+1));q('#showAllSteps')?.addEventListener('click',()=>{q('#visitMode').value=all?'steps':'all';showStep(step);});
 q('#analyse')?.addEventListener('click',()=>setTimeout(async()=>{try{await window.estimiaFicheReady;if(field('notes').trim())go(1);}catch{}},0));
 const amount=selector=>Number((q(selector)?.textContent||'').replace(/[^0-9,.-]/g,'').replace(',','.'))||0;
-function ledgerRows(forExport=false){const box=q('#estimationResults');if(!box?.querySelector('.estimationValueAmount'))return [];if(forExport&&box.dataset.adjusted==='true')return [['Méthode','Montant retenu après décision du conseiller'],['Justification',field('validatedReason')||'À préciser'],['Fourchettes','Montant retenu ±15 %, arrondi au millier']];let raw={},proposal={};try{raw=JSON.parse(box.dataset.rawDvfEstimate||'{}');proposal=JSON.parse(box.dataset.originalEstimate||'{}');}catch{}const rows=[];if(raw.centrale>0)rows.push(['Base des ventes DVF avant correction',money(raw.centrale)]);if(raw.centrale>0&&proposal.centrale>0)rows.push(['Incidence totale des corrections',money(proposal.centrale-raw.centrale)]);if(proposal.centrale>0)rows.push(['Proposition après corrections',money(proposal.centrale)]);if(box.dataset.adjusted==='true')rows.push(['Montant retenu par le conseiller',money(amount('#estimationResults .estimationValueAmount'))]);rows.push(['Portée des corrections',q('#estimationResults .estimationExplanation')?.textContent||'']);return forExport?rows.filter(([k])=>k!=='Portée des corrections'):rows;}
+function ledgerRows(forExport=false){const box=q('#estimationResults');if(!box?.querySelector('.estimationValueAmount'))return [];if(forExport&&box.dataset.adjusted==='true')return [['Méthode','Montant retenu après décision du conseiller'],['Justification',field('validatedReason')||'À préciser'],['Fourchettes','Montant retenu ±15 %, arrondi au millier']];let raw={},proposal={};try{raw=JSON.parse(box.dataset.rawDvfEstimate||'{}');proposal=JSON.parse(box.dataset.originalEstimate||'{}');}catch{}const rows=[];if(raw.centrale>0)rows.push(['Base des ventes DVF avant correction',money(raw.centrale)]);const components=proposal.qualityComponents?.length?proposal.qualityComponents:(window.estimiaQualityComponentsForExport?.()||[]);if(components.length)for(const [label,value]of components)rows.push([label,money(value)]);if(raw.centrale>0&&proposal.centrale>0)rows.push(['Incidence totale des corrections',money(proposal.centrale-raw.centrale)]);if(field('estQualityReason'))rows.push(['Justification des ajustements',field('estQualityReason')]);else if(Number(field('estOtherAdjustment')))rows.push(['Justification des ajustements','Non renseignée — ajustement à justifier avant remise au propriétaire']);if(proposal.centrale>0)rows.push(['Proposition après corrections',money(proposal.centrale)]);if(box.dataset.adjusted==='true')rows.push(['Montant retenu par le conseiller',money(amount('#estimationResults .estimationValueAmount'))]);rows.push(['Portée des corrections',q('#estimationResults .estimationExplanation')?.textContent||'']);return forExport?rows.filter(([k])=>k!=='Portée des corrections'):rows;}
 window.estimiaCalculationRows=()=>ledgerRows(true);
 function renderLedger(){const rows=ledgerRows();q('#calculationLedger').innerHTML=rows.length?'<h3>Comprendre le montant proposé</h3><dl>'+rows.map(([k,v])=>'<div><dt>'+escape(k)+'</dt><dd>'+escape(v)+'</dd></div>').join('')+'</dl>':'<h3>Comprendre le montant proposé</h3><p class="small">Après le calcul : base DVF, incidence des corrections et montant retenu. Les hypothèses et travaux déclarés restent détaillés.</p>';}
 const conclusionIds=['owner','address','cadCommune','type','surfaceHab','surfaceCarrez','estCondition','estPlannedWorks','estStrongPoints','estLimitations','estValueWorks','estComparableReason','exportAdvisorName','exportAgency','exportAdvisorPhone','validatedReason'];
@@ -1817,3 +1828,13 @@ async function preview(){const dialog=q('#dossierPreviewDialog');if(!dialog.open
 q('#previewDossier')?.addEventListener('click',preview);q('#refreshDossierPreview')?.addEventListener('click',preview);q('#closeDossierPreview')?.addEventListener('click',closePreview);q('#dossierPreviewDialog')?.addEventListener('cancel',e=>{e.preventDefault();closePreview();});
 document.addEventListener('input',e=>{if(conclusionIds.includes(e.target?.id))checkConclusion();});new MutationObserver(()=>{renderLedger();checkConclusion();}).observe(q('#estimationResults'),{childList:true,subtree:true,characterData:true});document.addEventListener('estimia:contacts-restored',()=>{showStep(field('visitStep'));refreshAssets();});document.addEventListener('estimia:case-ready',()=>{renderLedger();checkConclusion();closePreview();});renderLedger();refreshAssets();showStep(field('visitStep'));
 })();
+
+/* V13.98 : contrôle de cohérence du dossier avant remise. */
+(()=>{'use strict';const q=s=>document.querySelector(s),v=id=>q('#'+id)?.value||'';
+function checks(){const rows=[];if(Number(v('estOtherAdjustment'))&&!v('estQualityReason').trim())rows.push(['Ajustement financier','Un autre ajustement de '+Number(v('estOtherAdjustment')).toLocaleString('fr-FR')+' € est appliqué sans justification renseignée. Vérifier son motif et son éventuel cumul avec la décote d’état ou le budget de travaux.']);
+if(!v('estClientConclusion').trim()||!q('#includeClientConclusion')?.checked)rows.push(['Conclusion','Conclusion personnalisée absente ou non validée après relecture. Utiliser « Rédiger la conclusion », puis relire et cocher son inclusion.']);
+if(!q('#annoncesResults .annonceCard')&&!q('#roquesResults .annonceCard'))rows.push(['Annonces','Aucune fiche d’annonce jointe à ce document. Lancer une recherche puis vérifier les annonces avant de réexporter.']);
+let refs=[];try{refs=JSON.parse(v('cadParcelsJSON')||'[]')}catch{}if(!refs.length&&!v('cadParcel'))rows.push(['Cadastre et urbanisme','Références cadastrales non renseignées. Aucun plan ni zonage parcellaire ne peut être confirmé.']);
+if([...document.querySelectorAll('#facts .levelBlock')].some(e=>/Logement non précisé/.test(e.querySelector('.levelName')?.value||'')&&e.querySelector('.editableSurface')))rows.push(['Pièces à affecter','Des pièces restent sans attribution à un logement. Leur total ne remplace pas les surfaces annoncées de chaque logement.']);return rows;}
+window.estimiaDossierChecks=()=>{const rows=checks(),box=q('#dossierChecks');if(box){box.replaceChildren();const title=document.createElement('h3');title.textContent=rows.length?'Points à vérifier avant remise':'Dossier : contrôles disponibles sans anomalie signalée';box.append(title);for(const[k,val]of rows){const p=document.createElement('p');p.textContent=k+' : '+val;box.append(p);}}return rows.length?[{title:'Points à vérifier avant remise',rows}]:[];};
+let timer;const update=()=>{clearTimeout(timer);timer=setTimeout(()=>window.estimiaDossierChecks(),50);};document.addEventListener('input',update);document.addEventListener('change',update);document.addEventListener('estimia:case-ready',update);document.querySelectorAll('#visitSteps button,#visitNext,#showAllSteps').forEach(e=>e.addEventListener('click',update));new MutationObserver(update).observe(q('#estimationResults'),{childList:true,subtree:true,characterData:true});window.estimiaDossierChecks();})();

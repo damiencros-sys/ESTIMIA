@@ -438,7 +438,7 @@ def _dossier_photos(items):
             with Image.open(io.BytesIO(raw)) as im:
                 w,h=im.size;im.verify()
             if w<=0 or h<=0:continue
-            valid.append((str(item.get('name') or 'Photo'),raw,w,h))
+            valid.append((str(item.get('name') or ''),raw,w,h))
         except Exception:continue
     return valid
 
@@ -606,10 +606,10 @@ def word_export(p:WordPayload):
                 para.paragraph_format.keep_with_next=True
             else:doc.add_paragraph('Photo de cette annonce indisponible lors de l’export.')
             card_table=label_value_table([('Prix affiché',item.get('prix')),('Agence',item.get('site'))])
-            for row in card_table.rows[:-1]:
+            for row in card_table.rows:
                 for cell in row.cells:
                     for para in cell.paragraphs:para.paragraph_format.keep_with_next=True
-            if item.get('description'):doc.add_paragraph(str(item['description']))
+            if item.get('description'):doc.add_paragraph(str(item['description'])).paragraph_format.keep_with_next=True
             url=str(item.get('url',''))
             if urllib.parse.urlsplit(url).scheme in ('http','https'):
                 para=doc.add_paragraph('Source : ')
@@ -729,7 +729,9 @@ def pdf_export(p:WordPayload):
             row=cells[i:i+2]
             while len(row)<2: row.append(['',''])
             t=Table([[row[0][0],row[1][0]],[row[0][1],row[1][1]]],colWidths=[82*mm,82*mm],hAlign='CENTER')
-            t.setStyle(TableStyle([('BOX',(0,0),(-1,-1),.35,colors.HexColor('#CCD5DB')),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('ALIGN',(0,0),(-1,-1),'CENTER'),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)]));story.append(KeepTogether(t));story.append(Spacer(1,2*mm))
+            t.setStyle(TableStyle([('BOX',(0,0),(-1,-1),.35,colors.HexColor('#CCD5DB')),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('ALIGN',(0,0),(-1,-1),'CENTER'),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)]));
+            if i==0:story[-1:]=[KeepTogether([story[-1],t,Spacer(1,2*mm)])]
+            else:story.extend([KeepTogether([t]),Spacer(1,2*mm)])
     if p.estimation.get('comparables'):
         story.extend([Paragraph('VENTES RÉALISÉES — RÉFÉRENCES DVF',h),Paragraph('Transactions utilisées dans le calcul statistique ; leur comparabilité qualitative doit être appréciée lors de la visite.',market_intro)])
         rows=[['Date','Surface','Prix de vente','Prix / m²']]+[r for r in p.estimation['comparables'][:30] if isinstance(r,list) and len(r)==4]
@@ -751,8 +753,8 @@ def pdf_export(p:WordPayload):
             url=str(item.get('url',''))
             if urllib.parse.urlsplit(url).scheme in ('http','https'):card.append(Paragraph('<link href="'+escape(url,{'"':'&quot;'})+'" color="#0d705a">Consulter l’annonce</link>',normal))
             card.append(Spacer(1,3*mm))
-            if index==0:story[group_start:]=[KeepTogether(story[group_start:]+card[:4])]+card[4:]
-            else:story.extend([KeepTogether(card[:4])]+card[4:])
+            if index==0:story[group_start:]=[KeepTogether(story[group_start:]+card)]
+            else:story.append(KeepTogether(card))
     story.extend([PageBreak(),Paragraph('CONCLUSION ET AVIS DE VALEUR',h)])
     story.append(Paragraph('ESTIMATION DU BIEN',h))
     if p.estimation.get('centrale'):

@@ -216,7 +216,7 @@ main select{width:100%;max-width:100%;min-height:46px;box-sizing:border-box;font
 .proRow span,.proRow strong{min-width:0;overflow-wrap:anywhere;white-space:normal}
 .ownerFields textarea{width:100%;min-height:46px}
 
-/* V13.97 : navigation libre et lisibilité du dossier. */
+/* V13.98 : navigation libre et lisibilité du dossier. */
 :root{--visit-ink:#173a52;--visit-line:#dbe5eb}
 body{background:#f3f6fa;color:#203745}main{max-width:1220px;margin:auto;padding:20px}
 main>.card{background:#fff;border:1px solid var(--visit-line);border-radius:18px;padding:26px;margin:20px 0;box-shadow:0 5px 20px #173a5208}
@@ -230,3 +230,6 @@ main>.card[hidden],[hidden]{display:none!important}
 #dossierPreviewDialog{width:min(1100px,94vw);height:90vh;max-width:94vw;border:0;border-radius:16px;padding:20px;box-sizing:border-box;box-shadow:0 16px 80px #0004}#dossierPreviewDialog::backdrop{background:#173a5299}.previewToolbar{display:flex;flex-wrap:wrap;align-items:center;gap:12px}.previewToolbar h2{flex:1;margin:0}#dossierPreviewFrame{width:100%;height:calc(100% - 135px);min-height:240px;border:1px solid var(--visit-line);margin-top:12px}.proGroup{border-radius:12px}button:focus-visible,a:focus-visible{outline:3px solid #49a6df;outline-offset:3px}
 @media(max-width:650px){main{padding:10px}main>.card{padding:16px}.stepNav{grid-template-columns:repeat(2,1fr);gap:7px}.stepNav button{padding:11px;min-height:64px;font-size:13px}.stepToolbar{align-items:flex-start;font-size:13px}#calculationLedger dl>div{grid-template-columns:1fr;gap:5px}.previewToolbar h2{flex-basis:100%;font-size:18px}#dossierPreviewDialog{padding:12px}#dossierPreviewFrame{height:calc(100% - 180px)}}
 @media print{.stepNav,.stepToolbar,.stepFooter,#dossierPreviewDialog{display:none!important}main>.card[hidden]{display:block!important}}
+
+/* V13.98 — affectation explicite et contrôles du dossier. */
+.assignPieceUnit{min-width:145px!important;flex:1}.assignLevelUnit{max-width:240px}.editableSurface{flex-wrap:wrap}.levelHead{flex-wrap:wrap}#dossierChecks{border-left:4px solid #c99632;background:#fffaf0}#dossierChecks p{white-space:normal;overflow-wrap:anywhere}

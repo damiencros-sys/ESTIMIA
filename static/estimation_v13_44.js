@@ -36,9 +36,17 @@ function adjustQuality(d,c){
  const changed=(scoped?d.unitBases.some(x=>rateFor(x.unit)!==0):factor!==1)||cost!==0||c.other!==0;
  const formula=scoped?'hypothèses internes provisoires par logement, non issues d’un barème officiel : '+d.unitBases.map(x=>x.unit.label+' '+(c.unitStates[x.unit.key.split(' ')[0]]||'état non précisé')+' '+rateFor(x.unit)+' %').join(' ; '):c.mode==='budget'?'budget net de travaux déduit : '+fmt(cost)+' ; aucune décote d’état ajoutée':c.mode==='aucun'?'comparables déclarés de même état : aucune correction d’état':'état '+(c.condition||'non précisé')+' : '+(c.rate>0?'+':'')+c.rate+' % (hypothèse interne, non issue d’un barème officiel)';
  const note='Base DVF avant correction : '+fmt(d.centrale)+'. Calcul en l’état : '+formula+(c.other?' ; autres ajustements '+fmt(c.other):'')+'.'+(c.reason?' Justification : '+c.reason+'.':'')+(c.works?' Travaux déclarés : '+c.works+'.':'')+' L’état des ventes DVF n’est pas documenté ; vérifier que la correction n’est pas déjà reflétée par les comparables. Aucun DPE présumé.';
- return {...d,...(changed?values:{}),avertissement:(d.avertissement||'')+' '+note,qualityNote:note,qualityChanged:changed};
+ const components=[];
+ if(scoped){for(const x of d.unitBases){const rate=rateFor(x.unit);if(rate)components.push([x.unit.label+' — état '+rate+' %',Number(x.value.centrale)*rate/100]);}}
+ else if(c.mode==='etat'&&c.rate)components.push(['Correction d’état '+c.rate+' %',Number(d.centrale)*c.rate/100]);
+ if(cost)components.push(['Budget net de travaux (remplace la décote d’état)',-cost]);
+ if(c.other)components.push(['Autre ajustement déclaré',c.other]);
+ const beforeRound=Number(d.centrale)+components.reduce((a,x)=>a+x[1],0),final=changed?values.centrale:Number(d.centrale),rounding=Math.round((final-beforeRound)*100)/100;
+ if(rounding)components.push(['Arrondi de la valeur centrale',rounding]);
+ return {...d,qualityComponents:components,...(changed?values:{}),avertissement:(d.avertissement||'')+' '+note,qualityNote:note,qualityChanged:changed};
 }
 let estimateTask=null,qualityTimer=null,pendingQuality=false;
+window.estimiaQualityComponentsForExport=()=>{try{const box=q('#estimationResults'),base=JSON.parse(box.dataset.dvfBase||'null'),saved=JSON.parse(box.dataset.originalEstimate||'{}');if(!base||box.dataset.adjusted==='true')return [];const value=adjustQuality(base,qualityConfig());return value.centrale===saved.centrale?value.qualityComponents:[];}catch{return [];}};
 const geometryKey=()=>JSON.stringify(['#cadCommune','#address','#type','#surfaceHab','#propertyUnitsJSON'].map(id=>q(id)?.value||''));
 function calculateEstimate(options={}){
  if(estimateTask){if(options.reuseBase)pendingQuality=true;return estimateTask;}
@@ -101,7 +109,7 @@ async function performEstimate(reuseBase=false){
   result.dataset.dvfBase=JSON.stringify(d);result.dataset.dvfInputKey=geometryKey();
   const rawDvf={centrale:d.centrale,basse:d.basse,haute:d.haute};d=adjustQuality(d,quality);result.dataset.rawDvfEstimate=JSON.stringify(rawDvf);
   q('#qualityAdjustmentStatus').textContent=d.qualityNote;
-  result.dataset.unitValuation=String(units.length>1);result.dataset.dvfMedian=String(d.prix_m2_median||'');result.dataset.dvfCount=String(d.nombre||'');result.dataset.periodStart=d.periode_debut||'';result.dataset.periodEnd=d.periode_fin||'';result.dataset.originalEstimate=JSON.stringify({centrale:d.centrale,basse:d.basse,haute:d.haute});result.dataset.adjusted='false';
+  result.dataset.unitValuation=String(units.length>1);result.dataset.dvfMedian=String(d.prix_m2_median||'');result.dataset.dvfCount=String(d.nombre||'');result.dataset.periodStart=d.periode_debut||'';result.dataset.periodEnd=d.periode_fin||'';result.dataset.originalEstimate=JSON.stringify({centrale:d.centrale,basse:d.basse,haute:d.haute,qualityComponents:d.qualityComponents||[]});result.dataset.adjusted='false';
   if(q('#validatedPrice'))q('#validatedPrice').value='';if(q('#validatedReason'))q('#validatedReason').value='';if(q('#retainedEstimateText'))q('#retainedEstimateText').textContent='';
   status.textContent=units.length>1?`${units.length} logements calculés séparément — ${d.nombre} références affichées dédoublonnées. Valeur indicative de l’ensemble.`:`${d.nombre} ventes filtrées — base statistique DVF et corrections détaillées ci-dessous.`;
   if(d.qualityChanged)status.textContent+=' État / travaux pris en compte : voir le calcul détaillé.';
@@ -126,7 +134,11 @@ q('#dvfImport')?.addEventListener('click',async()=>{
 
 const annoncesBtn=q('#launchAnnonces');
 const manual=[];let found=[];
-let roquesFound=[],roquesReady=false;
+let roquesFound=[],roquesReady=false,marketDate='',marketEpoch=0;
+function persistMarket(){if(window.estimiaRestoringCase)return;const e=q('#marketSnapshotJSON');if(e)e.value=JSON.stringify({found,manual,roquesFound,roquesReady,date:marketDate});}
+function restoreMarket(){marketEpoch++;let v={};try{v=JSON.parse(q('#marketSnapshotJSON')?.value||'{}')}catch{}found=Array.isArray(v.found)?v.found:[];manual.splice(0,manual.length,...(Array.isArray(v.manual)?v.manual:[]));roquesFound=Array.isArray(v.roquesFound)?v.roquesFound:[];roquesReady=!!v.roquesReady;marketDate=v.date||'';displayRoques();displayAnnonces();}
+document.addEventListener('estimia:case-ready',restoreMarket);
+
 function estimationReference(){
  const approved=Number(q('#validatedPrice')?.value||0);if(approved>0)return approved;
  const value=q('#estimationResults .estimationValueAmount')?.textContent||'';
@@ -189,7 +201,7 @@ function renderMarketIndicators(){
  ['Prix au m² de l’estimation statistique après ajustements',Number(result?.dataset.originalEstimate?JSON.parse(result.dataset.originalEstimate).centrale:central)>0&&surface>0?fmt(Number(result?.dataset.originalEstimate?JSON.parse(result.dataset.originalEstimate).centrale:central)/surface)+'/m²':'Estimation à calculer'],
  ['Prix au m² du montant retenu',retained>0&&surface>0?fmt(retained/surface)+'/m²':'Montant à définir'],
  ['Périmètre des annonces',commune+' — même type — surfaces de '+Math.round(m.minSurface)+' à '+Math.round(m.maxSurface)+' m² (±25 %)'],
- ['Date de consultation des annonces',found.length?today:'Recherche des annonces à lancer']];
+ ['Date de consultation des annonces',found.length?(marketDate||'Date non conservée dans cet ancien dossier'):'Recherche des annonces à lancer']];
  box.innerHTML='<table><tbody>'+metricRows.map(([k,v])=>'<tr><th style="text-align:left;padding:8px">'+esc(k)+'</th><td style="padding:8px">'+esc(v)+'</td></tr>').join('')+'</tbody></table><p class="small">Annonces dédoublonnées, sélectionnées sans filtre de prix. Catalogues partiels, prix demandés et non prix de vente. Aucune correction automatique de la valeur DVF.</p>';
  let advice=result?.dataset.unitValuation==='true'&&central?'Ensemble de logements : valeurs DVF calculées séparément. Le prix au m² global des annonces reste un repère ; son écart aux ventes ne corrige pas automatiquement la somme. Les corrections d’état et de travaux sont détaillées dans le calcul.':'Calculez l’estimation et recherchez les annonces pour obtenir un avis d’ajustement.';
  if(dvf&&m.median){
@@ -255,7 +267,7 @@ function safeAnnonceUrl(value){
  try{const u=new URL(value);return ['https:','http:'].includes(u.protocol)?u.href:'';}catch{return '';}
 }
 function displayAnnonces(){
- renderMarketIndicators();
+ persistMarket();renderMarketIndicators();
  const target=q('#annoncesResults');if(!target)return;
  const all=[...found,...manual],price=estimationReference();
  if(!all.length){target.textContent='Aucun comparable affichable.';return;}
@@ -275,6 +287,7 @@ q('#annoncesResults')?.addEventListener('error',event=>{
 // Reclasser les cartes lorsqu'une nouvelle estimation est calculée.
 if(q('#estimationResults'))new MutationObserver(()=>displayAnnonces()).observe(q('#estimationResults'),{childList:true,subtree:true,characterData:true});
 annoncesBtn?.addEventListener('click',async()=>{
+ const epoch=marketEpoch,started=geometryKey();
  const raw=(q('#cadCommune')?.value||'').trim();const addr=(q('#address')?.value||'').trim();
  const commune=/^\d{5}$/.test(raw)?(raw==='34126'?'Lamalou-les-Bains':raw):raw||(/lamalou/i.test(addr)?'Lamalou-les-Bains':'');
  const typ=(q('#type')?.value||'').toLowerCase();const type_bien=(/appartement|studio/.test(typ))?'appartement':typ.includes('maison')||typ.includes('villa')?'maison':'';
@@ -295,7 +308,7 @@ annoncesBtn?.addEventListener('click',async()=>{
   if(!estimationReference())await calculateEstimate();
   const roquesTask=loadRoques({calculate:false});
   timer=setTimeout(()=>controller.abort(),25000);
-  const res=await fetch('/api/estimation/annonces?'+new URLSearchParams({commune,type_bien,surface}),{signal:controller.signal});const d=await res.json();if(!res.ok)throw Error(d.detail||'Erreur serveur');found=d.annonces||[];
+  const res=await fetch('/api/estimation/annonces?'+new URLSearchParams({commune,type_bien,surface}),{signal:controller.signal});const d=await res.json();if(epoch!==marketEpoch||started!==geometryKey())return;if(!res.ok)throw Error(d.detail||'Erreur serveur');found=d.annonces||[];marketDate=new Date().toLocaleDateString('fr-FR');
  if(links && d.recherches_agences?.length){
   links.replaceChildren(document.createTextNode('Agences et réseaux — recherches directes (liens de recherche, annonces à vérifier) : '));
   for(const item of d.recherches_agences){
@@ -303,7 +316,7 @@ annoncesBtn?.addEventListener('click',async()=>{
   }
  }
  status.textContent=(d.message||'Recherche terminée.')+(d.limites?' '+d.limites:'');displayAnnonces();await roquesTask;}
- catch(e){status.textContent=(e.name==='AbortError'?'Le catalogue ne répond pas dans le délai prévu. Utilisez les liens de recherche.':'Recherche indisponible : '+e.message);found=[];displayAnnonces();}
+ catch(e){if(epoch!==marketEpoch||started!==geometryKey())return;status.textContent=(e.name==='AbortError'?'Le catalogue ne répond pas dans le délai prévu. Utilisez les liens de recherche.':'Recherche indisponible : '+e.message);found=[];displayAnnonces();}
  finally{clearTimeout(timer);annoncesBtn.disabled=false;}
 });
 q('#addAnnonce')?.addEventListener('click',()=>{
@@ -316,7 +329,7 @@ q('#addAnnonce')?.addEventListener('click',()=>{
 });
 
 function displayRoques(){
- const target=q('#roquesResults');if(!target)return;
+ persistMarket();const target=q('#roquesResults');if(!target)return;
  target.innerHTML=`<div class="annoncesCards">${roquesFound.map(a=>{
  const photo=safeAnnonceUrl(a.photo),url=safeAnnonceUrl(a.url);
   return `<article class="annonceCard"><div class="annoncePhoto">${photo?`<img src="${esc(photo)}" alt="${esc(a.titre||'Photo du bien')}" loading="lazy" referrerpolicy="no-referrer">`:''}<span class="annonceNoPhoto" ${photo?'hidden':''}>Photo non disponible</span></div><div class="annonceBody"><div class="annonceAgency">${esc(a.site||'Ajout manuel')}</div><h4>${esc(a.titre||'Bien proposé à la vente')}</h4><p class="annonceDescription">${esc(a.description||'Caractéristiques à consulter dans l’annonce.')}</p><div class="annoncePrice">${fmt(a.prix)}</div><div class="small">Prix affiché${a.surface?' · '+esc(a.surface)+' m²':''}</div>${url?`<a class="annonceLink" href="${esc(url)}" target="_blank" rel="noopener noreferrer">Voir l’annonce ↗</a>`:''}</div></article>`;
@@ -327,6 +340,7 @@ q('#roquesResults')?.addEventListener('error',event=>{
  if(event.target.tagName==='IMG'){event.target.hidden=true;event.target.parentElement.querySelector('.annonceNoPhoto').hidden=false;}
 },true);
 async function loadRoques(options={}){
+ const epoch=marketEpoch;
  const status=q('#roquesStatus'),button=q('#launchRoques');if(!status||button.disabled)return;
  let price=estimationReference();
  if(!price&&options.calculate!==false){await calculateEstimate();price=estimationReference();}
@@ -340,9 +354,9 @@ async function loadRoques(options={}){
  let stale=false;const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),25000);
  try{
   const r=await fetch('/api/estimation/roques?'+new URLSearchParams({commune,type_bien,prix:price,surface:Number(q('#surfaceHab')?.value||0)}),{signal:controller.signal});const d=await r.json();
-  if(estimationReference()!==price||(q('#cadCommune')?.value||'').trim()!==commune){stale=true;return;}
+  if(epoch!==marketEpoch)return;if(estimationReference()!==price||(q('#cadCommune')?.value||'').trim()!==commune){stale=true;return;}
   if(!r.ok)throw Error(d.detail||'Catalogue inaccessible');roquesFound=d.annonces||[];roquesReady=true;displayRoques();status.textContent=d.message;
- }catch(e){roquesFound=[];roquesReady=true;displayRoques();status.textContent=e.name==='AbortError'?'Recherche trop longue. Réessayez.':'Recherche Roques indisponible : '+e.message;}
+ }catch(e){if(epoch!==marketEpoch)return;roquesFound=[];roquesReady=true;displayRoques();status.textContent=e.name==='AbortError'?'Recherche trop longue. Réessayez.':'Recherche Roques indisponible : '+e.message;}
  finally{clearTimeout(timer);button.disabled=false;displayAnnonces();if(stale)setTimeout(()=>loadRoques({calculate:false}),0);}
 }
 q('#launchRoques')?.addEventListener('click',loadRoques);
