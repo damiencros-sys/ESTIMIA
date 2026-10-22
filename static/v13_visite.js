@@ -194,7 +194,7 @@ function address(t){
 // Surfaces annoncées par logement : la dernière mention chiffrée remplace la précédente.
 function propertyUnits(text){
  const t=normalizeDictatedAreas(text),units=new Map();
- const rx=/\b(appartement|studio|maison|villa)(?:\s+(\d+)(?=\s+(?:fait|de|mesure|:)))?\s*(?:(?:principal|ind[ée]pendant)\s*)?(?:fait|de|mesure|d[' ]une surface de|surface de|:)?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/gi;
+ const rx=/\b(appartement|studio|maison de village|maison|villa)(?:\s+(\d+)(?=\s+(?:fait|de|mesure|:)))?\s*(?:(?:principal|ind[ée]pendant)\s*)?(?:fait|de|mesure|d[' ]une surface de|surface de|:)?\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/gi;
  for(const m of t.matchAll(rx)){
   const type=m[1].toLowerCase(),key=type+(m[2]?' '+m[2]:''),surface=n(m[3]);
   if(surface>0&&surface<=1000)units.set(key,{key,label:key[0].toUpperCase()+key.slice(1),type:/studio|appartement/.test(type)?'appartement':'maison',surface});
@@ -421,7 +421,9 @@ function surfaces(text,includeSuspicious=false){
 }
 function declaredPropertySurface(text){
  const units=propertyUnits(text);
- return units.length&&units.every(u=>u.surface>0)?Math.round(units.reduce((total,u)=>total+u.surface,0)*100)/100:null;
+ if(units.length)return units.every(u=>u.surface>0)?Math.round(units.reduce((total,u)=>total+u.surface,0)*100)/100:null;
+ const matches=[...normalizeDictatedAreas(text).matchAll(/\b(?:mas|immeuble)\s*(?:fait|de|mesure|d[' ]une surface de|surface de|:)\s*(\d+(?:[.,]\d+)?)\s*(?:m2|m²|m[eè]tres?\s*carr[ée]s?)/gi)];
+ return matches.length?n(matches.at(-1)[1]):null;
 }
 
 // V13.12 — surfaces : distinction surface habitable / Carrez.
@@ -1229,7 +1231,7 @@ async function render(){
  $('#surfaceHab').dataset.needsReview=String(surfaceAlerts.length>0&&habDeclared==null);
  if(units.length>1&&units.every(u=>u.surface>0))$('#surfaceHab').value=declaredPropertySurface(t).toFixed(2);
  else if(habDeclared!=null)$('#surfaceHab').value=habDeclared.toFixed(2);
- else if(units.length===1&&announced>0)$('#surfaceHab').value=announced.toFixed(2);
+ else if(units.length<=1&&announced>0)$('#surfaceHab').value=announced.toFixed(2);
  else if(total&&!surfaceAlerts.length)$('#surfaceHab').value=total.toFixed(2);
  else $('#surfaceHab').value='';
  if(carrez!=null)$('#surfaceCarrez').value=carrez.toFixed(2);
@@ -1382,6 +1384,21 @@ function renderPhotoManager(){
    </div>
   </div>`).join('')+'</div>';
 }
+const photoSaveCache=new WeakMap();
+window.estimiaPhotosForSave=async()=>Promise.all(photoItemsState.map(async p=>{
+ if(!photoSaveCache.has(p.file))photoSaveCache.set(p.file,optimizedPhotoDataURL(p.file));
+ return {label:p.label,data:await photoSaveCache.get(p.file)};
+}));
+document.addEventListener('estimia:photos-restored',e=>{
+ for(const p of photoItemsState)try{URL.revokeObjectURL(p.url)}catch{}
+ photoItemsState=[];
+ for(const p of e.detail||[])try{
+  const [head,body]=p.data.split(','),mime=head.match(/^data:(image\/(?:png|jpeg|webp));base64$/i)?.[1];if(!mime)continue;
+  const bytes=Uint8Array.from(atob(body),c=>c.charCodeAt(0));const file=new File([bytes],'photo-dossier',{type:mime});
+  photoSaveCache.set(file,Promise.resolve(p.data));photoItemsState.push({file,label:p.label||'Photo',url:URL.createObjectURL(file),selected:false});
+ }catch{}
+ renderPhotoManager();globalUndo=[];globalRedo=[];globalCheckpoint();
+});
 function currentPhotos(){return photoItemsState}
 function initPhotos(files){
  const added=[...files].filter(f=>/^image\//i.test(f.type||'')).map(f=>({file:f,label:photoDisplayName(f),url:URL.createObjectURL(f),selected:false}));
@@ -1769,7 +1786,7 @@ ownLoad();
  window.estimiaRefreshEquipmentHeights=refresh;
 })();
 
-/* V13.96 — parcours libre, valeur expliquée et dossier client. */
+/* V13.97 — parcours libre, valeur expliquée et dossier client. */
 (()=>{'use strict';
 const q=s=>document.querySelector(s),field=id=>q('#'+id)?.value||'',escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),money=n=>Number(n).toLocaleString('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0});
 const cards=[...document.querySelectorAll('#estimiaMain>section.card')],groups=[0,0,1,1,2,2,3],names=['Dictée et cadastre','Vérification du bien et photos','Comparables et estimation','Dossier client'];
@@ -1785,7 +1802,7 @@ window.estimiaCalculationRows=()=>ledgerRows(true);
 function renderLedger(){const rows=ledgerRows();q('#calculationLedger').innerHTML=rows.length?'<h3>Comprendre le montant proposé</h3><dl>'+rows.map(([k,v])=>'<div><dt>'+escape(k)+'</dt><dd>'+escape(v)+'</dd></div>').join('')+'</dl>':'<h3>Comprendre le montant proposé</h3><p class="small">Après le calcul : base DVF, incidence des corrections et montant retenu. Les hypothèses et travaux déclarés restent détaillés.</p>';}
 const conclusionIds=['owner','address','cadCommune','type','surfaceHab','surfaceCarrez','estCondition','estPlannedWorks','estStrongPoints','estLimitations','estValueWorks','estComparableReason','exportAdvisorName','exportAgency','exportAdvisorPhone','validatedReason'];
 function signature(){return JSON.stringify(conclusionIds.map(field).concat([q('#estimationResults .estimationValueAmount')?.textContent||'',...[...document.querySelectorAll('#estimationResults .estimationRangeAmount')].map(e=>e.textContent),q('#estimationResults .estimationExplanation')?.textContent||'']));}
-function checkConclusion(){const e=q('#estClientConclusion'),include=q('#includeClientConclusion');if(e?.value.trim()&&q('#clientConclusionSignature').value&&q('#clientConclusionSignature').value!==signature()){include.checked=false;q('#clientConclusionStatus').textContent='La fiche ou le montant a changé. Relis ou régénère la conclusion, puis coche son inclusion dans les documents.';}}
+function checkConclusion(){if(window.estimiaRestoringCase)return;const e=q('#estClientConclusion'),include=q('#includeClientConclusion');if(e?.value.trim()&&q('#clientConclusionSignature').value&&q('#clientConclusionSignature').value!==signature()){include.checked=false;q('#clientConclusionStatus').textContent='La fiche ou le montant a changé. Relis ou régénère la conclusion, puis coche son inclusion dans les documents.';}}
 window.estimiaClientConclusionForExport=()=>{checkConclusion();return q('#includeClientConclusion')?.checked?field('estClientConclusion').trim():'';};
 q('#includeClientConclusion')?.addEventListener('change',()=>{if(q('#includeClientConclusion').checked){q('#clientConclusionSignature').value=signature();q('#clientConclusionStatus').textContent='Conclusion incluse après relecture.';}});
 q('#estClientConclusion')?.addEventListener('input',()=>{const e=q('#estClientConclusion');if(!q('#clientConclusionSignature').value)q('#clientConclusionSignature').value=signature();q('#clientConclusionStatus').textContent='Conclusion personnalisée : relis-la et coche son inclusion pour les documents.';});
@@ -1796,7 +1813,7 @@ q('#exportLogoFile')?.addEventListener('change',e=>importAsset(e.target,'exportL
 window.estimiaBrandingExport=()=>({logo:field('exportLogoData'),advisor_photo:field('exportAdvisorPhotoData')});window.estimiaBrandColor=()=>q('#exportUseBrandColor')?.checked&&/^#[0-9a-f]{6}$/i.test(field('exportThemeColor'))?field('exportThemeColor'):'';
 let previewUrl='',previewTask=0,previewController=null;
 function closePreview(){previewTask++;previewController?.abort();q('#dossierPreviewFrame').removeAttribute('src');if(previewUrl)URL.revokeObjectURL(previewUrl);previewUrl='';q('#openDossierPreview').hidden=true;const dialog=q('#dossierPreviewDialog');if(dialog.open&&dialog.close)dialog.close();else dialog.removeAttribute('open');}
-async function preview(){const dialog=q('#dossierPreviewDialog');if(!dialog.open){if(dialog.showModal)dialog.showModal();else dialog.setAttribute('open','');}const task=++previewTask;previewController?.abort();previewController=new AbortController();q('#dossierPreviewStatus').textContent='Préparation de l’aperçu PDF…';try{const payload=await window.estimiaBuildDossierPayload();const response=await fetch('/api/pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:previewController.signal});if(!response.ok||!response.headers.get('content-type')?.includes('application/pdf'))throw Error('Aperçu PDF indisponible. Réessaie après vérification du dossier.');const blob=await response.blob();if(task!==previewTask)return;if(previewUrl)URL.revokeObjectURL(previewUrl);previewUrl=URL.createObjectURL(blob);q('#dossierPreviewFrame').src=previewUrl;q('#openDossierPreview').href=previewUrl;q('#openDossierPreview').hidden=false;q('#dossierPreviewStatus').textContent='Aperçu du PDF produit avec les informations actuelles. Actualise-le après une modification.';}catch(e){if(e.name!=='AbortError'&&task===previewTask)q('#dossierPreviewStatus').textContent=e.message;}}
+async function preview(){const dialog=q('#dossierPreviewDialog');if(!dialog.open){if(dialog.showModal)dialog.showModal();else dialog.setAttribute('open','');}const task=++previewTask;previewController?.abort();previewController=new AbortController();q('#dossierPreviewFrame').removeAttribute('src');q('#openDossierPreview').hidden=true;if(previewUrl)URL.revokeObjectURL(previewUrl);previewUrl='';q('#dossierPreviewStatus').textContent='Préparation de l’aperçu PDF…';try{const payload=await window.estimiaBuildDossierPayload();const response=await fetch('/api/pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:previewController.signal});if(!response.ok||!response.headers.get('content-type')?.includes('application/pdf'))throw Error('Aperçu PDF indisponible. Réessaie après vérification du dossier.');const blob=await response.blob();if(task!==previewTask)return;if(previewUrl)URL.revokeObjectURL(previewUrl);previewUrl=URL.createObjectURL(blob);q('#dossierPreviewFrame').src=previewUrl;q('#openDossierPreview').href=previewUrl;q('#openDossierPreview').hidden=false;q('#dossierPreviewStatus').textContent='Aperçu du PDF produit avec les informations actuelles. Actualise-le après une modification.';}catch(e){if(e.name!=='AbortError'&&task===previewTask)q('#dossierPreviewStatus').textContent=e.message;}}
 q('#previewDossier')?.addEventListener('click',preview);q('#refreshDossierPreview')?.addEventListener('click',preview);q('#closeDossierPreview')?.addEventListener('click',closePreview);q('#dossierPreviewDialog')?.addEventListener('cancel',e=>{e.preventDefault();closePreview();});
-document.addEventListener('input',e=>{if(conclusionIds.includes(e.target?.id))checkConclusion();});new MutationObserver(()=>{renderLedger();checkConclusion();}).observe(q('#estimationResults'),{childList:true,subtree:true,characterData:true});document.addEventListener('estimia:contacts-restored',()=>{showStep(field('visitStep'));refreshAssets();checkConclusion();});renderLedger();refreshAssets();showStep(field('visitStep'));
+document.addEventListener('input',e=>{if(conclusionIds.includes(e.target?.id))checkConclusion();});new MutationObserver(()=>{renderLedger();checkConclusion();}).observe(q('#estimationResults'),{childList:true,subtree:true,characterData:true});document.addEventListener('estimia:contacts-restored',()=>{showStep(field('visitStep'));refreshAssets();});document.addEventListener('estimia:case-ready',()=>{renderLedger();checkConclusion();closePreview();});renderLedger();refreshAssets();showStep(field('visitStep'));
 })();

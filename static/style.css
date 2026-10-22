@@ -216,7 +216,7 @@ main select{width:100%;max-width:100%;min-height:46px;box-sizing:border-box;font
 .proRow span,.proRow strong{min-width:0;overflow-wrap:anywhere;white-space:normal}
 .ownerFields textarea{width:100%;min-height:46px}
 
-/* V13.96 : navigation libre et lisibilité du dossier. */
+/* V13.97 : navigation libre et lisibilité du dossier. */
 :root{--visit-ink:#173a52;--visit-line:#dbe5eb}
 body{background:#f3f6fa;color:#203745}main{max-width:1220px;margin:auto;padding:20px}
 main>.card{background:#fff;border:1px solid var(--visit-line);border-radius:18px;padding:26px;margin:20px 0;box-shadow:0 5px 20px #173a5208}

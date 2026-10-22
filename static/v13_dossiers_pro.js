@@ -2,7 +2,7 @@
 const STORE='estimia_cases_v1327';
 const OLD_STORES=['estimia_cases_v1318','estimia_cases_v1317','estimia_cases_v1316','estimia_cases_v1315'];
 const $=s=>document.querySelector(s);
-let currentId=null,restoring=false,timer=null;
+let currentId=null,restoring=false,timer=null,saveSequence=0;
 
 function readCases(){
  try{
@@ -48,16 +48,16 @@ function capture(){
 }
 function valueOf(d,id){const x=d.values?.[id];return typeof x==='object'?(x.value||''):(x||'')}
 function label(d){return valueOf(d,'owner').trim()||valueOf(d,'address').trim()||valueOf(d,'cadCommune').trim()||'Dossier sans titre'}
-function saveNow(show=false){
+async function saveNow(show=false){
  if(restoring||!hasData())return;
- const d=capture();currentId=d.id;const a=readCases(),i=a.findIndex(x=>x.id===d.id);
+ const sequence=++saveSequence,d=capture();currentId=d.id;try{d.photos=await window.estimiaPhotosForSave?.()||[];if(restoring||currentId!==d.id||sequence!==saveSequence)return false;const a=readCases(),i=a.findIndex(x=>x.id===d.id);
  if(i>=0)a[i]=d;else a.unshift(d);writeCases(a);renderList();
- if(show&&$('#saveStatus'))$('#saveStatus').textContent='✓ Dossier complet enregistré sur cet appareil';
+ if(show&&$('#saveStatus'))$('#saveStatus').textContent='✓ Dossier complet enregistré sur cet appareil';return true;}catch(e){if($('#saveStatus'))$('#saveStatus').textContent='Enregistrement impossible : stockage de cet appareil plein ou indisponible. Le dernier dossier enregistré est conservé. Exporte les documents et libère de l’espace avant de réessayer.';return false;}
 }
 function schedule(){clearTimeout(timer);timer=setTimeout(()=>saveNow(false),650)}
 function removePlan(){document.getElementById('cadPlanBox')?.remove()}
 function restore(d){
- restoring=true;currentId=d.id;
+ restoring=true;window.estimiaRestoringCase=true;clearTimeout(timer);currentId=d.id;
  for(const id of ['estQualityMode','estQualityRate','estWorkBudget','estOtherAdjustment','estQualityReason']){const e=document.getElementById(id);if(e){e.value=id==='estQualityMode'?'etat':'';for(const k of Object.keys(e.dataset))delete e.dataset[k];}}
  document.querySelectorAll('main input[id],main textarea[id],main select[id]').forEach(el=>{
   if(el.type==='file'||el.id==='photos')return;
@@ -81,17 +81,17 @@ function restore(d){
  for(const id of ['validatedPrice','validatedReason']){const val=d.values?.[id];if($("#"+id))$("#"+id).value=typeof val==='object'?val.value||'':val||'';}
  if($('#estimationStatus'))$('#estimationStatus').textContent=d.html?.estimationStatus||'';
  document.dispatchEvent(new Event('estimia:estimation-restored'));
- restoring=false;document.dispatchEvent(new Event('estimia:parcels-restored'));renderList();closeDrawer();window.scrollTo({top:0,behavior:'smooth'});
+ document.dispatchEvent(new CustomEvent('estimia:photos-restored',{detail:d.photos||[]}));restoring=false;window.estimiaRestoringCase=false;document.dispatchEvent(new Event('estimia:case-ready'));document.dispatchEvent(new Event('estimia:parcels-restored'));renderList();closeDrawer();window.scrollTo({top:0,behavior:'smooth'});
 }
 function clearForm(){
- restoring=true;currentId=null;
+ restoring=true;window.estimiaRestoringCase=true;clearTimeout(timer);currentId=null;
  document.querySelectorAll('main input[id],main textarea[id],main select[id]').forEach(el=>{if(el.type!=='file'){el.value='';for(const k of Object.keys(el.dataset))delete el.dataset[k];if(el.type==='checkbox'||el.type==='radio')el.checked=false}});
  $('#type')?.dispatchEvent(new Event('input',{bubbles:true}));if($('#estQualityMode'))$('#estQualityMode').value='etat';
  ['facts','dictationHistory','gallery'].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML=id==='facts'?'<div class="empty">Dicte ta visite puis touche « Transformer en fiche ».</div>':''});
  ['cadStatus','addressStatus','recordStatus','photoStatus','saveStatus'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=''});
- removePlan();restoring=false;document.dispatchEvent(new Event('estimia:surfaces-restored'));document.dispatchEvent(new Event('estimia:dictations-restored'));document.dispatchEvent(new Event('estimia:contacts-restored'));document.dispatchEvent(new Event('estimia:parcels-restored'));renderList();closeDrawer();window.scrollTo({top:0,behavior:'smooth'});
+ removePlan();document.dispatchEvent(new CustomEvent('estimia:photos-restored',{detail:[]}));restoring=false;window.estimiaRestoringCase=false;document.dispatchEvent(new Event('estimia:case-ready'));document.dispatchEvent(new Event('estimia:surfaces-restored'));document.dispatchEvent(new Event('estimia:dictations-restored'));document.dispatchEvent(new Event('estimia:contacts-restored'));document.dispatchEvent(new Event('estimia:parcels-restored'));renderList();closeDrawer();window.scrollTo({top:0,behavior:'smooth'});
 }
-function newCase(){if(hasData())saveNow(false);if(hasData()&&!confirm('Créer un nouveau dossier ? La fiche actuelle est enregistrée.'))return;clearForm()}
+async function newCase(){if(hasData()&&(await saveNow(false))===false)return;if(hasData()&&!confirm('Créer un nouveau dossier ? La fiche actuelle est enregistrée.'))return;clearForm()}
 function deleteCase(id){const d=readCases().find(x=>x.id===id);if(!confirm('Supprimer définitivement le dossier « '+(d?label(d):'')+' » de cet appareil ?'))return;writeCases(readCases().filter(x=>x.id!==id));if(currentId===id)clearForm();else renderList()}
 function renderList(){
  const box=$('#caseList');if(!box)return;const q=($('#caseSearch')?.value||'').trim().toLowerCase();
