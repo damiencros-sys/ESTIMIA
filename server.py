@@ -492,7 +492,7 @@ def word_export(p:WordPayload):
 
     for _,raw,w,hp in _brand_photo(p,'logo'):
         para=doc.add_paragraph();para.alignment=WD_ALIGN_PARAGRAPH.CENTER
-        scale=min(1.6/w,.6/hp);para.add_run().add_picture(io.BytesIO(raw),width=Inches(w*scale),height=Inches(hp*scale))
+        scale=min(2.15/w,.8/hp);para.add_run().add_picture(io.BytesIO(raw),width=Inches(w*scale),height=Inches(hp*scale))
     title=doc.add_paragraph(); title.alignment=WD_ALIGN_PARAGRAPH.CENTER; title.paragraph_format.space_after=Pt(4)
     r=title.add_run('DOSSIER D’ESTIMATION IMMOBILIÈRE'); r.bold=True; r.font.size=Pt(18); r.font.color.rgb=RGBColor(0x17,0x21,0x2B)
     sub=doc.add_paragraph(); sub.alignment=WD_ALIGN_PARAGRAPH.CENTER; sub.paragraph_format.space_after=Pt(7)
@@ -680,7 +680,7 @@ def pdf_export(p:WordPayload):
     def text(value):return escape(str(value or ''))
     story=[Paragraph('DOSSIER D’ESTIMATION IMMOBILIERE',title),Paragraph('ESTIM’IA - visite et estimation',date_style),Paragraph('Document genere le '+(p.generated_date or datetime.now().strftime('%d/%m/%Y')),date_style)]
     for _,raw,w,hp in _brand_photo(p,'logo'):
-        story.insert(0,RLImage(io.BytesIO(raw),width=42*mm,height=16*mm,kind='proportional'))
+        story.insert(0,RLImage(io.BytesIO(raw),width=55*mm,height=21*mm,kind='proportional'))
     estimate_value=ParagraphStyle('EstimateValue',parent=normal,fontName='Helvetica-Bold',fontSize=14,leading=18,textColor=theme)
     def add_table(rows,highlight_estimate=False):
         data=[]
@@ -1601,3 +1601,47 @@ def urbanisme_parcelle(commune:str, section:str, numero:str):
     if not result['zones']:
         result['zoning_message']='Sans zonage PLU sous RNU.' if result['regime']=='RNU' else ('Service de zonage indisponible ou incomplet.' if any(result['diagnostics'].get(ep)!='accessible' for ep in ('zone-urba','secteur-cc')) else 'Aucun zonage surfacique trouvé sur la parcelle dans les données publiées.')
     return result
+
+# V14.04 — état fibre à l’adresse exacte, source publique départementale.
+_FIBRE_DATASET='https://www.herault-data.fr/explore/dataset/deploiement-hd-thd-ipe-immeuble-herault/'
+_FIBRE_API='https://www.herault-data.fr/api/explore/v2.1/catalog/datasets/deploiement-hd-thd-ipe-immeuble-herault/records'
+_fibre_cache={}
+def _fibre_address(value):
+    text=_norm_name(re.sub(r'\s+\d{5}\b.*$','',value or ''))
+    aliases={'av':'avenue','ave':'avenue','bd':'boulevard','bld':'boulevard','imp':'impasse','che':'chemin','rte':'route','st':'saint','ste':'sainte'}
+    return ' '.join(aliases.get(word,word)for word in text.split())
+
+@app.get('/api/fibre/eligibilite')
+def fibre_eligibilite(address:str='',commune:str='',postcode:str=''):
+    import time
+    address=address.strip()[:250];commune=commune.strip()[:120];postcode=postcode.strip()[:5]
+    checked=datetime.now().astimezone().isoformat(timespec='seconds')
+    source_url=_FIBRE_DATASET+'?'+urllib.parse.urlencode({'q':address,'refine.commune':commune})
+    base={'status':'inconnu','source':'Département de l’Hérault — Hérault Data (données IPE)','source_url':source_url,'checked_at':checked,'address_requested':address,'commune_requested':commune,'national_source_url':'https://maconnexioninternet.arcep.fr/'}
+    if not address or not commune:return {**base,'message':'Renseignez l’adresse complète et la commune avant la vérification.'}
+    if postcode and not postcode.startswith('34'):return {**base,'status':'non_couvert','message':'La source automatique intégrée couvre l’Hérault. Consultez Ma connexion internet (Arcep) pour cette adresse.'}
+    city=re.sub(r'\b\d{5}\b','',commune).strip(' ,')
+    wanted=_fibre_address(address)
+    city_norm=_fibre_address(city)
+    if wanted.endswith(' '+city_norm):wanted=wanted[:-(len(city_norm)+1)].strip()
+    if not re.match(r'^\d+[a-z]?\s+',wanted):return {**base,'message':'Une adresse avec numéro et voie est nécessaire pour éviter de confondre deux immeubles.'}
+    key=(wanted,_norm_name(city),postcode)
+    if key in _fibre_cache and time.monotonic()-_fibre_cache[key][0]<21600:return {**_fibre_cache[key][1],'cache_reused':True}
+    # Recherche limitée à la commune et à un mot de la voie ; correspondance stricte ensuite.
+    words=[w for w in wanted.split()if len(w)>3 and not w.isdigit()]
+    token=words[-1]if words else wanted
+    where='commune='+json.dumps(city,ensure_ascii=False)+' AND search(adresse_complete, '+json.dumps(token,ensure_ascii=False)+')'
+    try:
+        data=get_json(_FIBRE_API+'?'+urllib.parse.urlencode({'where':where,'limit':100}),timeout=12)
+        rows=data.get('results',[])
+        if int(data.get('total_count',len(rows)))>len(rows):return {**base,'message':'Recherche trop large : adresse à préciser ; aucun résultat attribué automatiquement.'}
+        matches=[r for r in rows if _norm_name(r.get('commune',''))==_norm_name(city)and _fibre_address(r.get('adresse_complete',''))==wanted and(not postcode or re.search(r'\b'+re.escape(postcode)+r'\b',r.get('adresse_complete','')))]
+        if len(matches)!=1:return {**base,'status':'ambigu'if matches else'inconnu','message':('Plusieurs immeubles correspondent : vérifiez le bâtiment sur la carte officielle.'if matches else'Adresse exacte non retrouvée dans cette source. Cela ne signifie pas que le logement est inéligible.'),'matches':[{'address':r.get('adresse_complete'),'building':r.get('identifiant_immeuble'),'source_status':r.get('eligibilite')}for r in matches[:10]]}
+        row=matches[0];label=str(row.get('eligibilite')or'');norm=_norm_name(label)
+        status='sur_demande'if'raccordable a la demande'in norm else'non_encore_eligible'if'non'in norm and'eligible'in norm else'eligible'if norm=='eligible'else'inconnu'
+        result={**base,'status':status,'source_status':label,'source_comment':row.get('commentaire')or'','source_date':row.get('date_de_mise_a_jour')or'Non précisée','source_address':row.get('adresse_complete')or'','building':row.get('identifiant_immeuble')or'Non précisé','message':'État publié à l’adresse par la source ; le raccordement dans le logement et les offres actuelles des opérateurs restent à vérifier.'}
+        if len(_fibre_cache)>=256:_fibre_cache.pop(next(iter(_fibre_cache)))
+        _fibre_cache[key]=(time.monotonic(),result)
+        return result
+    except Exception:
+        return {**base,'status':'indisponible','message':'La source publique ne répond pas. Éligibilité non vérifiée ; consultez la carte officielle ou réessayez.'}
