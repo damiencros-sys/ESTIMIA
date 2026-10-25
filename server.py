@@ -9,10 +9,10 @@ import os, json, uuid, urllib.request, urllib.error, urllib.parse, mimetypes, re
 
 BASE=Path(__file__).resolve().parent
 DATA=BASE/"data"; DATA.mkdir(exist_ok=True)
-app=FastAPI(title="ESTIM’IA V14.12",docs_url=None,redoc_url=None,openapi_url=None)
+app=FastAPI(title="ESTIM’IA V14.13",docs_url=None,redoc_url=None,openapi_url=None)
 app.mount("/static",StaticFiles(directory=BASE/"static"),name="static")
 
-# V14.12: credentials stay in Render environment variables, never in the ZIP.
+# V14.13: credentials stay in Render environment variables, never in the ZIP.
 import base64, secrets, time, hmac, hashlib
 from collections import deque
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
@@ -32,10 +32,12 @@ def _access_config():
     return os.getenv('ESTIMIA_ACCESS_USER','damien'),os.getenv('ESTIMIA_ACCESS_PASSWORD',''),os.getenv('ESTIMIA_ALLOW_UNPROTECTED','')=='1'
 
 SESSION_COOKIE='estimia_session'
+REMEMBER_SECONDS=400*86400
 def _session_key(user,password):
     return hashlib.sha256(('ESTIMIA-session-v1\0'+user+'\0'+password).encode()).digest()
-def _session_token(user,password,duration):
-    body=base64.urlsafe_b64encode(json.dumps([user,int(time.time())+duration,secrets.token_hex(16)],ensure_ascii=False).encode()).decode().rstrip('=')
+def _session_token(user,password,duration,remember=False):
+    payload=[user,int(time.time())+duration,secrets.token_hex(16)]+(['remembered'] if remember else [])
+    body=base64.urlsafe_b64encode(json.dumps(payload,ensure_ascii=False).encode()).decode().rstrip('=')
     return body+'.'+hmac.new(_session_key(user,password),body.encode(),hashlib.sha256).hexdigest()
 def _session_valid(token,user,password):
     try:
@@ -43,13 +45,21 @@ def _session_valid(token,user,password):
         body,signature=token.split('.',1)
         expected=hmac.new(_session_key(user,password),body.encode(),hashlib.sha256).hexdigest()
         if not hmac.compare_digest(signature,expected):return False
-        name,expires,nonce=json.loads(base64.urlsafe_b64decode(body+'='*(-len(body)%4)))
-        return name==user and type(expires)is int and time.time()<expires<=time.time()+30*86400+60 and isinstance(nonce,str) and len(nonce)==32
+        payload=json.loads(base64.urlsafe_b64decode(body+'='*(-len(body)%4)))
+        if not isinstance(payload,list) or len(payload)not in (3,4) or len(payload)==4 and payload[3]!='remembered':return False
+        name,expires,nonce=payload[:3]
+        return name==user and type(expires)is int and time.time()<expires<=time.time()+REMEMBER_SECONDS+60 and isinstance(nonce,str) and len(nonce)==32
+    except (ValueError,TypeError,UnicodeError):return False
+
+def _session_remembered(token):
+    try:
+        body=token.split('.',1)[0];data=json.loads(base64.urlsafe_b64decode(body+'='*(-len(body)%4)))
+        return isinstance(data,list) and ((len(data)==4 and data[3]=='remembered') or (len(data)==3 and type(data[1])is int and data[1]-time.time()>8*3600))
     except (ValueError,TypeError,UnicodeError):return False
 
 def _login_page(user,message='',status=200):
     from html import escape
-    page="""<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Connexion ESTIM’IA</title><style>body{margin:0;background:#e8eee6;color:#203842;font:17px/1.5 system-ui;display:grid;place-items:center;min-height:100vh}main{box-sizing:border-box;background:#f3f5ed;border:1px solid #a6bcb0;border-radius:16px;padding:28px;width:min(94vw,440px)}h1{margin-top:0}label{display:block;margin:16px 0 6px}input:not([type=checkbox]){box-sizing:border-box;width:100%;padding:12px;font:inherit;background:#fff;border:1px solid #8da89a;border-radius:9px}button{width:100%;min-height:48px;font:700 17px system-ui;background:#215c49;color:white;border:0;border-radius:9px;margin-top:20px}label.remember{display:flex;align-items:center;gap:12px}input[type=checkbox]{width:24px;height:24px;flex-shrink:0}.error{color:#84251c;background:#fff0e9;padding:10px;border-radius:8px}.small{font-size:14px}</style></head><body><main><h1>ESTIM’IA</h1><p>Connexion à votre espace de travail</p>__MESSAGE__<form method="post" action="/auth/login" autocomplete="on"><label for="username">Identifiant</label><input id="username" name="username" autocomplete="username" value="__USER__" required maxlength="200"><label for="password">Mot de passe</label><input id="password" name="password" type="password" autocomplete="current-password" required minlength="10" maxlength="1024"><label class="remember"><input name="remember" type="checkbox" checked>Rester connecté sur cet appareil pendant 30 jours</label><button type="submit">Se connecter</button></form><p><a href="/auth/help">Identifiants oubliés ?</a></p><p class="small">Votre navigateur peut aussi proposer de mémoriser l’identifiant et le mot de passe dans son gestionnaire. Le mot de passe n’est pas enregistré dans les dossiers ESTIM’IA.</p></main></body></html>"""
+    page="""<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Connexion ESTIM’IA</title><style>body{margin:0;background:#e8eee6;color:#203842;font:17px/1.5 system-ui;display:grid;place-items:center;min-height:100vh}main{box-sizing:border-box;background:#f3f5ed;border:1px solid #a6bcb0;border-radius:16px;padding:28px;width:min(94vw,440px)}h1{margin-top:0}label{display:block;margin:16px 0 6px}input:not([type=checkbox]){box-sizing:border-box;width:100%;padding:12px;font:inherit;background:#fff;border:1px solid #8da89a;border-radius:9px}button{width:100%;min-height:48px;font:700 17px system-ui;background:#215c49;color:white;border:0;border-radius:9px;margin-top:20px}label.remember{display:flex;align-items:center;gap:12px}input[type=checkbox]{width:24px;height:24px;flex-shrink:0}.error{color:#84251c;background:#fff0e9;padding:10px;border-radius:8px}.small{font-size:14px}</style></head><body><main><h1>ESTIM’IA</h1><p>Connexion à votre espace de travail</p>__MESSAGE__<form method="post" action="/auth/login" autocomplete="on" onsubmit="document.getElementById('password').type='password'"><label for="username">Identifiant</label><input id="username" name="username" autocomplete="username" value="__USER__" required maxlength="200"><label for="password">Mot de passe</label><input id="password" name="password" type="password" autocomplete="current-password" required minlength="10" maxlength="1024"><label class="remember"><input id="showPassword" type="checkbox" aria-controls="password" onchange="document.getElementById('password').type=this.checked?'text':'password'">Afficher le mot de passe</label><label class="remember"><input name="remember" type="checkbox" checked>Mémoriser ma connexion sur cet appareil</label><button type="submit">Se connecter</button></form><p><a href="/auth/help">Identifiants oubliés ?</a></p><p class="small">Connexion mémorisée renouvelée à chaque utilisation, sans coupure au bout de 30 jours. L’effacement des cookies, la navigation privée ou un changement d’identifiants peut demander une nouvelle connexion.</p><p class="small">Votre navigateur peut aussi proposer de mémoriser l’identifiant et le mot de passe dans son gestionnaire. Le mot de passe n’est pas enregistré dans les dossiers ESTIM’IA.</p></main></body></html>"""
     return HTMLResponse(page.replace('__USER__',escape(user,quote=True)).replace('__MESSAGE__','<p class="error" role="alert">'+escape(message)+'</p>' if message else ''),status_code=status,headers={'Cache-Control':'no-store','X-Robots-Tag':'noindex, nofollow','X-Frame-Options':'DENY','Referrer-Policy':'same-origin','X-Content-Type-Options':'nosniff'})
 
 def _recovery_page():
@@ -81,9 +91,9 @@ async def _access_guard(request,call_next):
         if not _rate_allowed(('login',peer),10):return reply('Trop de tentatives. Réessayez dans une minute.',429)
         form=await request.form();given_user=str(form.get('username',''));given_password=str(form.get('password',''))
         if len(password)<10 or not(secrets.compare_digest(given_user.encode(),user.encode()) and secrets.compare_digest(given_password.encode(),password.encode())):return _login_page(user,'Identifiant ou mot de passe incorrect.',401)
-        duration=30*86400 if form.get('remember') else 8*3600
+        duration=REMEMBER_SECONDS if form.get('remember') else 8*3600
         response=RedirectResponse('/',status_code=303,headers={'Cache-Control':'no-store','X-Robots-Tag':'noindex'})
-        response.set_cookie(SESSION_COOKIE,_session_token(user,password,duration),max_age=duration if form.get('remember') else None,secure=True,httponly=True,samesite='lax',path='/')
+        response.set_cookie(SESSION_COOKIE,_session_token(user,password,duration,remember=bool(form.get('remember'))),max_age=duration if form.get('remember') else None,secure=True,httponly=True,samesite='lax',path='/')
         return response
     if path=='/auth/logout':
         if request.method!='POST':return reply('Méthode non autorisée.',405)
@@ -104,6 +114,9 @@ async def _access_guard(request,call_next):
         heavy=path in ('/api/pdf','/api/word') or 'import' in path
         if not _rate_allowed(('all',),240) or not _rate_allowed(('api',peer),120) or heavy and not _rate_allowed(('heavy',peer),20):return reply('Limite de requêtes atteinte. Réessayez dans une minute.',429)
     response=await call_next(request)
+    current_token=request.cookies.get(SESSION_COOKIE,'')
+    if not development and _session_valid(current_token,user,password) and _session_remembered(current_token):
+        response.set_cookie(SESSION_COOKIE,_session_token(user,password,REMEMBER_SECONDS,remember=True),max_age=REMEMBER_SECONDS,secure=True,httponly=True,samesite='lax',path='/')
     response.headers['Cache-Control']='no-store, no-cache, must-revalidate'
     response.headers['X-Robots-Tag']='noindex, nofollow, noarchive'
     response.headers['X-Content-Type-Options']='nosniff'
@@ -782,7 +795,7 @@ def word_export(p:WordPayload):
 
     # footer + page number field
     footer=sec.footer.paragraphs[0]; footer.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    fr=footer.add_run(_dossier_advisor(p)[1]+' • ESTIM’IA 14.12 / méthode 1.0 • Page '); fr.font.size=Pt(8); fr.font.color.rgb=RGBColor(0x77,0x77,0x77)
+    fr=footer.add_run(_dossier_advisor(p)[1]+' • ESTIM’IA 14.13 / méthode 1.0 • Page '); fr.font.size=Pt(8); fr.font.color.rgb=RGBColor(0x77,0x77,0x77)
     fld=OxmlElement('w:fldSimple'); fld.set(qn('w:instr'),'PAGE'); footer._p.append(fld)
     footer.add_run(' / ');total=OxmlElement('w:fldSimple');total.set(qn('w:instr'),'NUMPAGES');footer._p.append(total)
 
@@ -921,7 +934,7 @@ def pdf_export(p:WordPayload):
         story.append(KeepTogether(client_blocks[-2:]))
     # Individual paragraphs and table rows paginate naturally; headings stay with the next block.
     def footer(canvas,docx):
-        canvas.saveState();canvas.setFont('Helvetica',7);canvas.setFillColor(colors.HexColor('#777777'));canvas.drawCentredString(A4[0]/2,7*mm,f'{_dossier_advisor(p)[1]} - ESTIM’IA 14.12 / méthode 1.0 - Page {docx.page}');canvas.restoreState()
+        canvas.saveState();canvas.setFont('Helvetica',7);canvas.setFillColor(colors.HexColor('#777777'));canvas.drawCentredString(A4[0]/2,7*mm,f'{_dossier_advisor(p)[1]} - ESTIM’IA 14.13 / méthode 1.0 - Page {docx.page}');canvas.restoreState()
     doc.build(story,onFirstPage=footer,onLaterPages=footer);out.seek(0)
     safe=re.sub(r'[^A-Za-z0-9_-]+','_',p.owner or p.address or 'bien').strip('_') or 'bien'
     return StreamingResponse(out,media_type='application/pdf',headers={'Content-Disposition':f'attachment; filename="Dossier_estimation_{safe}.pdf"'})
