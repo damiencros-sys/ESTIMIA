@@ -6,11 +6,11 @@
 <meta name="theme-color" content="#15324a">
 <title>ESTIM’IA</title>
 <link rel="manifest" href="/static/manifest.json">
-<link rel="stylesheet" href="/static/style.css?v=14.08-layout3">
+<link rel="stylesheet" href="/static/style.css?v=14.09-layout3">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<link rel="stylesheet" href="/static/v13_dossiers_pro.css?v=14.08">
+<link rel="stylesheet" href="/static/v13_dossiers_pro.css?v=14.09">
 <style>
 .cadParcelsList{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:9px 0}.cadParcelsLabel{flex-basis:100%;font-weight:700;margin:2px 0 1px}
 .cadParcelChip{display:inline-flex;align-items:center;gap:7px;border:1px solid #cbd8de;border-radius:999px;padding:6px 9px;background:#f7fafb;font-size:13px}
@@ -52,7 +52,7 @@
 .exportStatus.error{display:block;background:#fff0f0;border:1px solid #e4aaaa;color:#8a2828}
 #printVisit:disabled,#wordVisit:disabled{opacity:.65;cursor:wait}
 
-/* V14.08 : croix Supprimer visibles sur toutes les lignes structurées */
+/* V14.09 : croix Supprimer visibles sur toutes les lignes structurées */
 #facts .proGroup .proRow{display:grid!important;grid-template-columns:minmax(110px,.8fr) minmax(160px,1.5fr) 38px!important;align-items:center!important;gap:10px!important;padding:8px 0!important;position:relative!important}
 #facts .proGroup .proRow>.rowDelete{display:inline-flex!important;visibility:visible!important;opacity:1!important;grid-column:3!important;grid-row:1!important;position:static!important;transform:none!important;justify-self:end!important;align-items:center!important;justify-content:center!important;width:34px!important;height:34px!important;margin:0!important;padding:0!important;border:1px solid #efcaca!important;border-radius:8px!important;background:#fff!important;color:#c33!important;font-size:20px!important;line-height:1!important;cursor:pointer!important}
 #facts .proGroup .proRow>.rowDelete:hover{background:#fff5f5!important}
@@ -68,7 +68,7 @@
 @keyframes estimSpin{to{transform:rotate(360deg)}}
 #printVisit:disabled,#downloadWord:disabled{opacity:.65;cursor:wait}
 
-/* V14.08 — gestion complète des photos */
+/* V14.09 — gestion complète des photos */
 .photoManagerHead{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:12px 0 10px}
 .photoManagerHead h3{margin:0}
 .photoCount{font-weight:500;color:#687781;font-size:.9em}
@@ -92,7 +92,7 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 .estExtraSection{background:white;border:1px solid #d8e3e6;border-radius:10px;margin:9px 0;padding:13px 15px}.estExtraSection summary{cursor:pointer;font-weight:700;color:#173a52}.estExtraSection[open] summary{margin-bottom:12px}.estExtrasSections>h3{font-size:18px;margin:12px 0}.estExtrasSections h3 small{font-size:12px;font-weight:400}.estCount{font-size:12px;font-weight:400;color:#647781;margin-left:7px}
 @media(max-width:720px){.estContactRow{grid-template-columns:1fr 1fr}.estContactRow button{grid-column:2}}
 </style><style>
-/* V14.08 — fiches contacts modernes, sans modification des autres modules */
+/* V14.09 — fiches contacts modernes, sans modification des autres modules */
 .ownersModern{margin:8px 0 22px}.ownersEyebrow{font-size:10px;letter-spacing:1.3px;font-weight:800;color:#638397}.ownersTitle h3{font-size:21px;margin:3px 0;color:#173a52}.ownersTitle p{font-size:13px;color:#687b88;margin:0 0 15px}
 .ownersCount{font-size:12px;vertical-align:middle;background:#e9f1f4;border-radius:20px;padding:4px 9px;color:#45697a}
 .ownerCard{border:1px solid #dce6eb;background:#fff;border-radius:16px;margin:12px 0;padding:17px;box-shadow:0 4px 16px rgba(25,58,78,.055)}
@@ -139,7 +139,7 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 
 
 <header>
-  <div><div class="estBrand"><b>ESTIM’IA</b><span class="estVersion">V14.08</span></div><small>Assistant d’estimation immobilière</small></div>
+  <div><div class="estBrand"><b>ESTIM’IA</b><span class="estVersion">V14.09</span></div><small>Assistant d’estimation immobilière</small></div>
   <button id="new" type="button" hidden aria-hidden="true">+ Nouveau</button>
 </header>
 <div id="globalHistory" class="globalHistory">
@@ -155,8 +155,8 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 
 <section class="card">
   <div class="step">1 · DICTÉE</div>
-  <h2>Raconte ta visite</h2>
-  <p>Appuie sur le micro et parle normalement. Tu peux ajouter une nouvelle dictée à tout moment : les précédentes restent conservées. Appuie ensuite sur « Transformer en fiche » pour actualiser les informations.</p>
+  <h2>Raconte votre visite</h2>
+  <p>Appuyez sur le micro et parlez normalement. Vous pouvez ajouter une nouvelle dictée à tout moment : les précédentes restent conservées. Appuyez ensuite sur « Transformer en fiche » pour actualiser les informations.</p>
   <button id="record" class="bigbtn" type="button">🎙️ Démarrer la dictée</button>
   <button id="finishDictation" class="bigbtn" type="button" hidden>⏹️ Terminer et enregistrer la dictée</button>
   <button id="newDictation" class="bigbtn" type="button" hidden>🎙️ ＋ Ajouter une nouvelle dictée</button>
@@ -166,8 +166,8 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
     <button id="undoDictation" class="miniBtn" type="button">↩️ Annuler dernière dictée</button>
     <button id="clearDictation" class="miniBtn danger" type="button">🗑️ Effacer la dictée</button>
   </div>
-  <textarea id="notes" rows="9" placeholder="La dictée apparaîtra ici. Tu peux aussi écrire ou corriger le texte."></textarea>
-  <input id="marketSnapshotJSON" type="hidden" value="{}"><input id="propertyUnitsJSON" type="hidden" value="[]"><input id="dictationSessionsJSON" type="hidden" value="[]"><details class="historyBox"><summary>Historique des dictées successives — textes modifiables</summary><p class="small">Tu peux corriger chaque dictée ci-dessous. Clique ensuite sur « Transformer en fiche » pour actualiser les informations.</p><div id="dictationHistory" class="history"></div></details>
+  <textarea id="notes" rows="9" placeholder="La dictée apparaîtra ici. Vous pouvez aussi écrire ou corriger le texte."></textarea>
+  <input id="marketSnapshotJSON" type="hidden" value="{}"><input id="propertyUnitsJSON" type="hidden" value="[]"><input id="dictationSessionsJSON" type="hidden" value="[]"><details class="historyBox"><summary>Historique des dictées successives — textes modifiables</summary><p class="small">Vous pouvez corriger chaque dictée ci-dessous. Cliquez ensuite sur « Transformer en fiche » pour actualiser les informations.</p><div id="dictationHistory" class="history"></div></details>
   <button id="analyse" class="bigbtn">✨ Transformer en fiche</button>
 </section>
 <section class="card">
@@ -229,14 +229,14 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 <section class="card">
   <div class="step">3 · FICHE IA</div>
   <h2>Ce que j’ai compris</h2>
-  <div id="facts" class="facts"><div class="empty">Dicte ta visite puis touche « Transformer en fiche ».</div></div>
+  <div id="facts" class="facts"><div class="empty">Dicte votre visite puis touche « Transformer en fiche ».</div></div>
   <label>Correction libre<textarea id="correction" rows="3" placeholder="Ex. la terrasse fait 25 m² et non 30 m²"></textarea></label>
 </section>
 
 <section class="card" id="marketListingsModule">
   <div class="step">4 · BIENS SIMILAIRES</div>
   <h2>Biens actuels similaires proposés à la vente</h2>
-  <p class="small">Recherche dans les catalogues Roques Immobilier, IAD, SAFTI, Superimmo et Bien’ici à Lamalou-les-Bains. Jusqu’à 6 annonces proches du prix estimé. La recherche lance le calcul si nécessaire pour classer par prix. Si l’estimation est indisponible, les résultats provisoires sont signalés. Les résultats peuvent être incomplets ou anciens : vérifie les annonces originales.</p>
+  <p class="small">Recherche dans les catalogues Roques Immobilier, IAD, SAFTI, Superimmo et Bien’ici à Lamalou-les-Bains. Jusqu’à 6 annonces classées selon le type, la commune et la proximité de surface, sans utiliser le prix estimé. Chaque carte indique si elle entre dans le repère statistique. État, étage et prestations restent à contrôler. Les résultats peuvent être incomplets ou anciens : vérifiez les annonces originales.</p>
   <button id="launchAnnonces" type="button" class="bigbtn">🔎 Rechercher les annonces comparables</button>
   <div id="annoncesStatus" class="status" role="status"></div>
 <h3>Annonces similaires Roques Immobilier</h3><p class="small">4 biens maximum : commune du dossier en priorité, puis communes proches jusqu’à 20 km. Classement par prix dans chaque commune.</p><button type="button" id="launchRoques">Rechercher les annonces Roques</button><p id="roquesStatus" class="small"></p><div id="roquesResults"></div>
@@ -264,7 +264,7 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 <p class="small">Hypothèses internes modifiables, sans barème officiel : à rafraîchir −5 %, à rénover −15 %, à réhabiliter −25 %. Bon état ou état inconnu : 0 %. Si l’état est dicté séparément pour chaque logement, la correction est calculée par logement ; un état absent reste sans correction. Une modification manuelle de l’état général s’applique à tout le dossier. Saisir un budget active la méthode Budget ; saisir un taux personnalisé active la méthode État. Le budget net remplace la décote d’état : les deux ne sont jamais additionnés. Ne déduire que les travaux qui ne sont pas déjà reflétés par les comparables. Aucun DPE n’est présumé et aucune prime automatique n’est attribuée à un atout non chiffré.</p><p id="qualityAdjustmentStatus" class="status"></p></section>
   <button id="launchEstimation" type="button" class="bigbtn">📊 Rechercher les ventes et calculer</button>
 <div id="estimationStatus" class="status" role="status"></div>
-<p class="small">Version interface DVF : 14.08 — Si cette ligne est absente après installation, actualiser la page avec Ctrl + F5.</p>
+<details class="screenOnly"><summary>Informations techniques</summary><p class="small">Interface DVF 14.09. Après une mise à jour, Ctrl + F5 permet de recharger les fichiers.</p></details>
   <div id="estimationResults"></div><section id="calculationLedger" class="proGroup" aria-label="Décomposition de la valeur"></section>
 <section id="marketIndicatorsBox" class="proGroup">
 <h3>Repères au m² et ajustement</h3>
@@ -277,7 +277,7 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 <p id="retainedEstimateText" role="status"></p>
 </section>
   <details id="dvfOfflineBox" style="margin-top:12px;padding:12px;border:2px solid #0a705b;border-radius:10px"><summary><b>📁 Import DVF manuel (en cas de besoin)</b></summary>
-<p class="small">Le logiciel tente désormais de télécharger automatiquement les données DVF départementales. En cas de panne réseau, tu peux aussi importer une archive officielle. L'import conserve uniquement les mutations simples de la commune du dossier. Les données importées sont stockées sur le serveur Render et peuvent disparaître lors d'un redéploiement sans disque persistant.</p>
+<p class="small">Le logiciel tente désormais de télécharger automatiquement les données DVF départementales. En cas de panne réseau, vous pouvez aussi importer une archive officielle. L'import conserve uniquement les mutations simples de la commune du dossier. Les données importées sont stockées sur le serveur Render et peuvent disparaître lors d'un redéploiement sans disque persistant.</p>
 <label>Archive annuelle officielle DGFiP (.zip) <input type="file" id="dvfZip" accept=".zip"></label>
 <button type="button" id="dvfImport">Importer les ventes de la commune</button>
 <div id="dvfImportStatus" role="status" class="status"></div>
@@ -288,17 +288,17 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 
 <section class="card">
   <div class="step">6 · DOSSIER</div>
-  <h2>Préparer le dossier du propriétaire</h2><p>Relis les informations, personnalise le document puis consulte son aperçu PDF.</p><button id="save" class="bigbtn">💾 Enregistrer le dossier</button>
+  <h2>Préparer le dossier du propriétaire</h2><p>Relisez les informations, personnalise le document puis consulte son aperçu PDF.</p><button id="save" class="bigbtn">💾 Enregistrer le dossier</button>
     <button id="printVisit" type="button" class="secondary">📕 Télécharger le vrai PDF</button>
 
     <button id="downloadWord" type="button" class="secondary">📄 Télécharger la fiche Word</button>
   <section id="priceHistoryPanel" class="proGroup"></section><button id="previewDossier" type="button" class="bigbtn secondary">Aperçu du dossier PDF</button>
-<details class="proGroup"><summary>Données, sauvegarde et confidentialité</summary><p>Les dossiers et photos sont enregistrés dans ce navigateur, sur cet appareil. Effacer les données du navigateur ou changer d’appareil peut les faire perdre : exportez régulièrement une sauvegarde complète.</p><p>Pour créer Word/PDF, la fiche et les photos sont transmises au serveur Render et traitées en mémoire par le générateur, sans création d’une nouvelle sauvegarde de dossier sur disque par ces routes. Les annonces et plans peuvent être téléchargés pour le document. Les journaux techniques et la politique de l’hébergeur doivent être vérifiés séparément.</p><p>Les recherches d’adresse, cadastre, urbanisme et fibre utilisent l’adresse ou la commune et les références nécessaires ; la recherche DVF utilise la commune, le type et la surface. Les noms et coordonnées des propriétaires ne sont pas nécessaires à ces recherches. La reconnaissance vocale dépend du navigateur et peut utiliser le service de son éditeur. L’analyse de la dictée est locale ; les anciennes routes d’IA serveur sont désactivées.</p><p>Des dossiers enregistrés par d’anciennes versions peuvent subsister sur Render : leur inventaire et leur éventuelle suppression demandent une intervention de l’administrateur. Rien n’est supprimé automatiquement. ROQUES IMMOBILIER doit préciser les responsabilités, les durées de conservation et les conditions de l’hébergement.</p></details><section id="dossierChecks" class="proGroup" role="status"></section><section class="proGroup"><h3>Conclusion pour le propriétaire</h3><p class="small">Proposition rédigée à partir des informations de la fiche et du montant actuel. À relire avant remise au propriétaire.</p><button id="generateClientConclusion" type="button" class="miniBtn">Rédiger la conclusion</button><input id="clientConclusionSignature" type="hidden"><textarea id="estClientConclusion" rows="5" placeholder="La conclusion proposée apparaîtra ici ; tu peux la modifier."></textarea><label class="conclusionInclusion" for="includeClientConclusion"><input id="includeClientConclusion" type="checkbox" role="switch" aria-describedby="conclusionInclusionHelp"><span class="conclusionInclusionText"><strong>Inclure la conclusion dans le dossier client</strong><span id="conclusionInclusionState">Non — conclusion non incluse</span></span><span class="conclusionOptional">Facultatif</span></label><p id="conclusionInclusionHelp" class="small">Choisis Oui pour ajouter le texte ci-dessus aux documents Word et PDF. Tu peux valider le dossier et télécharger les documents sans conclusion.</p><p id="clientConclusionStatus" class="status" role="status"></p></section>
+<details class="proGroup"><summary>Données, sauvegarde et confidentialité</summary><p>Les dossiers et photos sont enregistrés dans ce navigateur, sur cet appareil. Effacer les données du navigateur ou changer d’appareil peut les faire perdre : exportez régulièrement une sauvegarde complète.</p><p>Pour créer Word/PDF, la fiche et les photos sont transmises au serveur Render et traitées en mémoire par le générateur, sans création d’une nouvelle sauvegarde de dossier sur disque par ces routes. Les annonces et plans peuvent être téléchargés pour le document. Les journaux techniques et la politique de l’hébergeur doivent être vérifiés séparément.</p><p>Les recherches d’adresse, cadastre, urbanisme et fibre utilisent l’adresse ou la commune et les références nécessaires ; la recherche DVF utilise la commune, le type et la surface. Les noms et coordonnées des propriétaires ne sont pas nécessaires à ces recherches. La reconnaissance vocale dépend du navigateur et peut utiliser le service de son éditeur. L’analyse de la dictée est locale ; les anciennes routes d’IA serveur sont désactivées.</p><p>Des dossiers enregistrés par d’anciennes versions peuvent subsister sur Render : leur inventaire et leur éventuelle suppression demandent une intervention de l’administrateur. Rien n’est supprimé automatiquement. ROQUES IMMOBILIER doit préciser les responsabilités, les durées de conservation et les conditions de l’hébergement.</p></details><section id="dossierChecks" class="proGroup" role="status"></section><section class="proGroup"><h3>Conclusion pour le propriétaire</h3><p class="small">Proposition rédigée à partir des informations de la fiche et du montant actuel. À relire avant remise au propriétaire.</p><button id="generateClientConclusion" type="button" class="miniBtn">Rédiger la conclusion</button><input id="clientConclusionSignature" type="hidden"><textarea id="estClientConclusion" rows="5" placeholder="La conclusion proposée apparaîtra ici ; vous pouvez la modifier."></textarea><label class="conclusionInclusion" for="includeClientConclusion"><input id="includeClientConclusion" type="checkbox" role="switch" aria-describedby="conclusionInclusionHelp"><span class="conclusionInclusionText"><strong>Inclure la conclusion dans le dossier client</strong><span id="conclusionInclusionState">Non — conclusion non incluse</span></span><span class="conclusionOptional">Facultatif</span></label><p id="conclusionInclusionHelp" class="small">Choisis Oui pour ajouter le texte ci-dessus aux documents Word et PDF. Vous pouvez valider le dossier et télécharger les documents sans conclusion.</p><p id="clientConclusionStatus" class="status" role="status"></p></section>
   <details style="margin:16px 0"><summary>Personnaliser le dossier et justifier la valeur</summary>
   <p class="small">Champs facultatifs repris dans les documents. Les diagnostics et le DPE ne sont pas nécessaires pour calculer l’estimation.</p>
   <div class="cols"><label>Logo de l’agence<input id="exportLogoFile" type="file" accept="image/png,image/jpeg,image/webp"></label><label>Photo du conseiller<input id="exportAdvisorPhotoFile" type="file" accept="image/png,image/jpeg,image/webp"></label></div>
   <input id="exportLogoData" type="hidden"><input id="exportAdvisorPhotoData" type="hidden">
-  <div class="brandAssets"><figure><img id="exportLogoPreview" alt="Logo de l’agence" hidden><button id="removeExportLogo" type="button" class="miniBtn">Retirer le logo</button></figure><figure><img id="exportAdvisorPhotoPreview" alt="Photo du conseiller" hidden><button id="removeExportAdvisorPhoto" type="button" class="miniBtn">Retirer la photo</button></figure></div>
+  <p class="small">Utilisez uniquement le logo de l’agence et une photo professionnelle du conseiller dans ces deux emplacements. Vérifiez leurs aperçus avant téléchargement.</p><div class="brandAssets"><figure><img id="exportLogoPreview" alt="Logo de l’agence" hidden><button id="removeExportLogo" type="button" class="miniBtn">Retirer le logo</button></figure><figure><img id="exportAdvisorPhotoPreview" alt="Photo du conseiller" hidden><button id="removeExportAdvisorPhoto" type="button" class="miniBtn">Retirer la photo</button></figure></div>
   <label>Couleur de l’agence<input id="exportThemeColor" type="color" value="#173a52"></label><label><input id="exportUseBrandColor" type="checkbox"> Utiliser cette couleur dans les documents</label><p id="brandStatus" class="status" role="status"></p>
   <label>Conseiller<input id="exportAdvisorName" value="Damien CROS"></label>
   <label>Agence<input id="exportAgency" value="Agence ROQUES IMMOBILIER"></label>
@@ -309,18 +309,18 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
   <label>Choix des comparables<textarea id="estComparableReason" placeholder="Localisation, état, surfaces et différences avec le bien"></textarea></label>
   </details>
   <div id="saveStatus" class="status"></div>
-  <p class="small">V14.08 : fiche entièrement modifiable + gestion des niveaux et des pièces.</p>
+  <p class="small">V14.09 : fiche entièrement modifiable + gestion des niveaux et des pièces.</p>
 </section>
 <div class="stepFooter"><button id="visitPrev" class="miniBtn" type="button">Étape précédente</button><button id="visitNext" class="bigbtn" type="button">Étape suivante</button></div>
 <dialog id="dossierPreviewDialog"><div class="previewToolbar"><h2>Aperçu du dossier PDF</h2><button id="refreshDossierPreview" class="miniBtn" type="button">Actualiser</button><button id="closeDossierPreview" class="miniBtn" type="button">Fermer</button></div><p id="dossierPreviewStatus" class="status" role="status"></p><a id="openDossierPreview" target="_blank" rel="noopener" hidden>Ouvrir le PDF dans un nouvel onglet</a><div id="dossierPreviewLoading" class="previewLoading" role="status" aria-live="polite" hidden><span class="previewSpinner" aria-hidden="true"></span><strong>Génération de l’aperçu PDF en cours…</strong><p>Merci de patienter, votre dossier est en préparation.</p></div><iframe id="dossierPreviewFrame" title="Aperçu du dossier PDF"></iframe></dialog>
 </main>
-<script src="/static/estimation_v13_44.js?v=14.08" defer></script>
-<script src="/static/app.js?v=14.08"></script>
+<script src="/static/estimation_v13_44.js?v=14.09" defer></script>
+<script src="/static/app.js?v=14.09"></script>
 <script src="/static/v7_pro.js"></script>
 <script src="/static/v8_fiche_pro.js"></script>
-<script src="/static/v13_visite.js?v=14.08-layout3"></script>
-<script src="/static/urbanisme_parcelles.js?v=14.08"></script>
-<script src="/static/v13_dossiers_pro.js?v=14.08"></script>
+<script src="/static/v13_visite.js?v=14.09-layout3"></script>
+<script src="/static/urbanisme_parcelles.js?v=14.09"></script>
+<script src="/static/v13_dossiers_pro.js?v=14.09"></script>
 
 
 <div id="exportOverlay" class="exportOverlay" aria-live="polite">

@@ -396,6 +396,10 @@ def _dossier_color(p):
     value=str(p.theme_color or '').lstrip('#')
     return value.upper() if re.fullmatch(r'[0-9a-fA-F]{6}',value) else _property_color(p.property_type)
 
+def _cover_address_lines(p):
+    address=p.address.strip();city=p.commune.strip()
+    return [v for v in [address,city if city and _market_city_key(city) not in _market_city_key(address) else ''] if v]
+
 def _brand_photo(p,key):
     return _dossier_photos([{'data':p.branding.get(key,'')}])
 
@@ -517,7 +521,7 @@ def word_export(p:WordPayload):
 
     cover=doc.add_paragraph();cover.alignment=WD_ALIGN_PARAGRAPH.CENTER
     run=cover.add_run(' — '.join(str(x) for x in [p.property_type,p.surface+' m²' if p.surface else ''] if x));run.bold=True;run.font.size=Pt(14)
-    for line in [p.address,p.commune]:
+    for line in _cover_address_lines(p):
         if line:
             para=doc.add_paragraph(line);para.alignment=WD_ALIGN_PARAGRAPH.CENTER
     valid_photos=_dossier_photos(p.photos)
@@ -611,15 +615,18 @@ def word_export(p:WordPayload):
     for group_title,group_items in [('ANNONCES SIMILAIRES ROQUES IMMOBILIER',p.roques_annonces[:4]),('AUTRES ANNONCES SIMILAIRES',p.annonces)]:
         if not group_items:continue
         heading(group_title)
-        doc.add_paragraph('Biens proposés à la vente sélectionnés par proximité du prix central. Prix affichés et disponibilité à confirmer auprès des agences.').paragraph_format.keep_with_next=True
+        doc.add_paragraph('Biens proposés à la vente classés par secteur, type et surface, indépendamment du prix estimé. Chaque carte précise son inclusion ou non dans le repère annonces. État, étage, prestations et disponibilité à confirmer auprès des agences.').paragraph_format.keep_with_next=True
         pictures=_export_market_images(group_items)
         for index,item in enumerate(group_items[:6]):
             heading(str(index+1)+'  '+str(item.get('titre','Bien proposé à la vente')))
             if pictures[index]:
                 para=doc.add_paragraph();para.alignment=WD_ALIGN_PARAGRAPH.CENTER
-                para.add_run().add_picture(io.BytesIO(pictures[index]),width=Inches(3.1))
+                from PIL import Image as PILImage
+                with PILImage.open(io.BytesIO(pictures[index])) as card_image: iw,ih=card_image.size
+                scale=min(3.1/iw,2.5/ih)
+                para.add_run().add_picture(io.BytesIO(pictures[index]),width=Inches(iw*scale),height=Inches(ih*scale))
                 para.paragraph_format.keep_with_next=True
-            else:doc.add_paragraph('Photo de cette annonce indisponible lors de l’export.')
+            else:doc.add_paragraph('Photo de cette annonce indisponible lors de l’export.').paragraph_format.keep_with_next=True
             card_table=label_value_table([('Prix affiché',item.get('prix')),('Agence',item.get('site'))])
             for row in card_table.rows:
                 for cell in row.cells:
@@ -632,7 +639,7 @@ def word_export(p:WordPayload):
                 run=OxmlElement('w:r');text=OxmlElement('w:t');text.text='Consulter l’annonce';run.append(text);link.append(run);para._p.append(link)
 
     conclusion_heading=heading('CONCLUSION ET AVIS DE VALEUR')
-    conclusion_heading.paragraph_format.page_break_before=True
+    conclusion_heading.paragraph_format.page_break_before=False
     if p.estimation.get('centrale'):
         heading('ESTIMATION DU BIEN')
         estimate_table=label_value_table([('Valeur centrale',p.estimation.get('centrale')),('Fourchette basse',p.estimation.get('basse')),('Fourchette haute',p.estimation.get('haute'))])
@@ -646,10 +653,10 @@ def word_export(p:WordPayload):
         heading('ESTIMATION DU BIEN')
         doc.add_paragraph('Estimation non calculée dans ce dossier.')
     if p.estimation.get('reperes'):
-        heading('REPERES AU METRE CARRE ET AJUSTEMENT')
+        heading('REPÈRES AU MÈTRE CARRÉ ET AJUSTEMENT')
         label_value_table(p.estimation['reperes'])
     if p.estimation.get('retenue'):
-        heading('ESTIMATION RETENUE ET VALIDEE')
+        heading('ESTIMATION RETENUE ET VALIDÉE')
         label_value_table([('Montant retenu',p.estimation.get('retenue')),('Justification',p.estimation.get('justification'))])
     for label,key in [('Points forts','forts'),('Points de vigilance','limites'),('Travaux à envisager','travaux'),('Choix des comparables','comparables')]:
         if str(p.argumentaire.get(key,'')).strip():
@@ -661,13 +668,15 @@ def word_export(p:WordPayload):
         heading('DÉCOMPOSITION DE LA VALEUR');label_value_table(p.estimation['calcul'])
     if p.client_conclusion.strip():
         heading('AVIS AU PROPRIÉTAIRE')
-        for paragraph in p.client_conclusion.split('\n\n'):
-            para=doc.add_paragraph(paragraph);para.alignment=WD_ALIGN_PARAGRAPH.LEFT if '\n' in paragraph else WD_ALIGN_PARAGRAPH.JUSTIFY
+        client_paragraphs=p.client_conclusion.split('\n\n')
+        for i,paragraph in enumerate(client_paragraphs):
+            para=doc.add_paragraph(paragraph);para.paragraph_format.keep_with_next=(i==len(client_paragraphs)-2);para.alignment=WD_ALIGN_PARAGRAPH.LEFT if '\n' in paragraph else WD_ALIGN_PARAGRAPH.JUSTIFY
 
     # footer + page number field
     footer=sec.footer.paragraphs[0]; footer.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    fr=footer.add_run(_dossier_advisor(p)[0]+'  •  ESTIM’IA  •  Page '); fr.font.size=Pt(8); fr.font.color.rgb=RGBColor(0x77,0x77,0x77)
+    fr=footer.add_run(_dossier_advisor(p)[1]+'  •  Page '); fr.font.size=Pt(8); fr.font.color.rgb=RGBColor(0x77,0x77,0x77)
     fld=OxmlElement('w:fldSimple'); fld.set(qn('w:instr'),'PAGE'); footer._p.append(fld)
+    footer.add_run(' / ');total=OxmlElement('w:fldSimple');total.set(qn('w:instr'),'NUMPAGES');footer._p.append(total)
 
     out=io.BytesIO(); doc.save(out); out.seek(0)
     safe=re.sub(r'[^A-Za-z0-9_-]+','_',p.owner or p.address or 'bien').strip('_') or 'bien'
@@ -695,7 +704,7 @@ def pdf_export(p:WordPayload):
     cap=ParagraphStyle('CapX',parent=normal,fontSize=7.5,textColor=colors.HexColor('#555555'),alignment=TA_CENTER)
     from xml.sax.saxutils import escape
     def text(value):return escape(str(value or ''))
-    story=[Paragraph('DOSSIER D’ESTIMATION IMMOBILIERE',title),Paragraph('ESTIM’IA - visite et estimation',date_style),Paragraph('Document genere le '+(p.generated_date or datetime.now().strftime('%d/%m/%Y')),date_style)]
+    story=[Paragraph('DOSSIER D’ESTIMATION IMMOBILIÈRE',title),Paragraph('ESTIM’IA - visite et estimation',date_style),Paragraph('Document généré le '+(p.generated_date or datetime.now().strftime('%d/%m/%Y')),date_style)]
     for _,raw,w,hp in _brand_photo(p,'logo'):
         story.insert(0,RLImage(io.BytesIO(raw),width=55*mm,height=21*mm,kind='proportional'))
     estimate_value=ParagraphStyle('EstimateValue',parent=normal,fontName='Helvetica-Bold',fontSize=14,leading=18,textColor=theme)
@@ -708,7 +717,7 @@ def pdf_export(p:WordPayload):
         t.setStyle(TableStyle([('GRID',(0,0),(-1,-1),.4,colors.HexColor('#CCD5DB')),('BACKGROUND',(0,0),(0,-1),colors.HexColor('#F2F6F5')),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('LEFTPADDING',(0,0),(-1,-1),5),('RIGHTPADDING',(0,0),(-1,-1),5),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),('TEXTCOLOR',(0,0),(0,-1),theme)]));story.append(t)
     story.append(Spacer(1,10*mm))
     story.append(Paragraph(text(' — '.join(x for x in [p.property_type,p.surface+' m²' if p.surface else ''] if x)),title))
-    for line in [p.address,p.commune]:
+    for line in _cover_address_lines(p):
         if line:story.append(Paragraph(text(line),date_style))
     valid_photos=_dossier_photos(p.photos)
     if valid_photos:
@@ -721,7 +730,7 @@ def pdf_export(p:WordPayload):
     story.append(Paragraph('DOSSIER',h))
     refs=[x for x in p.parcels if isinstance(x,dict) and x.get('section') and x.get('numero')]
     cad=' • '.join(str(x.get('section','')).upper()+' '+re.sub(r'\D','',str(x.get('numero',''))) for x in refs)
-    add_table([('Proprietaire',p.owner),('Telephone',p.phone),('Adresse',p.address),('Commune',p.commune),('Cadastre',cad),('Type',p.property_type),('Surface habitable',(p.surface+' m²') if p.surface else ''),('Surface Carrez',(p.surface_carrez+' m²') if p.surface_carrez else '')])
+    add_table([('Propriétaire',p.owner),('Téléphone',p.phone),('Adresse',p.address),('Commune',p.commune),('Cadastre',cad),('Type',p.property_type),('Surface habitable',(p.surface+' m²') if p.surface else ''),('Surface Carrez',(p.surface_carrez+' m²') if p.surface_carrez else '')])
     if p.commune and refs:
         story.append(Paragraph('PLAN CADASTRAL',h))
         try:
@@ -729,7 +738,7 @@ def pdf_export(p:WordPayload):
             story.append(RLImage(img,width=164*mm,height=108*mm));story.append(Paragraph((p.commune+' - Parcelles : '+cad),cap))
         except Exception: story.append(Paragraph('Plan cadastral temporairement indisponible lors de la generation du document.',cap))
     if p.sections:
-        story.append(Paragraph('RELEVE DE VISITE',h))
+        story.append(Paragraph('RELEVÉ DE VISITE',h))
         for s in p.sections:
             rows=s.get('rows') or []
             rows=[(x[0],x[1]) for x in rows if isinstance(x,(list,tuple)) and len(x)>=2 and str(x[1]).strip()]
@@ -762,7 +771,7 @@ def pdf_export(p:WordPayload):
         if not group_items:continue
         group_start=len(story)
         story.append(Paragraph(group_title,h))
-        story.append(Paragraph('Biens proposés à la vente sélectionnés par proximité du prix central. Prix affichés et disponibilité à confirmer auprès des agences.',market_intro))
+        story.append(Paragraph('Biens proposés à la vente classés par secteur, type et surface, indépendamment du prix estimé. Chaque carte précise son inclusion ou non dans le repère annonces. État, étage, prestations et disponibilité à confirmer auprès des agences.',market_intro))
         pictures=_export_market_images(group_items)
         for index,item in enumerate(group_items[:6]):
             card=[Paragraph(text(str(index+1)+'  '+str(item.get('titre','Bien proposé à la vente'))),h)]
@@ -778,16 +787,16 @@ def pdf_export(p:WordPayload):
     story.append(Paragraph('CONCLUSION ET AVIS DE VALEUR',h))
     story.append(Paragraph('ESTIMATION DU BIEN',h))
     if p.estimation.get('centrale'):
-        block_start=len(story)-1
+        block_start=conclusion_start
         add_table([('Valeur centrale',p.estimation.get('centrale')),('Fourchette basse',p.estimation.get('basse')),('Fourchette haute',p.estimation.get('haute'))],highlight_estimate=True)
         story[block_start:]=[KeepTogether(story[block_start:])]
         story.append(Paragraph(text(p.estimation.get('texte') or 'Valeur statistique indicative issue des ventes DVF, sans ajustement qualitatif.'),normal))
     else:story.append(Paragraph('Estimation non calculée dans ce dossier.',normal))
     if p.estimation.get('reperes'):
-        story.append(Paragraph('REPERES AU METRE CARRE ET AJUSTEMENT',h))
+        story.append(Paragraph('REPÈRES AU MÈTRE CARRÉ ET AJUSTEMENT',h))
         add_table(p.estimation['reperes'])
     if p.estimation.get('retenue'):
-        story.append(Paragraph('ESTIMATION RETENUE ET VALIDEE',h))
+        story.append(Paragraph('ESTIMATION RETENUE ET VALIDÉE',h))
         add_table([('Montant retenu',p.estimation.get('retenue')),('Justification',p.estimation.get('justification'))])
     for label,key in [('Points forts','forts'),('Points de vigilance','limites'),('Travaux à envisager','travaux'),('Choix des comparables','comparables')]:
         if str(p.argumentaire.get(key,'')).strip():story.extend([Paragraph(label,h),Paragraph(text(p.argumentaire[key]),normal)])
@@ -798,12 +807,13 @@ def pdf_export(p:WordPayload):
         story.append(Paragraph('DÉCOMPOSITION DE LA VALEUR',h));add_table(p.estimation['calcul'])
     if p.client_conclusion.strip():
         story.append(Paragraph('AVIS AU PROPRIÉTAIRE',h))
-        client_style=ParagraphStyle('ClientConclusion',parent=normal,alignment=TA_JUSTIFY,spaceAfter=3*mm)
-        for paragraph in p.client_conclusion.split('\n\n'):
-            story.append(Paragraph(text(paragraph).replace('\n','<br/>'),client_style))
-    story[conclusion_start:]=[KeepTogether(story[conclusion_start:])]
+        client_style=ParagraphStyle('ClientConclusion',parent=normal,alignment=TA_JUSTIFY,spaceAfter=2*mm)
+        client_blocks=[Paragraph(text(paragraph).replace('\n','<br/>'),client_style) for paragraph in p.client_conclusion.split('\n\n') if paragraph.strip()]
+        story.extend(client_blocks[:-2])
+        story.append(KeepTogether(client_blocks[-2:]))
+    # Individual paragraphs and table rows paginate naturally; headings stay with the next block.
     def footer(canvas,docx):
-        canvas.saveState();canvas.setFont('Helvetica',7);canvas.setFillColor(colors.HexColor('#777777'));canvas.drawCentredString(A4[0]/2,7*mm,f'{_dossier_advisor(p)[0]} - ESTIM’IA - Page {docx.page}');canvas.restoreState()
+        canvas.saveState();canvas.setFont('Helvetica',7);canvas.setFillColor(colors.HexColor('#777777'));canvas.drawCentredString(A4[0]/2,7*mm,f'{_dossier_advisor(p)[1]} - Page {docx.page}');canvas.restoreState()
     doc.build(story,onFirstPage=footer,onLaterPages=footer);out.seek(0)
     safe=re.sub(r'[^A-Za-z0-9_-]+','_',p.owner or p.address or 'bien').strip('_') or 'bien'
     return StreamingResponse(out,media_type='application/pdf',headers={'Content-Disposition':f'attachment; filename="Dossier_estimation_{safe}.pdf"'})
@@ -1446,7 +1456,7 @@ def _roques_distance(a,b):
 
 @app.get('/api/estimation/roques')
 def roques_similaires(commune:str,type_bien:str,prix:float=0,surface:float=0):
-    if type_bien not in ('maison','appartement') or not 0<prix<=10000000:raise HTTPException(400,'Calculer l’estimation et préciser le type de bien')
+    if type_bien not in ('maison','appartement'):raise HTTPException(400,'Préciser le type de bien')
     if not 0<=surface<=20000:raise HTTPException(400,'Surface non valide')
     towns,geo=_roques_discovery()
     target=next((x for x in geo if str(x.get('code'))==commune.strip() or _roques_name_key(x.get('nom',''))==_roques_name_key(commune)),None)
@@ -1475,7 +1485,7 @@ def roques_similaires(commune:str,type_bien:str,prix:float=0,surface:float=0):
                     with urllib.request.urlopen('https://www.roques-immobilier.com/vente/'+slug+'/'+str(number),timeout=10) as r:extra=r.read(2500000).decode('utf-8',errors='replace')
                     found.extend(_market_parse_roques(extra,town['nom'],type_bien))
                 except Exception:diagnostics.append({'commune':town['nom'],'etat':'page_indisponible'})
-            found.sort(key=lambda x:(abs(x['prix']-prix),abs(x['surface']-surface)))
+            found.sort(key=lambda x:(abs(x['surface']/surface-1) if surface>0 else 0,str(x.get('url',''))))
             for row in found:
                 if row['url'] in seen:continue
                 seen.add(row['url']);row['distance_km']=round(distance,1)
@@ -1485,7 +1495,7 @@ def roques_similaires(commune:str,type_bien:str,prix:float=0,surface:float=0):
             diagnostics.append({'commune':town['nom'],'distance_km':round(distance,1),'etat':'accessible','retenus':len(found)})
         except Exception:diagnostics.append({'commune':town['nom'],'etat':'indisponible'})
     return {'annonces':rows,'diagnostics':diagnostics,'commune':target['nom'],
-        'message':str(len(rows))+' annonce(s) Roques sélectionnée(s). Commune du bien prioritaire, puis communes par distance croissante dans un rayon de 20 km. Prix le plus proche dans chaque commune. Distances à vol d’oiseau entre centres des communes.'}
+        'message':str(len(rows))+' annonce(s) Roques sélectionnée(s). Commune du bien prioritaire, puis communes par distance croissante dans un rayon de 20 km. Type identique et surface la plus proche dans chaque commune ; prix estimé non utilisé. État, étage et prestations à vérifier. Distances à vol d’oiseau entre centres des communes.'}
 
 
 # V13.87 — consultation officielle d'urbanisme sur la géométrie de chaque parcelle.
