@@ -2,8 +2,12 @@ services:
   - type: web
     name: estimia
     runtime: python
+    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
     envVars:
-      - key: OPENAI_API_KEY
+      - key: ESTIMIA_ACCESS_USER
+        value: damien
+      - key: ESTIMIA_ACCESS_PASSWORD
         sync: false

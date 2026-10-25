@@ -9,14 +9,106 @@ import os, json, uuid, urllib.request, urllib.error, urllib.parse, mimetypes, re
 
 BASE=Path(__file__).resolve().parent
 DATA=BASE/"data"; DATA.mkdir(exist_ok=True)
-app=FastAPI(title="ESTIM'IA V2")
+app=FastAPI(title="ESTIM’IA V14.11",docs_url=None,redoc_url=None,openapi_url=None)
 app.mount("/static",StaticFiles(directory=BASE/"static"),name="static")
 
-@app.middleware("http")
-async def _no_cache_frontend(request, call_next):
+# V14.11: credentials stay in Render environment variables, never in the ZIP.
+import base64, secrets, time, hmac, hashlib
+from collections import deque
+from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
+_RATE_BUCKETS={};_RATE_LOCK=threading.Lock()
+def _rate_allowed(key,limit,now=None):
+    now=time.monotonic() if now is None else now
+    with _RATE_LOCK:
+        for old in list(_RATE_BUCKETS):
+            if not _RATE_BUCKETS[old] or _RATE_BUCKETS[old][-1]<=now-60:del _RATE_BUCKETS[old]
+        if key not in _RATE_BUCKETS and len(_RATE_BUCKETS)>=2000:return False
+        bucket=_RATE_BUCKETS.setdefault(key,deque())
+        while bucket and bucket[0]<=now-60:bucket.popleft()
+        if len(bucket)>=limit:return False
+        bucket.append(now);return True
+
+def _access_config():
+    return os.getenv('ESTIMIA_ACCESS_USER','damien'),os.getenv('ESTIMIA_ACCESS_PASSWORD',''),os.getenv('ESTIMIA_ALLOW_UNPROTECTED','')=='1'
+
+SESSION_COOKIE='estimia_session'
+def _session_key(user,password):
+    return hashlib.sha256(('ESTIMIA-session-v1\0'+user+'\0'+password).encode()).digest()
+def _session_token(user,password,duration):
+    body=base64.urlsafe_b64encode(json.dumps([user,int(time.time())+duration,secrets.token_hex(16)],ensure_ascii=False).encode()).decode().rstrip('=')
+    return body+'.'+hmac.new(_session_key(user,password),body.encode(),hashlib.sha256).hexdigest()
+def _session_valid(token,user,password):
+    try:
+        if len(token)>2048:return False
+        body,signature=token.split('.',1)
+        expected=hmac.new(_session_key(user,password),body.encode(),hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(signature,expected):return False
+        name,expires,nonce=json.loads(base64.urlsafe_b64decode(body+'='*(-len(body)%4)))
+        return name==user and type(expires)is int and time.time()<expires<=time.time()+30*86400+60 and isinstance(nonce,str) and len(nonce)==32
+    except (ValueError,TypeError,UnicodeError):return False
+
+def _login_page(user,message='',status=200):
+    from html import escape
+    page="""<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Connexion ESTIM’IA</title><style>body{margin:0;background:#e8eee6;color:#203842;font:17px/1.5 system-ui;display:grid;place-items:center;min-height:100vh}main{box-sizing:border-box;background:#f3f5ed;border:1px solid #a6bcb0;border-radius:16px;padding:28px;width:min(94vw,440px)}h1{margin-top:0}label{display:block;margin:16px 0 6px}input:not([type=checkbox]){box-sizing:border-box;width:100%;padding:12px;font:inherit;background:#fff;border:1px solid #8da89a;border-radius:9px}button{width:100%;min-height:48px;font:700 17px system-ui;background:#215c49;color:white;border:0;border-radius:9px;margin-top:20px}label.remember{display:flex;align-items:center;gap:12px}input[type=checkbox]{width:24px;height:24px;flex-shrink:0}.error{color:#84251c;background:#fff0e9;padding:10px;border-radius:8px}.small{font-size:14px}</style></head><body><main><h1>ESTIM’IA</h1><p>Connexion à votre espace de travail</p>__MESSAGE__<form method="post" action="/auth/login" autocomplete="on"><label for="username">Identifiant</label><input id="username" name="username" autocomplete="username" value="__USER__" required maxlength="200"><label for="password">Mot de passe</label><input id="password" name="password" type="password" autocomplete="current-password" required maxlength="1024"><label class="remember"><input name="remember" type="checkbox" checked>Rester connecté sur cet appareil pendant 30 jours</label><button type="submit">Se connecter</button></form><p><a href="/auth/help">Identifiants oubliés ?</a></p><p class="small">Votre navigateur peut aussi proposer de mémoriser l’identifiant et le mot de passe dans son gestionnaire. Le mot de passe n’est pas enregistré dans les dossiers ESTIM’IA.</p></main></body></html>"""
+    return HTMLResponse(page.replace('__USER__',escape(user,quote=True)).replace('__MESSAGE__','<p class="error" role="alert">'+escape(message)+'</p>' if message else ''),status_code=status,headers={'Cache-Control':'no-store','X-Robots-Tag':'noindex, nofollow','X-Frame-Options':'DENY','Referrer-Policy':'same-origin','X-Content-Type-Options':'nosniff'})
+
+def _recovery_page():
+    template=_login_page('');page=template.body.decode()
+    content="""<main><h1>Retrouver l’accès</h1><p>Le mot de passe ESTIM’IA ne peut pas être affiché ici. Deux solutions sont disponibles.</p><h2>1. Gestionnaire du navigateur</h2><p>Recherchez l’adresse de votre site ESTIM’IA dans le gestionnaire de mots de passe du navigateur utilisé lors de la connexion. L’appareil peut demander votre code ou votre empreinte.</p><h2>2. Réinitialiser depuis Render</h2><ol><li>Ouvrez votre tableau de bord Render et connectez-vous au compte utilisé pour héberger ESTIM’IA.</li><li>Sélectionnez le service ESTIM’IA, puis <strong>Environment</strong>.</li><li>Retrouvez votre identifiant dans <strong>ESTIMIA_ACCESS_USER</strong> (damien par défaut).</li><li>Remplacez <strong>ESTIMIA_ACCESS_PASSWORD</strong> par un nouveau mot de passe de 16 caractères minimum.</li><li>Choisissez <strong>Save and deploy</strong>, attendez la fin du déploiement, puis revenez vous connecter.</li></ol><p><a href="https://dashboard.render.com" target="_blank" rel="noopener noreferrer">Ouvrir Render ↗</a> · <a href="https://render.com/docs/configure-environment-variables" target="_blank" rel="noopener noreferrer">Consulter la procédure officielle ↗</a></p><p>Le compte Render est distinct de l’accès à ESTIM’IA. Si son accès est également perdu, récupérez d’abord ce compte auprès de Render ou du fournisseur de connexion utilisé.</p><p>Changer le mot de passe invalide les connexions mémorisées sur tous les appareils. Cela ne supprime pas les dossiers ou photos locaux : ne videz pas les données du navigateur.</p><p class="small">Conservez l’accès à Render et une sauvegarde complète des dossiers dans un emplacement protégé. Aucun mot de passe ni lien de réinitialisation n’est envoyé par mail.</p><button type="button" onclick="window.print()">Imprimer cette procédure de secours</button><p><a href="/">Retour à la connexion</a></p></main>"""
+    page=re.sub(r'<main>.*</main>',lambda m:content,page,flags=re.S).replace('<title>Connexion ESTIM’IA</title>','<title>Accès de secours ESTIM’IA</title>').replace('width:min(94vw,440px)','width:min(94vw,760px)').replace('</style>','h2{font-size:20px}li{margin:9px 0;overflow-wrap:anywhere}strong{overflow-wrap:anywhere}@media print{body{display:block;background:white;min-height:0}main{width:auto;border:0;padding:0}button{display:none}}</style>')
+    return HTMLResponse(page,headers={'Cache-Control':'no-store','X-Robots-Tag':'noindex, nofollow','X-Frame-Options':'DENY','X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin'})
+
+@app.middleware('http')
+async def _access_guard(request,call_next):
+    path=request.url.path
+    def reply(message,code,challenge=False):
+        headers={'Cache-Control':'no-store','X-Robots-Tag':'noindex, nofollow, noarchive'}
+        if challenge:headers['WWW-Authenticate']='Basic realm="ESTIMIA", charset="UTF-8"'
+        if code==429:headers['Retry-After']='60'
+        return JSONResponse({'detail':message},status_code=code,headers=headers)
+    if path=='/healthz':return Response('ok',media_type='text/plain',headers={'X-Robots-Tag':'noindex'})
+    if path=='/robots.txt':return Response('User-agent: *\nDisallow: /\n',media_type='text/plain')
+    if path=='/auth/help' and request.method=='GET':return _recovery_page()
+    user,password,development=_access_config();peer=request.client.host if request.client else 'unknown'
+    if not development and len(password)<16:return reply('Accès non configuré : définissez ESTIMIA_ACCESS_PASSWORD (16 caractères minimum) dans Render. Identifiant par défaut : damien.',503)
+    if path=='/auth/login':
+        if request.method=='GET':return _login_page(user)
+        if request.method!='POST':return reply('Méthode non autorisée.',405)
+        origin=request.headers.get('origin')
+        if origin and origin.rstrip('/')!=str(request.base_url).rstrip('/'):return reply('Origine de requête non autorisée.',403)
+        length=request.headers.get('content-length','')
+        if not length.isdigit() or int(length)>8192:return reply('Formulaire de connexion non valide.',413)
+        if not _rate_allowed(('login',peer),10):return reply('Trop de tentatives. Réessayez dans une minute.',429)
+        form=await request.form();given_user=str(form.get('username',''));given_password=str(form.get('password',''))
+        if len(password)<16 or not(secrets.compare_digest(given_user.encode(),user.encode()) and secrets.compare_digest(given_password.encode(),password.encode())):return _login_page(user,'Identifiant ou mot de passe incorrect.',401)
+        duration=30*86400 if form.get('remember') else 8*3600
+        response=RedirectResponse('/',status_code=303,headers={'Cache-Control':'no-store','X-Robots-Tag':'noindex'})
+        response.set_cookie(SESSION_COOKIE,_session_token(user,password,duration),max_age=duration if form.get('remember') else None,secure=True,httponly=True,samesite='lax',path='/')
+        return response
+    if path=='/auth/logout':
+        if request.method!='POST':return reply('Méthode non autorisée.',405)
+        origin=request.headers.get('origin')
+        if origin and origin.rstrip('/')!=str(request.base_url).rstrip('/'):return reply('Origine de requête non autorisée.',403)
+        response=RedirectResponse('/',status_code=303,headers={'Cache-Control':'no-store'})
+        response.delete_cookie(SESSION_COOKIE,path='/',secure=True,httponly=True,samesite='lax');return response
+    if not development and not _session_valid(request.cookies.get(SESSION_COOKIE,''),user,password):
+        if path=='/' and request.method=='GET':return _login_page(user)
+        return reply('Connexion requise. Ouvrez ESTIM’IA pour vous connecter.',401)
+    if request.method in ('POST','PUT','PATCH','DELETE'):
+        origin=request.headers.get('origin')
+        if origin and origin.rstrip('/')!=str(request.base_url).rstrip('/'):return reply('Origine de requête non autorisée.',403)
+        length=request.headers.get('content-length','')
+        if length and (not length.isdigit() or int(length)>100*1024*1024):return reply('Requête trop volumineuse (100 Mo maximum).',413)
+        if not length:return reply('Taille du contenu requise pour cette opération.',411)
+    if path.startswith('/api/'):
+        heavy=path in ('/api/pdf','/api/word') or 'import' in path
+        if not _rate_allowed(('all',),240) or not _rate_allowed(('api',peer),120) or heavy and not _rate_allowed(('heavy',peer),20):return reply('Limite de requêtes atteinte. Réessayez dans une minute.',429)
     response=await call_next(request)
-    if request.url.path.startswith("/static/") or request.url.path=="/":
-        response.headers["Cache-Control"]="no-store, no-cache, must-revalidate"
+    response.headers['Cache-Control']='no-store, no-cache, must-revalidate'
+    response.headers['X-Robots-Tag']='noindex, nofollow, noarchive'
+    response.headers['X-Content-Type-Options']='nosniff'
+    response.headers['Referrer-Policy']='same-origin'
+    response.headers['X-Frame-Options']='SAMEORIGIN'
     return response
 
 @app.get("/")
@@ -396,6 +488,14 @@ def _dossier_color(p):
     value=str(p.theme_color or '').lstrip('#')
     return value.upper() if re.fullmatch(r'[0-9a-fA-F]{6}',value) else _property_color(p.property_type)
 
+def _export_segments(value):
+    raw=str(value or '');last=0;segments=[]
+    for m in re.finditer(r'https?://[^\s<>"\']+',raw):
+        if m.start()>last:segments.append(('text',raw[last:m.start()]))
+        segments.append(('url',m.group(0)));last=m.end()
+    if last<len(raw):segments.append(('text',raw[last:]))
+    return segments
+
 def _cover_address_lines(p):
     address=p.address.strip();city=p.commune.strip()
     return [v for v in [address,city if city and _market_city_key(city) not in _market_city_key(address) else ''] if v]
@@ -477,6 +577,14 @@ def word_export(p:WordPayload):
     styles['Normal'].font.name='Aptos'; styles['Normal'].font.size=Pt(9.5)
     styles['Title'].font.name='Aptos Display'; styles['Title'].font.size=Pt(20); styles['Title'].font.bold=True
 
+    def linked_text(paragraph,value):
+        for kind,part in _export_segments(value):
+            if kind=='text':paragraph.add_run(part)
+            else:
+                link=OxmlElement('w:hyperlink');link.set(qn('r:id'),doc.part.relate_to(part,'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',is_external=True))
+                run=OxmlElement('w:r');props=OxmlElement('w:rPr');color=OxmlElement('w:color');color.set(qn('w:val'),'17634F');props.append(color);run.append(props);node=OxmlElement('w:t');node.text='Consulter la source';run.append(node);link.append(run);paragraph._p.append(link)
+        return paragraph
+
     def shade(cell,fill):
         tcPr=cell._tc.get_or_add_tcPr(); shd=OxmlElement('w:shd'); shd.set(qn('w:fill'),fill); tcPr.append(shd)
     def margins(cell,top=70,start=90,bottom=70,end=90):
@@ -495,7 +603,7 @@ def word_export(p:WordPayload):
         table=doc.add_table(rows=0,cols=2); table.alignment=WD_TABLE_ALIGNMENT.CENTER; table.style='Table Grid'
         for k,v in rows:
             if not v: continue
-            cells=table.add_row().cells; cells[0].text=str(k); cells[1].text=str(v)
+            cells=table.add_row().cells; cells[0].text=str(k); cells[1].text='';linked_text(cells[1].paragraphs[0],v)
             cells[0].width=Inches(widths[0]); cells[1].width=Inches(widths[1])
             cells[0].vertical_alignment=cells[1].vertical_alignment=WD_CELL_VERTICAL_ALIGNMENT.CENTER
             shade(cells[0],'EAF3F1')
@@ -611,7 +719,7 @@ def word_export(p:WordPayload):
         for values in p.estimation['comparables'][:30]:
             if isinstance(values,list) and len(values)==4:
                 for cell,value in zip(table.add_row().cells,values):cell.text=str(value)
-        if p.estimation.get('source'):doc.add_paragraph('Source : '+str(p.estimation['source']))
+        if p.estimation.get('source'):linked_text(doc.add_paragraph('Source : '),p.estimation['source'])
     for group_title,group_items in [('ANNONCES SIMILAIRES ROQUES IMMOBILIER',p.roques_annonces[:4]),('AUTRES ANNONCES SIMILAIRES',p.annonces)]:
         if not group_items:continue
         heading(group_title)
@@ -674,7 +782,7 @@ def word_export(p:WordPayload):
 
     # footer + page number field
     footer=sec.footer.paragraphs[0]; footer.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    fr=footer.add_run(_dossier_advisor(p)[1]+'  •  Page '); fr.font.size=Pt(8); fr.font.color.rgb=RGBColor(0x77,0x77,0x77)
+    fr=footer.add_run(_dossier_advisor(p)[1]+' • ESTIM’IA 14.11 / méthode 1.0 • Page '); fr.font.size=Pt(8); fr.font.color.rgb=RGBColor(0x77,0x77,0x77)
     fld=OxmlElement('w:fldSimple'); fld.set(qn('w:instr'),'PAGE'); footer._p.append(fld)
     footer.add_run(' / ');total=OxmlElement('w:fldSimple');total.set(qn('w:instr'),'NUMPAGES');footer._p.append(total)
 
@@ -703,7 +811,7 @@ def pdf_export(p:WordPayload):
     market_intro=ParagraphStyle('MarketIntro',parent=normal,keepWithNext=True)
     cap=ParagraphStyle('CapX',parent=normal,fontSize=7.5,textColor=colors.HexColor('#555555'),alignment=TA_CENTER)
     from xml.sax.saxutils import escape
-    def text(value):return escape(str(value or ''))
+    def text(value):return ''.join(escape(part) if kind=='text' else '<link href="'+escape(part,{'\"':'&quot;'})+'" color="#17634F">Consulter la source</link>' for kind,part in _export_segments(value))
     story=[Paragraph('DOSSIER D’ESTIMATION IMMOBILIÈRE',title),Paragraph('ESTIM’IA - visite et estimation',date_style),Paragraph('Document généré le '+(p.generated_date or datetime.now().strftime('%d/%m/%Y')),date_style)]
     for _,raw,w,hp in _brand_photo(p,'logo'):
         story.insert(0,RLImage(io.BytesIO(raw),width=55*mm,height=21*mm,kind='proportional'))
@@ -813,7 +921,7 @@ def pdf_export(p:WordPayload):
         story.append(KeepTogether(client_blocks[-2:]))
     # Individual paragraphs and table rows paginate naturally; headings stay with the next block.
     def footer(canvas,docx):
-        canvas.saveState();canvas.setFont('Helvetica',7);canvas.setFillColor(colors.HexColor('#777777'));canvas.drawCentredString(A4[0]/2,7*mm,f'{_dossier_advisor(p)[1]} - Page {docx.page}');canvas.restoreState()
+        canvas.saveState();canvas.setFont('Helvetica',7);canvas.setFillColor(colors.HexColor('#777777'));canvas.drawCentredString(A4[0]/2,7*mm,f'{_dossier_advisor(p)[1]} - ESTIM’IA 14.11 / méthode 1.0 - Page {docx.page}');canvas.restoreState()
     doc.build(story,onFirstPage=footer,onLaterPages=footer);out.seek(0)
     safe=re.sub(r'[^A-Za-z0-9_-]+','_',p.owner or p.address or 'bien').strip('_') or 'bien'
     return StreamingResponse(out,media_type='application/pdf',headers={'Content-Disposition':f'attachment; filename="Dossier_estimation_{safe}.pdf"'})
