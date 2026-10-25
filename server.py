@@ -631,8 +631,8 @@ def word_export(p:WordPayload):
                 link=OxmlElement('w:hyperlink');link.set(qn('r:id'),doc.part.relate_to(url,'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',is_external=True))
                 run=OxmlElement('w:r');text=OxmlElement('w:t');text.text='Consulter l’annonce';run.append(text);link.append(run);para._p.append(link)
 
-    doc.add_page_break()
-    heading('CONCLUSION ET AVIS DE VALEUR')
+    conclusion_heading=heading('CONCLUSION ET AVIS DE VALEUR')
+    conclusion_heading.paragraph_format.page_break_before=True
     if p.estimation.get('centrale'):
         heading('ESTIMATION DU BIEN')
         estimate_table=label_value_table([('Valeur centrale',p.estimation.get('centrale')),('Fourchette basse',p.estimation.get('basse')),('Fourchette haute',p.estimation.get('haute'))])
