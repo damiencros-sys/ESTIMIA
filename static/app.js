@@ -474,17 +474,7 @@ function renderFacts(j){
   $('#facts').innerHTML=entries.length?entries.map(([k,v])=>`<div class="fact"><span>${esc(k)}</span><strong>${esc(Array.isArray(v)?v.join(' · '):typeof v==='object'?JSON.stringify(v):v)}</strong></div>`).join(''):'<div class="empty">Aucune information structurée.</div>';
 }
 
-$('#save').addEventListener('click',async()=>{
-  const fd=new FormData();
-  fd.append('address',$('#address').value);fd.append('type',$('#type').value);fd.append('surface',($('#surface')?.value||$('#surfaceHab')?.value||''));
-  fd.append('notes',$('#notes').value);fd.append('correction',$('#correction').value);
-  fd.append('owner',$('#owner')?.value||'');fd.append('owner_phone',$('#ownerPhone')?.value||'');
-  fd.append('cad_commune',$('#cadCommune')?.value||'');fd.append('cad_section',$('#cadSection')?.value||'');fd.append('cad_parcel',$('#cadParcel')?.value||'');
-  photoFiles.forEach(f=>fd.append('photos',f));
-  try{
-    const r=await fetch('/api/save',{method:'POST',body:fd});const j=await r.json();if(!r.ok)throw new Error(j.detail||'Erreur');
-    setStatus('#saveStatus',`✓ Dossier ${j.id} enregistré (${j.photos} photo(s)).`);
-  }catch(e){setStatus('#saveStatus','Enregistrement impossible : '+e.message)}
-});
+// V14.06 : sauvegarde locale gérée exclusivement par v13_dossiers_pro.js.
+
 
 $('#new').addEventListener('click',()=>{if(confirm('Créer un nouveau dossier ?'))location.reload()});

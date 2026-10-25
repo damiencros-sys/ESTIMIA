@@ -23,8 +23,7 @@ function allValues(){
  return values;
 }
 function hasData(){
- return [...document.querySelectorAll('main input[id],main textarea[id],main select[id]')].some(el=>el.type!=='file'&&String(el.value||'').trim()) ||
-   ($('#facts')?.innerText||'').trim().length>20;
+ return ['notes','owner','address','cadCommune','cadParcel','surfaceHab'].some(id=>String($('#'+id)?.value||'').trim())||!!document.querySelector('#facts .surfaceEditor,#facts .proRow,#photoManager .photoManageCard');
 }
 function captureFactsHTML(){
  const facts=$('#facts');if(!facts)return '';
@@ -52,7 +51,7 @@ async function saveNow(show=false){
  if(restoring||!hasData())return;
  const sequence=++saveSequence,d=capture();currentId=d.id;try{d.photos=await window.estimiaPhotosForSave?.()||[];if(restoring||currentId!==d.id||sequence!==saveSequence)return false;const a=readCases(),i=a.findIndex(x=>x.id===d.id);
  if(i>=0)a[i]=d;else a.unshift(d);writeCases(a);renderList();
- if(show&&$('#saveStatus'))$('#saveStatus').textContent='✓ Dossier complet enregistré sur cet appareil';return true;}catch(e){if($('#saveStatus'))$('#saveStatus').textContent='Enregistrement impossible : stockage de cet appareil plein ou indisponible. Le dernier dossier enregistré est conservé. Exporte les documents et libère de l’espace avant de réessayer.';return false;}
+ if(show&&$('#saveStatus'))$('#saveStatus').textContent='✓ Dossier complet enregistré sur cet appareil';if($('#localSaveStatus'))$('#localSaveStatus').textContent='Brouillon sauvegardé sur cet appareil à '+new Date().toLocaleTimeString('fr-FR');return true;}catch(e){if($('#localSaveStatus'))$('#localSaveStatus').textContent='Échec de sauvegarde locale : exportez une sauvegarde complète sur fichier.';if($('#saveStatus'))$('#saveStatus').textContent='Enregistrement impossible : stockage de cet appareil plein ou indisponible. Le dernier dossier enregistré est conservé. Exporte les documents et libère de l’espace avant de réessayer.';return false;}
 }
 function schedule(){clearTimeout(timer);timer=setTimeout(()=>saveNow(false),650)}
 function removePlan(){document.getElementById('cadPlanBox')?.remove()}
@@ -106,7 +105,14 @@ function renderList(){
  });
 }
 function openDrawer(){$('#caseSidebar')?.classList.add('open')}function closeDrawer(){$('#caseSidebar')?.classList.remove('open')}
+// Sauvegarde JSON complète sur fichier, sans appel réseau.
+function backupCleanHTML(value){const t=document.createElement('template');t.innerHTML=String(value||'');t.content.querySelectorAll('script,style,iframe,object,embed,link,meta,base,foreignObject').forEach(e=>e.remove());for(const el of t.content.querySelectorAll('*'))for(const attr of [...el.attributes]){const name=attr.name.toLowerCase(),v=attr.value.trim();if(name.startsWith('on')||name==='srcdoc'||name==='style'||name==='formaction'||name==='action'||(name==='href'&&!/^https:\/\//i.test(v))||((name==='src'||name==='xlink:href')&&!/^data:image\/(png|jpeg|webp);base64,/i.test(v)))el.removeAttribute(attr.name);}return t.innerHTML;}
+function validateBackupCase(raw){if(!raw||typeof raw!=='object'||!raw.values||typeof raw.values!=='object')throw Error('Dossier invalide dans le fichier.');const d=JSON.parse(JSON.stringify(raw)),allowed=new Set([...document.querySelectorAll('main input[id],main textarea[id],main select[id]')].map(e=>e.id));d.values=Object.fromEntries(Object.entries(d.values).filter(([key,v])=>allowed.has(key)&&v&&typeof v==='object'&&typeof v.value==='string'));d.html=d.html&&typeof d.html==='object'?d.html:{};for(const key of ['facts','dictationHistory','cadPlan','gallery','estimationResults'])d.html[key]=backupCleanHTML(d.html[key]);d.photos=Array.isArray(d.photos)?d.photos:[];if(d.photos.length>60)throw Error('Trop de photos dans un dossier.');for(const photo of d.photos){const src=photo.data||photo.url||'';if(!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=\s]+$/.test(src)||src.length>28000000)throw Error('Photo de sauvegarde invalide.');}d.importedFrom=String(d.id||'');d.id=makeId()+'-'+Math.random().toString(36).slice(2,8);return d;}
+async function exportBackup(){const status=$('#backupStatus');try{clearTimeout(timer);const fresh=capture();fresh.photos=await window.estimiaPhotosForSave?.()||[];const dossiers=readCases().filter(d=>d.id!==fresh.id);if(hasData())dossiers.unshift(fresh);if(!dossiers.length)throw Error('Aucun dossier à sauvegarder.');const blob=new Blob([JSON.stringify({format:'ESTIMIA_BACKUP',version:1,created:new Date().toISOString(),dossiers})],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='ESTIMIA_sauvegarde_'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);status.textContent=dossiers.length+' dossier(s), photos et historique inclus : fichier téléchargé. Conservez-le dans un emplacement protégé.';}catch(e){status.textContent='Sauvegarde fichier impossible : '+e.message;}}
+async function importBackup(file){const status=$('#backupStatus');if(!file)return;try{if(file.size>100*1024*1024)throw Error('Fichier trop volumineux (100 Mo maximum).');const data=JSON.parse(await file.text());if(data.format!=='ESTIMIA_BACKUP'||data.version!==1||!Array.isArray(data.dossiers)||data.dossiers.length>500)throw Error('Format de sauvegarde non reconnu.');const imported=data.dossiers.map(validateBackupCase);if(!imported.length)throw Error('Sauvegarde vide.');if(!confirm('Importer '+imported.length+' dossier(s) comme copies sur cet appareil ? Les dossiers existants restent conservés.'))return;writeCases([...imported,...readCases()]);renderList();status.textContent=imported.length+' dossier(s) importé(s), photos et historique inclus. Ouvrez un dossier dans la liste.';}catch(e){status.textContent='Import impossible ; les dossiers existants restent conservés : '+e.message;}}
+
 document.addEventListener('DOMContentLoaded',()=>{
+ $('#exportCaseBackup')?.addEventListener('click',exportBackup);$('#importCaseBackup')?.addEventListener('change',e=>{void importBackup(e.target.files?.[0]);e.target.value='';});
  $('#caseOpen')?.addEventListener('click',openDrawer);$('#caseClose')?.addEventListener('click',closeDrawer);$('#caseNew')?.addEventListener('click',newCase);$('#caseSearch')?.addEventListener('input',renderList);
  $('#save')?.addEventListener('click',()=>setTimeout(()=>saveNow(true),50));
  document.addEventListener('input',e=>{if(!e.target.closest('#caseSidebar'))schedule()});document.addEventListener('change',e=>{if(!e.target.closest('#caseSidebar'))schedule()});

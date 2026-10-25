@@ -6,11 +6,11 @@
 <meta name="theme-color" content="#15324a">
 <title>ESTIM’IA</title>
 <link rel="manifest" href="/static/manifest.json">
-<link rel="stylesheet" href="/static/style.css?v=14.05-layout3">
+<link rel="stylesheet" href="/static/style.css?v=14.06-layout3">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<link rel="stylesheet" href="/static/v13_dossiers_pro.css?v=14.05">
+<link rel="stylesheet" href="/static/v13_dossiers_pro.css?v=14.06">
 <style>
 .cadParcelsList{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:9px 0}.cadParcelsLabel{flex-basis:100%;font-weight:700;margin:2px 0 1px}
 .cadParcelChip{display:inline-flex;align-items:center;gap:7px;border:1px solid #cbd8de;border-radius:999px;padding:6px 9px;background:#f7fafb;font-size:13px}
@@ -52,7 +52,7 @@
 .exportStatus.error{display:block;background:#fff0f0;border:1px solid #e4aaaa;color:#8a2828}
 #printVisit:disabled,#wordVisit:disabled{opacity:.65;cursor:wait}
 
-/* V14.05 : croix Supprimer visibles sur toutes les lignes structurées */
+/* V14.06 : croix Supprimer visibles sur toutes les lignes structurées */
 #facts .proGroup .proRow{display:grid!important;grid-template-columns:minmax(110px,.8fr) minmax(160px,1.5fr) 38px!important;align-items:center!important;gap:10px!important;padding:8px 0!important;position:relative!important}
 #facts .proGroup .proRow>.rowDelete{display:inline-flex!important;visibility:visible!important;opacity:1!important;grid-column:3!important;grid-row:1!important;position:static!important;transform:none!important;justify-self:end!important;align-items:center!important;justify-content:center!important;width:34px!important;height:34px!important;margin:0!important;padding:0!important;border:1px solid #efcaca!important;border-radius:8px!important;background:#fff!important;color:#c33!important;font-size:20px!important;line-height:1!important;cursor:pointer!important}
 #facts .proGroup .proRow>.rowDelete:hover{background:#fff5f5!important}
@@ -68,7 +68,7 @@
 @keyframes estimSpin{to{transform:rotate(360deg)}}
 #printVisit:disabled,#downloadWord:disabled{opacity:.65;cursor:wait}
 
-/* V14.05 — gestion complète des photos */
+/* V14.06 — gestion complète des photos */
 .photoManagerHead{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:12px 0 10px}
 .photoManagerHead h3{margin:0}
 .photoCount{font-weight:500;color:#687781;font-size:.9em}
@@ -92,7 +92,7 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 .estExtraSection{background:white;border:1px solid #d8e3e6;border-radius:10px;margin:9px 0;padding:13px 15px}.estExtraSection summary{cursor:pointer;font-weight:700;color:#173a52}.estExtraSection[open] summary{margin-bottom:12px}.estExtrasSections>h3{font-size:18px;margin:12px 0}.estExtrasSections h3 small{font-size:12px;font-weight:400}.estCount{font-size:12px;font-weight:400;color:#647781;margin-left:7px}
 @media(max-width:720px){.estContactRow{grid-template-columns:1fr 1fr}.estContactRow button{grid-column:2}}
 </style><style>
-/* V14.05 — fiches contacts modernes, sans modification des autres modules */
+/* V14.06 — fiches contacts modernes, sans modification des autres modules */
 .ownersModern{margin:8px 0 22px}.ownersEyebrow{font-size:10px;letter-spacing:1.3px;font-weight:800;color:#638397}.ownersTitle h3{font-size:21px;margin:3px 0;color:#173a52}.ownersTitle p{font-size:13px;color:#687b88;margin:0 0 15px}
 .ownersCount{font-size:12px;vertical-align:middle;background:#e9f1f4;border-radius:20px;padding:4px 9px;color:#45697a}
 .ownerCard{border:1px solid #dce6eb;background:#fff;border-radius:16px;margin:12px 0;padding:17px;box-shadow:0 4px 16px rgba(25,58,78,.055)}
@@ -133,13 +133,13 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
   </div>
   <button id="caseNew" type="button" class="caseNew">＋ Nouveau dossier</button>
   <input id="caseSearch" class="caseSearch" type="search" placeholder="Rechercher nom, adresse, commune">
-  <div id="caseList" class="caseList"></div>
+  <div class="backupTools"><button id="exportCaseBackup" type="button">Exporter tous les dossiers + photos</button><label>Importer une sauvegarde (crée des copies)<input id="importCaseBackup" type="file" accept=".json,application/json"></label><p id="backupStatus" role="status"></p></div><div id="caseList" class="caseList"></div>
 </aside>
 <button id="caseOpen" type="button" class="caseOpen">☰ Mes dossiers</button>
 
 
 <header>
-  <div><div class="estBrand"><b>ESTIM’IA</b><span class="estVersion">V14.05</span></div><small>Assistant d’estimation immobilière</small></div>
+  <div><div class="estBrand"><b>ESTIM’IA</b><span class="estVersion">V14.06</span></div><small>Assistant d’estimation immobilière</small></div>
   <button id="new" type="button" hidden aria-hidden="true">+ Nouveau</button>
 </header>
 <div id="globalHistory" class="globalHistory">
@@ -150,8 +150,8 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 <main id="estimiaMain">
 <nav id="visitSteps" class="stepNav" aria-label="Étapes de l’estimation">
 <button type="button" data-step="0"><span>1</span>Dictée et cadastre</button><button type="button" data-step="1"><span>2</span>Vérifier le bien</button><button type="button" data-step="2"><span>3</span>Comparables et valeur</button><button type="button" data-step="3"><span>4</span>Dossier client</button>
-</nav><div class="stepToolbar"><p id="visitStepStatus" role="status"></p><button id="showAllSteps" type="button" class="miniBtn">Tout afficher</button></div>
-<input id="essentialDataJSON" type="hidden" value="{}"><div id="essentialValidation" class="proGroup"></div><input id="visitStep" type="hidden" value="0"><input id="visitMode" type="hidden" value="steps">
+</nav><div class="stepToolbar"><p id="visitStepStatus" role="status"></p><span id="localSaveStatus" class="small" role="status"></span><button id="showAllSteps" type="button" class="miniBtn">Tout afficher</button></div>
+<input id="surfaceArbitrationJSON" type="hidden" value="{}"><input id="unitAdjustmentsJSON" type="hidden" value="{}"><input id="priceHistoryJSON" type="hidden" value="[]"><input id="essentialDataJSON" type="hidden" value="{}"><div id="essentialValidation" class="proGroup"></div><input id="visitStep" type="hidden" value="0"><input id="visitMode" type="hidden" value="steps">
 
 <section class="card">
   <div class="step">1 · DICTÉE</div>
@@ -213,11 +213,11 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 </section>
 
 <section class="card">
-<input type="hidden" id="networksJSON" value="{}"><section id="networkPanel" class="proGroup" aria-label="Réseaux détaillés"></section>
+<section id="surfaceControlPanel" class="proGroup" aria-label="Contrôle des surfaces"></section><input type="hidden" id="networksJSON" value="{}"><section id="networkPanel" class="proGroup" aria-label="Réseaux détaillés"></section>
 <div class="estExtrasSections"><div class="extrasHeader"><h3>Compléments du bien <small>— facultatif</small></h3><button id="toggleAllExtras" type="button" class="miniBtn" aria-expanded="false">▾ Tout dérouler</button></div><details class="estExtraSection"><summary>Situation du bien <span class="estCount"></span></summary><div class="cols"><label>Disponibilité<select id="estAvailability"><option value=""></option><option>Libre</option><option>Occupé</option></select></label><label>Usage<select id="estUsage"><option value=""></option><option>Habitation</option><option>Mixte</option><option>Professionnel</option></select></label><label>Location<select id="estRental"><option value=""></option><option>Aucune</option><option>Annuelle</option><option>Saisonnière</option></select></label><label>Loyer mensuel (€)<input id="estRent" type="number"></label></div></details><details class="estExtraSection"><summary>Caractéristiques générales <span class="estCount"></span></summary><div class="cols"><label>Étage du bien<textarea id="estFloor" rows="1"></textarea></label><label>Année de construction<input id="estYear"></label><label>Détails de la visite<textarea id="estFeatures" rows="2"></textarea></label><label>Travaux à prévoir<textarea id="estPlannedWorks" rows="2"></textarea></label><label>État général<select id="estCondition"><option value=""></option><option>Bon état</option><option>À rafraîchir</option><option>À rénover</option><option>À réhabiliter</option></select></label><label>Mitoyenneté<textarea id="estPartyWall" rows="1"></textarea></label><label>Accessibilité PMR<select id="estPMR"><option value=""></option><option>Oui</option><option>Non</option></select></label><label>Ascenseur<select id="estElevator"><option value=""></option><option>Oui</option><option>Non</option></select></label><label>Nombre de stationnements<input id="estParking" type="number"></label></div></details><details class="estExtraSection"><summary>Copropriété <span class="estCount"></span></summary><div class="cols"><label>Copropriété : numéro de lot<textarea id="estLot" rows="1"></textarea></label><label>Syndic<textarea id="estSyndic" rows="1"></textarea></label><label>Charges annuelles (€)<input id="estCharges" type="number"></label><label>Travaux votés<textarea id="estCoproWorks" rows="1"></textarea></label><label>Précisions sur les charges<textarea id="estChargesDetails" rows="2"></textarea></label><label id="legacyWorksLabel" hidden>Travaux d’un ancien dossier — affectation à vérifier<textarea id="estWorks" rows="2"></textarea></label></div></details><details class="estExtraSection"><summary>Environnement et accès <span class="estCount"></span></summary><div class="cols"><label>Orientation<textarea id="estOrientation" rows="1"></textarea></label><label>Environnement<textarea id="estEnvironment" rows="1"></textarea></label><label>Nuisances<textarea id="estNuisances" rows="1"></textarea></label><label>Accès<textarea id="estAccess" rows="1"></textarea></label></div></details><details class="estExtraSection"><summary>Construction et équipements <span class="estCount"></span></summary><div class="cols"><label>Toiture<textarea id="estRoof" class="estAutoGrow" rows="2" placeholder="À renseigner si nécessaire"></textarea></label><label>Façades<textarea id="estFacade" class="estAutoGrow" rows="2" placeholder="À renseigner si nécessaire"></textarea></label><label>Menuiseries<textarea id="estWindows" class="estAutoGrow" rows="2" placeholder="À renseigner si nécessaire"></textarea></label><label>Chauffage<textarea id="estHeating" class="estAutoGrow" rows="2" placeholder="À renseigner si nécessaire"></textarea></label><label>Eau chaude<textarea id="estHotWater" class="estAutoGrow" rows="2" placeholder="À renseigner si nécessaire"></textarea></label><label>Réseaux<textarea id="estNetworks" class="estAutoGrow" rows="2" placeholder="À renseigner si nécessaire"></textarea></label></div></details><details class="estExtraSection"><summary>Documents disponibles <span class="estCount"></span></summary><div class="estDocs"><b>Documents disponibles</b><label><input id="estDocTitle" type="checkbox"> Acte de propriété</label><label><input id="estDocDpe" type="checkbox"> Diagnostics</label><label><input id="estDocTax" type="checkbox"> Taxe foncière</label><label><input id="estDocCopro" type="checkbox"> Copropriété</label><label><input id="estDocSpanc" type="checkbox"> SPANC</label></div></details></div>
   <div class="step">2 · PHOTOS</div>
   <h2>Photos de la visite</h2>
-  <p>Ajoute toutes les photos. Elles seront jointes au dossier et pourront ensuite être analysées par l’IA.</p>
+  <p>Les photos sont jointes au dossier et reprises dans les documents Word/PDF. Aucune analyse automatique des photos par une IA n’est effectuée.</p>
   <label class="bigbtn secondary">📷 Ajouter les photos<input id="photos" type="file" accept="image/*" multiple hidden></label>
 <div id="photoManager"></div>
   <div id="gallery" class="gallery"></div>
@@ -264,14 +264,14 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
 <p class="small">Hypothèses internes modifiables, sans barème officiel : à rafraîchir −5 %, à rénover −15 %, à réhabiliter −25 %. Bon état ou état inconnu : 0 %. Si l’état est dicté séparément pour chaque logement, la correction est calculée par logement ; un état absent reste sans correction. Une modification manuelle de l’état général s’applique à tout le dossier. Saisir un budget active la méthode Budget ; saisir un taux personnalisé active la méthode État. Le budget net remplace la décote d’état : les deux ne sont jamais additionnés. Ne déduire que les travaux qui ne sont pas déjà reflétés par les comparables. Aucun DPE n’est présumé et aucune prime automatique n’est attribuée à un atout non chiffré.</p><p id="qualityAdjustmentStatus" class="status"></p></section>
   <button id="launchEstimation" type="button" class="bigbtn">📊 Rechercher les ventes et calculer</button>
 <div id="estimationStatus" class="status" role="status"></div>
-<p class="small">Version interface DVF : 14.05 — Si cette ligne est absente après installation, actualiser la page avec Ctrl + F5.</p>
+<p class="small">Version interface DVF : 14.06 — Si cette ligne est absente après installation, actualiser la page avec Ctrl + F5.</p>
   <div id="estimationResults"></div><section id="calculationLedger" class="proGroup" aria-label="Décomposition de la valeur"></section>
 <section id="marketIndicatorsBox" class="proGroup">
 <h3>Repères au m² et ajustement</h3>
 <div id="marketIndicators">Calculez l’estimation puis lancez la recherche des annonces pour comparer les repères.</div>
 <p id="marketAdjustmentAdvice" class="small"></p>
-<label>Montant que vous souhaitez retenir (€)<input id="estRetainedPrice" type="number" min="1" step="1000" placeholder="Montant à valider"></label>
-<label>Justification de votre décision<textarea id="estAdjustmentReason" rows="3" placeholder="État, travaux, terrain, emplacement, annexes, comparables vérifiés…"></textarea></label>
+<section id="unitPriceAdjustments" class="proGroup"></section><label>Montant que vous souhaitez retenir (€)<input id="estRetainedPrice" type="number" min="1" step="1000" placeholder="Montant à valider"></label>
+<label>Auteur de la modification (facultatif)<input id="priceHistoryAuthor" placeholder="Nom de la personne ayant décidé le montant"></label><label>Justification de votre décision<textarea id="estAdjustmentReason" rows="3" placeholder="État, travaux, terrain, emplacement, annexes, comparables vérifiés…"></textarea></label>
 <button id="validateRetainedEstimate" type="button">Modifier l’estimation</button>
 <input id="validatedPrice" type="hidden"><input id="validatedReason" type="hidden">
 <p id="retainedEstimateText" role="status"></p>
@@ -292,8 +292,8 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
     <button id="printVisit" type="button" class="secondary">📕 Télécharger le vrai PDF</button>
 
     <button id="downloadWord" type="button" class="secondary">📄 Télécharger la fiche Word</button>
-  <button id="previewDossier" type="button" class="bigbtn secondary">Aperçu du dossier PDF</button>
-<section id="dossierChecks" class="proGroup" role="status"></section><section class="proGroup"><h3>Conclusion pour le propriétaire</h3><p class="small">Proposition rédigée à partir des informations de la fiche et du montant actuel. À relire avant remise au propriétaire.</p><button id="generateClientConclusion" type="button" class="miniBtn">Rédiger la conclusion</button><input id="clientConclusionSignature" type="hidden"><textarea id="estClientConclusion" rows="5" placeholder="La conclusion proposée apparaîtra ici ; tu peux la modifier."></textarea><label class="conclusionInclusion" for="includeClientConclusion"><input id="includeClientConclusion" type="checkbox" role="switch" aria-describedby="conclusionInclusionHelp"><span class="conclusionInclusionText"><strong>Inclure la conclusion dans le dossier client</strong><span id="conclusionInclusionState">Non — conclusion non incluse</span></span><span class="conclusionOptional">Facultatif</span></label><p id="conclusionInclusionHelp" class="small">Choisis Oui pour ajouter le texte ci-dessus aux documents Word et PDF. Tu peux valider le dossier et télécharger les documents sans conclusion.</p><p id="clientConclusionStatus" class="status" role="status"></p></section>
+  <section id="priceHistoryPanel" class="proGroup"></section><button id="previewDossier" type="button" class="bigbtn secondary">Aperçu du dossier PDF</button>
+<details class="proGroup"><summary>Données, sauvegarde et confidentialité</summary><p>Les dossiers et photos sont enregistrés dans ce navigateur, sur cet appareil. Effacer les données du navigateur ou changer d’appareil peut les faire perdre : exportez régulièrement une sauvegarde complète.</p><p>Pour créer Word/PDF, la fiche et les photos sont transmises au serveur Render et traitées en mémoire par le générateur, sans création d’une nouvelle sauvegarde de dossier sur disque par ces routes. Les annonces et plans peuvent être téléchargés pour le document. Les journaux techniques et la politique de l’hébergeur doivent être vérifiés séparément.</p><p>Les recherches d’adresse, cadastre, urbanisme et fibre utilisent l’adresse ou la commune et les références nécessaires ; la recherche DVF utilise la commune, le type et la surface. Les noms et coordonnées des propriétaires ne sont pas nécessaires à ces recherches. La reconnaissance vocale dépend du navigateur et peut utiliser le service de son éditeur. L’analyse de la dictée est locale ; les anciennes routes d’IA serveur sont désactivées.</p><p>Des dossiers enregistrés par d’anciennes versions peuvent subsister sur Render : leur inventaire et leur éventuelle suppression demandent une intervention de l’administrateur. Rien n’est supprimé automatiquement. ROQUES IMMOBILIER doit préciser les responsabilités, les durées de conservation et les conditions de l’hébergement.</p></details><section id="dossierChecks" class="proGroup" role="status"></section><section class="proGroup"><h3>Conclusion pour le propriétaire</h3><p class="small">Proposition rédigée à partir des informations de la fiche et du montant actuel. À relire avant remise au propriétaire.</p><button id="generateClientConclusion" type="button" class="miniBtn">Rédiger la conclusion</button><input id="clientConclusionSignature" type="hidden"><textarea id="estClientConclusion" rows="5" placeholder="La conclusion proposée apparaîtra ici ; tu peux la modifier."></textarea><label class="conclusionInclusion" for="includeClientConclusion"><input id="includeClientConclusion" type="checkbox" role="switch" aria-describedby="conclusionInclusionHelp"><span class="conclusionInclusionText"><strong>Inclure la conclusion dans le dossier client</strong><span id="conclusionInclusionState">Non — conclusion non incluse</span></span><span class="conclusionOptional">Facultatif</span></label><p id="conclusionInclusionHelp" class="small">Choisis Oui pour ajouter le texte ci-dessus aux documents Word et PDF. Tu peux valider le dossier et télécharger les documents sans conclusion.</p><p id="clientConclusionStatus" class="status" role="status"></p></section>
   <details style="margin:16px 0"><summary>Personnaliser le dossier et justifier la valeur</summary>
   <p class="small">Champs facultatifs repris dans les documents. Les diagnostics et le DPE ne sont pas nécessaires pour calculer l’estimation.</p>
   <div class="cols"><label>Logo de l’agence<input id="exportLogoFile" type="file" accept="image/png,image/jpeg,image/webp"></label><label>Photo du conseiller<input id="exportAdvisorPhotoFile" type="file" accept="image/png,image/jpeg,image/webp"></label></div>
@@ -309,18 +309,18 @@ body[data-property-theme="maison"]{background:#edf6ef!important}body[data-proper
   <label>Choix des comparables<textarea id="estComparableReason" placeholder="Localisation, état, surfaces et différences avec le bien"></textarea></label>
   </details>
   <div id="saveStatus" class="status"></div>
-  <p class="small">V14.05 : fiche entièrement modifiable + gestion des niveaux et des pièces.</p>
+  <p class="small">V14.06 : fiche entièrement modifiable + gestion des niveaux et des pièces.</p>
 </section>
 <div class="stepFooter"><button id="visitPrev" class="miniBtn" type="button">Étape précédente</button><button id="visitNext" class="bigbtn" type="button">Étape suivante</button></div>
 <dialog id="dossierPreviewDialog"><div class="previewToolbar"><h2>Aperçu du dossier PDF</h2><button id="refreshDossierPreview" class="miniBtn" type="button">Actualiser</button><button id="closeDossierPreview" class="miniBtn" type="button">Fermer</button></div><p id="dossierPreviewStatus" class="status" role="status"></p><a id="openDossierPreview" target="_blank" rel="noopener" hidden>Ouvrir le PDF dans un nouvel onglet</a><div id="dossierPreviewLoading" class="previewLoading" role="status" aria-live="polite" hidden><span class="previewSpinner" aria-hidden="true"></span><strong>Génération de l’aperçu PDF en cours…</strong><p>Merci de patienter, votre dossier est en préparation.</p></div><iframe id="dossierPreviewFrame" title="Aperçu du dossier PDF"></iframe></dialog>
 </main>
-<script src="/static/estimation_v13_44.js?v=14.05" defer></script>
-<script src="/static/app.js?v=14.05"></script>
+<script src="/static/estimation_v13_44.js?v=14.06" defer></script>
+<script src="/static/app.js?v=14.06"></script>
 <script src="/static/v7_pro.js"></script>
 <script src="/static/v8_fiche_pro.js"></script>
-<script src="/static/v13_visite.js?v=14.05-layout3"></script>
-<script src="/static/urbanisme_parcelles.js?v=14.05"></script>
-<script src="/static/v13_dossiers_pro.js?v=14.05"></script>
+<script src="/static/v13_visite.js?v=14.06-layout3"></script>
+<script src="/static/urbanisme_parcelles.js?v=14.06"></script>
+<script src="/static/v13_dossiers_pro.js?v=14.06"></script>
 
 
 <div id="exportOverlay" class="exportOverlay" aria-live="polite">

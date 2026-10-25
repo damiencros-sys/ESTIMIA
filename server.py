@@ -445,8 +445,19 @@ def _dossier_photos(items):
 def _dossier_advisor(p):
     return [str(p.advisor.get(k) or default) for k,default in [('name','Damien CROS'),('agency','Agence ROQUES IMMOBILIER'),('phone','06 66 87 24 46')]]
 
+def _clean_export_text(value):
+    if isinstance(value,str):
+        return re.sub(r'\$?\s*(\d+(?:[.,]\d+)?)\s*~?\s*m\s*\^\s*\{?2\}?\s*\$?',lambda m:m.group(1).replace('.',',')+' m²',value)
+    if isinstance(value,list):return [_clean_export_text(v) for v in value]
+    if isinstance(value,dict):return {k:_clean_export_text(v) for k,v in value.items()}
+    return value
+
+def _clean_export_payload(p):
+    return WordPayload(**_clean_export_text(p.model_dump() if hasattr(p,'model_dump') else p.dict()))
+
 @app.post("/api/word")
 def word_export(p:WordPayload):
+    p=_clean_export_payload(p)
     from docx import Document
     from docx.shared import Inches, Pt, RGBColor
     from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -472,6 +483,10 @@ def word_export(p:WordPayload):
     def keep_table(table):
         for row in table.rows:
             trPr=row._tr.get_or_add_trPr(); el=OxmlElement('w:cantSplit'); trPr.append(el)
+        if len(table.rows)<=12:
+            for row in table.rows[:-1]:
+                for cell in row.cells:
+                    for paragraph in cell.paragraphs:paragraph.paragraph_format.keep_with_next=True
     def label_value_table(rows,widths=(2.15,4.75)):
         table=doc.add_table(rows=0,cols=2); table.alignment=WD_TABLE_ALIGNMENT.CENTER; table.style='Table Grid'
         for k,v in rows:
@@ -641,6 +656,7 @@ def word_export(p:WordPayload):
             heading(label);doc.add_paragraph(str(p.argumentaire[key]))
     doc.add_paragraph('Les prix demandés des annonces ne sont pas des prix de vente. Les caractéristiques non vérifiées et les diagnostics non communiqués restent à confirmer. Les corrections d’état et les budgets de travaux retenus sont détaillés dans le calcul. Leur pertinence reste à vérifier par comparaison et sur devis ; aucun DPE ni montant de travaux non déclaré n’est présumé.')
 
+    doc.add_paragraph('Avis de valeur indicatif établi à partir des informations disponibles ; ne constitue ni une expertise immobilière ni un mesurage certifié.')
     if p.estimation.get('calcul'):
         heading('DÉCOMPOSITION DE LA VALEUR');label_value_table(p.estimation['calcul'])
     if p.client_conclusion.strip():
@@ -660,12 +676,13 @@ def word_export(p:WordPayload):
 
 @app.post("/api/pdf")
 def pdf_export(p:WordPayload):
+    p=_clean_export_payload(p)
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
     from reportlab.lib.units import mm
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, KeepTogether, PageBreak
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, KeepTogether, PageBreak, CondPageBreak
     import base64
     theme=colors.HexColor('#'+_dossier_color(p))
     out=io.BytesIO(); doc=SimpleDocTemplate(out,pagesize=A4,rightMargin=14*mm,leftMargin=14*mm,topMargin=13*mm,bottomMargin=14*mm)
@@ -733,12 +750,14 @@ def pdf_export(p:WordPayload):
             if i==0:story[-1:]=[KeepTogether([story[-1],t,Spacer(1,2*mm)])]
             else:story.extend([KeepTogether([t]),Spacer(1,2*mm)])
     if p.estimation.get('comparables'):
+        dvf_start=len(story)
         story.extend([Paragraph('VENTES RÉALISÉES — RÉFÉRENCES DVF',h),Paragraph('Transactions utilisées dans le calcul statistique ; leur comparabilité qualitative doit être appréciée lors de la visite.',market_intro)])
         rows=[['Date','Surface','Prix de vente','Prix / m²']]+[r for r in p.estimation['comparables'][:30] if isinstance(r,list) and len(r)==4]
         table=Table([[Paragraph(text(v),normal) for v in row] for row in rows],colWidths=[35*mm,35*mm,47*mm,47*mm],repeatRows=1)
         table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),.4,colors.HexColor('#CCD5DB')),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#F2F6F5')),('VALIGN',(0,0),(-1,-1),'TOP')]))
-        story.append(table)
-        if p.estimation.get('source'):story.append(Paragraph('Source : '+text(p.estimation['source']),normal))
+        block=[table]
+        if p.estimation.get('source'):block.append(Paragraph('Source : '+text(p.estimation['source']),normal))
+        story[dvf_start:]=[KeepTogether(story[dvf_start:]+block)]
     for group_title,group_items in [('ANNONCES SIMILAIRES ROQUES IMMOBILIER',p.roques_annonces[:4]),('AUTRES ANNONCES SIMILAIRES',p.annonces)]:
         if not group_items:continue
         group_start=len(story)
@@ -755,7 +774,8 @@ def pdf_export(p:WordPayload):
             card.append(Spacer(1,3*mm))
             if index==0:story[group_start:]=[KeepTogether(story[group_start:]+card)]
             else:story.append(KeepTogether(card))
-    story.extend([PageBreak(),Paragraph('CONCLUSION ET AVIS DE VALEUR',h)])
+    conclusion_start=len(story)
+    story.append(Paragraph('CONCLUSION ET AVIS DE VALEUR',h))
     story.append(Paragraph('ESTIMATION DU BIEN',h))
     if p.estimation.get('centrale'):
         block_start=len(story)-1
@@ -773,6 +793,7 @@ def pdf_export(p:WordPayload):
         if str(p.argumentaire.get(key,'')).strip():story.extend([Paragraph(label,h),Paragraph(text(p.argumentaire[key]),normal)])
     story.append(Spacer(1,3*mm))
     story.append(Paragraph('Les prix demandés des annonces ne sont pas des prix de vente. Les caractéristiques non vérifiées et les diagnostics non communiqués restent à confirmer. Les corrections d’état et les budgets de travaux retenus sont détaillés dans le calcul. Leur pertinence reste à vérifier par comparaison et sur devis ; aucun DPE ni montant de travaux non déclaré n’est présumé.',normal))
+    story.append(Paragraph('Avis de valeur indicatif établi à partir des informations disponibles ; ne constitue ni une expertise immobilière ni un mesurage certifié.',normal))
     if p.estimation.get('calcul'):
         story.append(Paragraph('DÉCOMPOSITION DE LA VALEUR',h));add_table(p.estimation['calcul'])
     if p.client_conclusion.strip():
@@ -780,6 +801,7 @@ def pdf_export(p:WordPayload):
         client_style=ParagraphStyle('ClientConclusion',parent=normal,alignment=TA_JUSTIFY,spaceAfter=3*mm)
         for paragraph in p.client_conclusion.split('\n\n'):
             story.append(Paragraph(text(paragraph).replace('\n','<br/>'),client_style))
+    story[conclusion_start:]=[KeepTogether(story[conclusion_start:])]
     def footer(canvas,docx):
         canvas.saveState();canvas.setFont('Helvetica',7);canvas.setFillColor(colors.HexColor('#777777'));canvas.drawCentredString(A4[0]/2,7*mm,f'{_dossier_advisor(p)[0]} - ESTIM’IA - Page {docx.page}');canvas.restoreState()
     doc.build(story,onFirstPage=footer,onLaterPages=footer);out.seek(0)
@@ -788,6 +810,7 @@ def pdf_export(p:WordPayload):
 
 @app.post("/api/transcribe")
 async def transcribe(audio: UploadFile=File(...)):
+    raise HTTPException(410,"Transcription serveur désactivée : utilisez la dictée du navigateur.")
     content=await audio.read()
     if not content: raise HTTPException(400,"Enregistrement audio vide.")
     ctype=audio.content_type or "audio/webm"
@@ -812,6 +835,7 @@ class StructReq(BaseModel):
 
 @app.post("/api/structure")
 def structure(req:StructReq):
+    raise HTTPException(410,"Structuration serveur désactivée : analyse locale dans le navigateur.")
     prompt=f"""Tu es ESTIM'IA, assistant d'un agent immobilier français.
 Transforme les notes de visite en JSON factuel. N'invente rien.
 Conserve les incertitudes avec la mention "à confirmer".
@@ -850,6 +874,7 @@ points_a_pondérer, questions_a_confirmer."""
 async def save(address:str=Form(""),type:str=Form(""),surface:str=Form(""),notes:str=Form(""),correction:str=Form(""),
                owner:str=Form(""),owner_phone:str=Form(""),cad_commune:str=Form(""),cad_section:str=Form(""),cad_parcel:str=Form(""),
                photos:list[UploadFile]=File(default=[])):
+    raise HTTPException(410,"Sauvegarde serveur désactivée. Les dossiers sont enregistrés sur votre appareil. Les anciens fichiers ne sont pas supprimés automatiquement.")
     did="EST-"+uuid.uuid4().hex[:8].upper()
     folder=DATA/did; folder.mkdir()
     meta={"id":did,"owner":owner,"owner_phone":owner_phone,"address":address,"type":type,"surface":surface,
@@ -1645,3 +1670,10 @@ def fibre_eligibilite(address:str='',commune:str='',postcode:str=''):
         return result
     except Exception:
         return {**base,'status':'indisponible','message':'La source publique ne répond pas. Éligibilité non vérifiée ; consultez la carte officielle ou réessayez.'}
+
+# Inventaire local uniquement : aucune route publique de liste/suppression des dossiers.
+def audit_legacy_storage():
+    return [{'dossier':folder.name,'fichiers':sum(1 for x in folder.iterdir() if x.is_file()),'octets':sum(x.stat().st_size for x in folder.iterdir() if x.is_file())} for folder in DATA.glob('EST-*') if folder.is_dir()]
+if __name__=='__main__':
+    import sys
+    if '--audit-storage' in sys.argv:print(json.dumps(audit_legacy_storage(),ensure_ascii=False,indent=2))

@@ -10,7 +10,7 @@ function repairTransactionLinks(){document.querySelectorAll('#estimationResults 
 document.addEventListener('estimia:estimation-restored',repairTransactionLinks);
 const btn=q('#launchEstimation');if(!btn)return;
 
-const qualityIds=['#estCondition','#estPlannedWorks','#estQualityMode','#estQualityRate','#estWorkBudget','#estOtherAdjustment','#estQualityReason','#notes','#correction'];
+const qualityIds=['#unitAdjustmentsJSON','#estCondition','#estPlannedWorks','#estQualityMode','#estQualityRate','#estWorkBudget','#estOtherAdjustment','#estQualityReason','#notes','#correction'];
 function qualityConfig(){
  let mode=q('#estQualityMode')?.value||'etat',budgetText=q('#estWorkBudget')?.value||'';
  const notes=String(q('#notes')?.value||'')+' '+String(q('#correction')?.value||'');
@@ -22,12 +22,24 @@ function qualityConfig(){
  if(!Number.isFinite(rate)||rate< -80||rate>30||!Number.isFinite(budget)||budget<0||!Number.isFinite(other))throw Error('Ajustements invalides : vérifier le taux et les montants saisis');
  if(mode==='budget'&&budgetText==='')throw Error('Renseignez le budget net de travaux à déduire ou choisissez la méthode par état');
  const needsReason=((mode==='etat'&&rateText!==''&&rate!==defaultRate)||other!==0)&&!reason;
- const unitStates={};if(q('#estCondition')?.dataset.qualityManual!=='true'&&rateText==='')for(const s of window.estimiaConditionSignals?.(notes)||[])if(s.type)unitStates[s.type]=s.condition;
+ const unitStates={};if(q('#estCondition')?.dataset.qualityManual!=='true'&&rateText==='')for(const s of window.estimiaConditionSignals?.(notes)||[])if(s.type)unitStates[s.key||s.type]=s.condition;
  let essential={};try{essential=JSON.parse(q('#essentialDataJSON')?.value||'{}')}catch{}
  for(const [key,state]of Object.entries(essential.units||{}))if(state.manual?.condition&&rateText===''){const chosen=state.answers?.condition?.[0]||'';if(key==='principal'){/* Le champ global est synchronisé par le sélecteur. */}else unitStates[key]=chosen;}
+ let perUnit={};try{perUnit=JSON.parse(q('#unitAdjustmentsJSON')?.value||'{}')}catch{}if(Object.values(perUnit).some(v=>v.method==='budget')&&JSON.parse(q('#propertyUnitsJSON')?.value||'[]').length<2)throw Error('Retirez les anciens budgets par logement : plusieurs logements identifiés sont nécessaires');
  return {mode,condition,rate,budget,other,reason:needsReason?'Ajustement saisi par l’utilisateur — justification à compléter':reason,unitStates,works:q('#estPlannedWorks')?.value||''};
 }
+function unitBudgetQuality(d,c){
+ let settings={};try{settings=JSON.parse(q('#unitAdjustmentsJSON')?.value||'{}')}catch{throw Error('Ajustements par logement illisibles');}
+ const active=Object.entries(settings).filter(([k,v])=>v.method==='budget');if(!active.length)return null;
+ if(!d.unitBases?.length||d.unitBases.length<2)throw Error('Les budgets par logement nécessitent plusieurs logements identifiés ; retirez les anciens budgets si le bien a changé');
+ if(c.mode!=='etat')throw Error('Les budgets par logement remplacent l’état du logement concerné. Choisissez la méthode par état pour les autres logements, sans budget global ni méthode sans correction');
+ for(const[k,v]of active){if(!d.unitBases.some(x=>(x.unit.key||x.unit.label)===k))throw Error('Un budget concerne un logement retiré : vérifiez les ajustements par logement');if(!Number.isFinite(Number(v.budget))||v.budget===''||Number(v.budget)<0||!String(v.reason||'').trim())throw Error('Budget par logement : montant positif ou nul et justification requis');}
+ const components=[],notes=[],sums={centrale:0,basse:0,haute:0};
+ for(const x of d.unitBases){const key=x.unit.key||x.unit.label,v=settings[key],budget=v?.method==='budget'?Number(v.budget):null,state=c.unitStates[key]||c.unitStates[key.split(' ')[0]],rate=budget!==null?0:state?(/réhabiliter/.test(state)?-25:/rénover/.test(state)?-15:/rafraîchir/.test(state)?-5:0):c.rate;for(const k of Object.keys(sums)){const amount=Number(x.value[k])*(1+rate/100)-(budget||0);if(amount<=0)throw Error('Travaux supérieurs à la valeur disponible pour '+x.unit.label);sums[k]+=amount;}const delta=budget!==null?-budget:Number(x.value.centrale)*rate/100;components.push([x.unit.label+' — '+(budget!==null?'budget net remplaçant l’état ; '+v.reason:'correction d’état '+rate+' %'),delta]);notes.push(x.unit.label+' : '+(budget!==null?fmt(budget)+' de travaux nets, sans décote d’état supplémentaire. '+v.reason:rate+' % selon l’état'))}
+ if(c.other)components.push(['Autre ajustement déclaré',c.other]);for(const k of Object.keys(sums)){sums[k]=Math.round((sums[k]+c.other)/1000)*1000;if(sums[k]<=0)throw Error('Les corrections dépassent la valeur disponible');}const before=Number(d.centrale)+components.reduce((a,r)=>a+r[1],0);if(sums.centrale!==before)components.push(['Arrondi de la valeur centrale',sums.centrale-before]);const note=notes.join(' ; ')+(c.reason?' ; '+c.reason:'')+'. Hypothèses à vérifier sur les comparables et les devis.';return {...d,...sums,qualityComponents:components,qualityChanged:true,qualityNote:note,avertissement:(d.avertissement||'')+' '+note};
+}
 function adjustQuality(d,c){
+ const byUnit=d.unitBases?.length?unitBudgetQuality(d,c):null;if(byUnit)return byUnit;
  const factor=c.mode==='etat'?1+c.rate/100:1,cost=c.mode==='budget'?c.budget:0;
  const scoped=c.mode==='etat'&&d.unitBases?.length>1&&Object.keys(c.unitStates).length>0;
  const rateFor=u=>{const state=c.unitStates[u.key]||c.unitStates[u.key.split(' ')[0]]||'';return /réhabiliter/.test(state)?-25:/rénover/.test(state)?-15:/rafraîchir/.test(state)?-5:0;};
@@ -57,6 +69,7 @@ function calculateEstimate(options={}){
 btn.addEventListener('click',calculateEstimate);
 async function performEstimate(reuseBase=false){
  if(window.estimiaFicheReady)await window.estimiaFicheReady;
+ if(window.estimiaRequireSurfaces&&!window.estimiaRequireSurfaces())return false;
  let quality;try{quality=qualityConfig()}catch(e){q('#estimationResults').dataset.calculationPending='true';q('#estimationStatus').textContent=e.message+' Le dernier résultat reste affiché comme référence ; corrigez la saisie pour actualiser.';return false;}
  const inputKey=()=>JSON.stringify(['#cadCommune','#address','#type','#surfaceHab','#propertyUnitsJSON',...qualityIds].map(id=>q(id)?.value||''));
  const startedWith=inputKey(),startedGeometry=geometryKey();
@@ -109,15 +122,15 @@ async function performEstimate(reuseBase=false){
    status.textContent=(d.message||'Données insuffisantes')+(d.diagnostic?' (Diagnostic : '+d.diagnostic+')':'');return false;
   }
   result.dataset.dvfBase=JSON.stringify(d);result.dataset.dvfInputKey=geometryKey();
-  const rawDvf={centrale:d.centrale,basse:d.basse,haute:d.haute};d=adjustQuality(d,quality);result.dataset.rawDvfEstimate=JSON.stringify(rawDvf);
+  const rawDvf={centrale:d.centrale,basse:d.basse,haute:d.haute};d=adjustQuality(d,quality);d.basse=Math.round(d.centrale*.85/1000)*1000;d.haute=Math.round(d.centrale*1.15/1000)*1000;result.dataset.rawDvfEstimate=JSON.stringify(rawDvf);
   q('#qualityAdjustmentStatus').textContent=d.qualityNote;
   result.dataset.unitValuation=String(units.length>1);result.dataset.dvfMedian=String(d.prix_m2_median||'');result.dataset.dvfCount=String(d.nombre||'');result.dataset.periodStart=d.periode_debut||'';result.dataset.periodEnd=d.periode_fin||'';result.dataset.originalEstimate=JSON.stringify({centrale:d.centrale,basse:d.basse,haute:d.haute,qualityComponents:d.qualityComponents||[]});result.dataset.adjusted='false';
   if(q('#validatedPrice'))q('#validatedPrice').value='';if(q('#validatedReason'))q('#validatedReason').value='';if(q('#retainedEstimateText'))q('#retainedEstimateText').textContent='';
   status.textContent=units.length>1?`${units.length} logements calculés séparément — ${d.nombre} références affichées dédoublonnées. Valeur indicative de l’ensemble.`:`${d.nombre} ventes filtrées — base statistique DVF et corrections détaillées ci-dessous.`;
   if(d.qualityChanged)status.textContent+=' État / travaux pris en compte : voir le calcul détaillé.';
   const table=d.comparables.map(c=>`<tr><td>${esc(c.date)}</td><td>${esc(c.surface)} m²</td><td>${fmt(c.prix)}</td><td>${fmt(c.prix_m2)}/m²</td></tr>`).join('');
-  result.innerHTML=`<div class="estimationValueMain"><div class="estimationValueLabel">${d.qualityChanged?"Estimation indicative en l’état — hypothèse à vérifier":"Estimation du bien — valeur centrale"}</div><div class="estimationValueAmount">${fmt(d.centrale)}</div><div class="small">Valeur indicative après prise en compte de l’état et des ajustements déclarés</div></div><div class="estimationRange"><div><strong>Fourchette basse</strong><div class="estimationRangeAmount">${fmt(d.basse)}</div></div><div><strong>Fourchette haute</strong><div class="estimationRangeAmount">${fmt(d.haute)}</div></div></div><p class="estimationExplanation">${esc(d.avertissement)}</p><details><summary>Voir les ventes retenues</summary><div style="overflow:auto"><table><thead><tr><th>Date</th><th>Surface</th><th>Prix</th><th>Prix/m²</th></tr></thead><tbody>${table}</tbody></table></div></details><p><a href="${esc(window.estimiaTransactionSourceUrl(d.source))}" target="_blank" rel="noopener">Source des transactions</a></p>`;
-  result.dataset.calculationPending='false';return true;
+  result.innerHTML=`<div class="estimationValueMain"><div class="estimationValueLabel">${d.qualityChanged?"Estimation indicative en l’état — hypothèse à vérifier":"Estimation du bien — valeur centrale"}</div><div class="estimationValueAmount">${fmt(d.centrale)}</div><div class="small">Valeur indicative après prise en compte de l’état et des ajustements déclarés</div></div><div class="estimationRange"><div><strong>Fourchette basse</strong><div class="estimationRangeAmount">${fmt(d.basse)}</div></div><div><strong>Fourchette haute</strong><div class="estimationRangeAmount">${fmt(d.haute)}</div></div></div><p class="estimationExplanation">Marge conventionnelle ±15 %, indépendante de la dispersion des ventes ; ce n’est pas un intervalle de confiance. ${esc(d.avertissement)}</p><details><summary>Voir les ventes retenues</summary><div style="overflow:auto"><table><thead><tr><th>Date</th><th>Surface</th><th>Prix</th><th>Prix/m²</th></tr></thead><tbody>${table}</tbody></table></div></details><p><a href="${esc(window.estimiaTransactionSourceUrl(d.source))}" target="_blank" rel="noopener">Source des transactions</a></p>`;
+  result.dataset.calculationPending='false';window.estimiaRecordPrice?.('calcul');window.estimiaRenderMarketEvidence?.();return true;
  }catch(e){result.dataset.calculationPending='true';if(reuseBase&&result.querySelector('.estimationValueLabel'))result.querySelector('.estimationValueLabel').textContent='Dernier résultat conservé — ajustements à corriger';status.textContent=e.name==='AbortError'?'La recherche DVF dépasse le délai prévu. Réessayez ou utilisez l’import DVF manuel. Aucun prix n’est inventé.':'Impossible de consulter les transactions : '+e.message+'. Aucun montant calculé.';return false;}
  finally{clearTimeout(timer);btn.disabled=false;}
 }
@@ -227,13 +240,14 @@ q('#validateRetainedEstimate')?.addEventListener('click',()=>{
  result.querySelectorAll('.estimationRangeAmount')[0].textContent=fmt(Math.max(1,Math.min(price,round(price*.85))));
  result.querySelectorAll('.estimationRangeAmount')[1].textContent=fmt(Math.max(price,round(price*1.15)));
  result.querySelector('.estimationValueLabel').textContent='Estimation du bien — montant retenu';
- const subtitle=result.querySelector('.estimationValueMain .small');if(subtitle)subtitle.textContent='Montant modifié et validé — fourchettes à −15 % / +15 %, arrondies au millier';
+ const subtitle=result.querySelector('.estimationValueMain .small');if(subtitle)subtitle.textContent='Montant retenu — marge conventionnelle ±15 %, arrondie au millier';
  result.dataset.adjusted='true';
- const warning=result.querySelector('.estimationExplanation');if(warning)warning.textContent='Estimation ajustée et validée. Fourchettes indicatives à −15 % et +15 %. Justification : '+reason;
+ const warning=result.querySelector('.estimationExplanation');if(warning)warning.textContent='Estimation ajustée et validée. Marge conventionnelle ±15 %, sans lien avec la dispersion des ventes. Justification : '+reason;
  let ref=result.querySelector('.originalEstimateReference');if(!ref){ref=document.createElement('p');ref.className='originalEstimateReference small screenOnly';result.querySelector('.estimationRange').after(ref);}
  ref.textContent='Proposition initiale ESTIM’IA : '+fmt(original.centrale)+' — basse '+fmt(original.basse)+' / haute '+fmt(original.haute)+'. Référence conservée uniquement à l’écran.';
  q('#validatedPrice').value=String(price);q('#validatedReason').value=reason;
  status.textContent='Montant retenu et validé : '+fmt(price)+' — '+reason;
+ window.estimiaRecordPrice?.('retenu');
  renderMarketIndicators();displayAnnonces();if(roquesFound.length||found.length)loadRoques();
  q('#validatedPrice').dispatchEvent(new Event('input',{bubbles:true}));
 });
