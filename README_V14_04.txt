@@ -13,3 +13,6 @@ INSTALLATION
 Extraire le ZIP complet et remplacer les fichiers GitHub. Attendre le déploiement Render. Actualiser avec Ctrl+F5 et vérifier V14.04. Régénérer les documents précédemment téléchargés. Aucun déploiement distant effectué pendant les tests.
 
 95 fichiers dans le ZIP. Aucun service payant ajouté. Bilan détaillé inclus.
+
+CAMPAGNE COMPLÉMENTAIRE DU 23/10/2026 — ARCHIVE DE TRAVAIL
+Correctifs testés : charges mensuelles préfixées, listes cadastrales arrêtées avant les données étrangères, sections AB/AC distinctes. 235 scénarios + 15 cas ciblés + 3 sauvegardes/exports passent. Voir bilan. Les nouvelles commandes surfaces/conclusion et la nouvelle source fibre restent prévues pour la prochaine version fonctionnelle.

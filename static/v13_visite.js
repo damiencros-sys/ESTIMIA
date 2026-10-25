@@ -104,39 +104,16 @@ function renderCadParcelsList(){
    d.querySelector('button').onclick=()=>removeCadParcel(parcelKey(p));box.appendChild(d);});
 }
 function parseCadParcels(t){
- const s=clean(t)
-   .replace(/[;,]/g,' , ')
-   .replace(/\bnum[ée]ros?\b/gi,'numero')
-   .replace(/\bn[°º]\b/gi,'numero');
- const out=[];
- // Each "section XX ..." starts a group and runs until the next section or sentence end.
- const secRx=/\bsection\s+([a-z]{1,3})\b/gi;
- const groups=[]; let m;
- while((m=secRx.exec(s)))groups.push({section:m[1].toUpperCase(),start:m.index,end:secRx.lastIndex});
- for(let i=0;i<groups.length;i++){
-   const g=groups[i], stop=(i+1<groups.length?groups[i+1].start:s.length);
-   let tail=s.slice(g.end,stop);
-   // Stop before clearly unrelated property facts.
-   tail=tail.split(/\b(?:c['’]?est|maison|appartement|terrain|garage|surface|séjour|salon|cuisine|chambre|salle|wc|toiture|chauffage|dpe|exposition|terrasse|parking)\b/i)[0];
-   // Accept: "numero 60 et 61 et 63", "parcelles 60,61,63", or directly "60 et 61".
-   const nums=(tail.match(/\b\d{1,4}\b/g)||[]);
-   nums.forEach(n=>out.push({section:g.section,numero:n}));
+ const s=clean(t).replace(/\bnum[ée]ros?\b/gi,'numero').replace(/n[°º]/gi,'numero');
+ const out=[],start=/\b(?:section\s+|parcelles?\s+(?:section\s+)?)([a-z]{1,3})\s+(?:numero\s*)?(\d{1,4})\b/gi;
+ let m;
+ while((m=start.exec(s))){
+  let section=m[1].toUpperCase();out.push({section,numero:m[2]});let tail=s.slice(start.lastIndex);
+  // Only a contiguous list is cadastral: never consume figures from the next sentence.
+  const next=/^\s*(?:,|;|et|&)\s*(?:(?:section\s+)?([a-z]{1,3})\s+)?(?:numero\s*)?(\d{1,4})\b/i;
+  let n;while((n=tail.match(next))){if(n[1])section=n[1].toUpperCase();out.push({section,numero:n[2]});tail=tail.slice(n[0].length);}
  }
- // Also accept explicit forms without the word "section": "parcelle BH 60" / "parcelles BH 60 et 61".
- const explicit=/\bparcelles?\s+([a-z]{1,3})\s+([^.!?]{0,60})/gi;
- while((m=explicit.exec(s))){
-   const sec=m[1].toUpperCase();
-   const tail=m[2].split(/\b(?:section|maison|appartement|terrain|garage|surface|séjour|salon|cuisine|chambre|salle|wc|toiture|chauffage|dpe|exposition|terrasse|parking)\b/i)[0];
-   (tail.match(/\b\d{1,4}\b/g)||[]).forEach(n=>out.push({section:sec,numero:n}));
- }
- // Natural shorthand: "parcelles C 732 et C 679"
- const repeated=/\bparcelles?\s+([a-z]{1,3})\s+(\d{1,4})\s*(?:,|et)?\s*([a-z]{1,3})?\s*(\d{1,4})/gi;
- while((m=repeated.exec(s)))out.push({section:m[1].toUpperCase(),numero:m[2]},{section:(m[3]||m[1]).toUpperCase(),numero:m[4]});
- const one=cad(t); if(one.section&&one.parcel)out.push({section:one.section,numero:one.parcel});
- const seen=new Set();
- return out.map(p=>normParcel(p.section,p.numero)).filter(Boolean).filter(p=>{
-   const k=parcelKey(p); if(seen.has(k))return false; seen.add(k); return true;
- });
+ const seen=new Set();return out.map(p=>normParcel(p.section,p.numero)).filter(Boolean).filter(p=>{const key=parcelKey(p);if(seen.has(key))return false;seen.add(key);return true;});
 }
 function loadCadParcelsFromHidden(){
  try{const a=JSON.parse($('#cadParcelsJSON')?.value||'[]');cadParcels=Array.isArray(a)?a.map(x=>({...x,...normParcel(x.section,x.numero),found:!!x.found})).filter(x=>x.section&&x.numero):[]}catch{cadParcels=[]}
@@ -1186,6 +1163,8 @@ function fillVisitExtras(t){
  for(const m of text.matchAll(rx)){const monthly=m[2]==='mois'||/mensuel/i.test(m[0]);charges.push({index:m.index,value:n(m[1])*(monthly?12:1),note:(/environ/i.test(m[0])?'Montant approximatif déclaré. ':'')+(monthly?'Charges mensuelles '+m[1]+' × 12 : montant annualisé. ':'Charges annuelles déclarées. ')})}
  const prefix=/\bcharges?\s+annuell?e?s?\s*(?:de|:|sont|font|environ)?\s*(\d+(?:[.,]\d+)?)/gi;
  for(const m of text.matchAll(prefix))charges.push({index:m.index,value:n(m[1]),note:(/environ/i.test(m[0])?'Montant approximatif déclaré. ':'')+'Charges annuelles déclarées. '});
+ const monthlyPrefix=/\bcharges?\s+(?:de\s+copropri[ée]t[ée]\s+)?mensuell?e?s?\s*(?:de|:|sont|font|environ)?\s*(\d+(?:[.,]\d+)?)/gi;
+ for(const m of text.matchAll(monthlyPrefix))charges.push({index:m.index,value:n(m[1])*12,note:(/environ/i.test(m[0])?'Montant approximatif déclaré. ':'')+'Charges mensuelles '+m[1]+' × 12 : montant annualisé. '});
  const amount=charges.sort((a,b)=>a.index-b.index).at(-1);
  if(amount){
   const chargeField=$('#estCharges'),manualCharge=chargeField.value.trim()&&chargeField.value!==chargeField.dataset.dictationValue;
