@@ -1,3 +1,7 @@
+VERSION ACTUELLE : V14.08
+Lire README_V14_08.txt et BILAN_TESTS_V14_08.html.
+Les notes ci-dessous décrivent des versions historiques, pas le fonctionnement actuel.
+
 VERSION ACTUELLE : V14.03
 Lire README_V14_03.txt et BILAN_TESTS_V14_03.html.
 
