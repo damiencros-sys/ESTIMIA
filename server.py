@@ -9,10 +9,10 @@ import os, json, uuid, urllib.request, urllib.error, urllib.parse, mimetypes, re
 
 BASE=Path(__file__).resolve().parent
 DATA=BASE/"data"; DATA.mkdir(exist_ok=True)
-app=FastAPI(title="ESTIM’IA V14.17",docs_url=None,redoc_url=None,openapi_url=None)
+app=FastAPI(title="ESTIM’IA V14.18",docs_url=None,redoc_url=None,openapi_url=None)
 app.mount("/static",StaticFiles(directory=BASE/"static"),name="static")
 
-# V14.17: credentials stay in Render environment variables, never in the ZIP.
+# V14.18: credentials stay in Render environment variables, never in the ZIP.
 import base64, secrets, time, hmac, hashlib
 from collections import deque
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
@@ -806,7 +806,7 @@ def word_export(p:WordPayload):
 
     # footer + page number field
     footer=sec.footer.paragraphs[0]; footer.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    fr=footer.add_run(_dossier_advisor(p)[1]+' • ESTIM’IA 14.17 / méthode 1.0 • Page '); fr.font.size=Pt(8); fr.font.color.rgb=RGBColor(0x77,0x77,0x77)
+    fr=footer.add_run(_dossier_advisor(p)[1]+' • ESTIM’IA 14.18 / méthode 1.0 • Page '); fr.font.size=Pt(8); fr.font.color.rgb=RGBColor(0x77,0x77,0x77)
     fld=OxmlElement('w:fldSimple'); fld.set(qn('w:instr'),'PAGE'); footer._p.append(fld)
     footer.add_run(' / ');total=OxmlElement('w:fldSimple');total.set(qn('w:instr'),'NUMPAGES');footer._p.append(total)
 
@@ -945,7 +945,7 @@ def pdf_export(p:WordPayload):
         story.append(KeepTogether(client_blocks[-2:]))
     # Individual paragraphs and table rows paginate naturally; headings stay with the next block.
     def footer(canvas,docx):
-        canvas.saveState();canvas.setFont('Helvetica',7);canvas.setFillColor(colors.HexColor('#777777'));canvas.drawCentredString(A4[0]/2,7*mm,f'{_dossier_advisor(p)[1]} - ESTIM’IA 14.17 / méthode 1.0 - Page {docx.page}');canvas.restoreState()
+        canvas.saveState();canvas.setFont('Helvetica',7);canvas.setFillColor(colors.HexColor('#777777'));canvas.drawCentredString(A4[0]/2,7*mm,f'{_dossier_advisor(p)[1]} - ESTIM’IA 14.18 / méthode 1.0 - Page {docx.page}');canvas.restoreState()
     doc.build(story,onFirstPage=footer,onLaterPages=footer);out.seek(0)
     safe=re.sub(r'[^A-Za-z0-9_-]+','_',p.owner or p.address or 'bien').strip('_') or 'bien'
     return StreamingResponse(out,media_type='application/pdf',headers={'Content-Disposition':f'attachment; filename="Dossier_estimation_{safe}.pdf"'})
@@ -1808,12 +1808,19 @@ def fibre_eligibilite(address:str='',commune:str='',postcode:str='',insee:str=''
             return str(r.get('codeinseeimmeuble',''))==city if re.fullmatch(r'34\d{3}',city) else _norm_name(r.get('communeimmeuble',''))==_norm_name(city)
         local=[r for r in rows if same_city(r)and(not postcode or re.search(r'\b'+re.escape(postcode)+r'\b',r.get('adresse_complete','')))]
         matches=[r for r in local if _fibre_address(r.get('adresse_complete',''))==wanted]
-        def candidate(r):return {'address':r.get('adresse_complete')or'', 'building':r.get('identifiantimmeuble')or'Non précisé','source_status':r.get('eligibilite')or'', 'source_date':r.get('date_de_mise_a_jour')or'Non précisée','source_comment':r.get('commentaire')or''}
+        def candidate(r):
+            building=r.get('identifiantimmeuble')or''
+            return {'address':r.get('adresse_complete')or'', 'building':building or'Non précisé','source_status':r.get('eligibilite')or'', 'source_date':r.get('date_de_mise_a_jour')or'Non précisée','source_comment':r.get('commentaire')or'', 'map_url':_FIBRE_DATASET+'raccordement/?'+urllib.parse.urlencode({'refine.identifiantimmeuble':building})}
+
         if not matches:
             # Do not erase a building suffix. Ask the user to confirm the published address.
             number=re.match(r'^\d+',wanted).group(0)
             candidates=[r for r in local if re.match(r'^'+re.escape(number)+r'\b',_fibre_address(r.get('adresse_complete','')))]
             if candidates:return {**base,'status':'adresse_a_confirmer','message':'Adresse non identique dans la source : confirmez l’adresse publiée et le bâtiment ci-dessous. Aucun statut attribué automatiquement.','matches':[candidate(r)for r in candidates[:10]]}
+            def street(value):return re.sub(r'^\d+\s+(?:(?:bis|ter|quater|[a-z])\s+)?','',_fibre_address(value))
+            street_candidates=[r for r in local if street(r.get('adresse_complete',''))==street(address)]
+            if street_candidates:return {**base,'status':'batiment_a_identifier','message':'Le numéro demandé est absent du référentiel fibre. Des bâtiments de cette voie sont publiés sous d’autres numéros. Identifiez le même bâtiment sur la carte avant de confirmer ; aucun statut n’est attribué automatiquement.','number_mismatch':True,'matches':[candidate(r)for r in street_candidates[:10]]}
+
 
         if len(matches)!=1:return {**base,'status':'ambigu'if matches else'inconnu','message':('Plusieurs immeubles correspondent : vérifiez le bâtiment sur la carte officielle.'if matches else'Adresse exacte non retrouvée dans cette source. Cela ne signifie pas que le logement est inéligible.'),'matches':[candidate(r)for r in matches[:10]]}
         row=matches[0];label=str(row.get('eligibilite')or'');norm=_norm_name(label)

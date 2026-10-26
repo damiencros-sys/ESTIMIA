@@ -372,7 +372,7 @@ label.conclusionInclusion{display:flex!important;align-items:center!important;ga
 button.progressFieldMissing,button.progressFieldReview{opacity:1;line-height:1.5}
 #essentialValidation .essentialSelect>summary,#essentialValidation select,#essentialValidation option{color:#203842}
 
-/* V14.17 — observations photo facultatives */
+/* V14.18 — observations photo facultatives */
 #photoObservationsPanel {margin-top:18px;background:#f2f5f2;color:#25382f}
 #photoObservationsPanel summary {cursor:pointer;padding:12px 0}
 #photoObservationsEditors fieldset {min-width:0;margin:14px 0;border:1px solid #b9c9bf;border-radius:9px;padding:12px}
@@ -380,7 +380,7 @@ button.progressFieldMissing,button.progressFieldReview{opacity:1;line-height:1.5
 #photoObservationsEditors textarea {width:100%;box-sizing:border-box;min-height:90px;resize:vertical;field-sizing:content}
 #photoObservationsPanel button {margin:6px 6px 6px 0;white-space:normal}
 
-/* V14.17 : une alerte = un accès direct, au clavier comme au toucher. */
+/* V14.18 : une alerte = un accès direct, au clavier comme au toucher. */
 #dossierChecks .preflightLink{display:block;width:100%;box-sizing:border-box;text-align:left;font:inherit;line-height:1.5;border:0;border-left:5px solid; border-radius:0;margin:10px 0;padding:12px;cursor:pointer;white-space:normal}
 #dossierChecks .preflightError{border-left-color:#ac2626;background:#fff0ee;color:#841b1b}
 #dossierChecks .preflightWarning{border-left-color:#b17616;background:#fff6df;color:#644307}
@@ -398,3 +398,5 @@ button.progressFieldMissing,button.progressFieldReview{opacity:1;line-height:1.5
 #photoReviewEntry{background:#dfede3;border:1px solid #729780;margin:16px 0}#photoReviewEntry h3{margin-top:0}#photoReviewEntry button{min-height:46px;padding:12px;margin:6px 6px 6px 0;white-space:normal}#photoReviewDecisions,#photoObservationsPanel{scroll-margin-top:120px}
 
 #fieldShortcuts{padding:0;background:#e6eee7}#visitQuickDetails>summary{cursor:pointer;padding:15px;min-height:44px;box-sizing:border-box}#visitQuickDetails>p,#visitQuickDetails>.quickUnitButtons{margin:12px 15px}.quickChoiceGroup{margin:12px 15px;padding:10px;border:1px solid #bccbbf;border-radius:8px;min-width:0}.quickChoiceGroup legend{font-weight:600}.quickUnitButtons{display:flex;flex-wrap:wrap;gap:8px}.quickChoiceGroup button,.quickUnitButtons button{border:1px solid #9bb4a5;background:#f3f5ef;color:#254638;border-radius:9px;min-height:44px;padding:10px 13px}.quickChoiceGroup button[aria-pressed=true],.quickUnitButtons button[aria-pressed=true]{background:#cce2d2;color:#183e2c;border:2px solid #386d50;font-weight:700}.quickChoiceGroup .shortcutButtons{gap:8px;margin:0}
+
+.manualFibre{padding:12px;border:1px solid #a6bdae;border-radius:9px;margin:14px 0;background:#eef3ec}.manualFibre summary{font-weight:700;cursor:pointer;min-height:36px}.manualFibre label{display:block;margin:12px 0}.manualFibre textarea,.manualFibre select{width:100%;box-sizing:border-box}.manualFibre button{min-height:46px;white-space:normal}
