@@ -9,10 +9,10 @@ import os, json, uuid, urllib.request, urllib.error, urllib.parse, mimetypes, re
 
 BASE=Path(__file__).resolve().parent
 DATA=BASE/"data"; DATA.mkdir(exist_ok=True)
-app=FastAPI(title="ESTIM’IA V14.15",docs_url=None,redoc_url=None,openapi_url=None)
+app=FastAPI(title="ESTIM’IA V14.16",docs_url=None,redoc_url=None,openapi_url=None)
 app.mount("/static",StaticFiles(directory=BASE/"static"),name="static")
 
-# V14.15: credentials stay in Render environment variables, never in the ZIP.
+# V14.16: credentials stay in Render environment variables, never in the ZIP.
 import base64, secrets, time, hmac, hashlib
 from collections import deque
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
@@ -723,9 +723,11 @@ def word_export(p:WordPayload):
                     pcell=cell.paragraphs[0]; pcell.alignment=WD_ALIGN_PARAGRAPH.CENTER
                     from PIL import Image
                     with Image.open(bio) as image: w,h=image.size
-                    bio.seek(0); scale=min(3.0/w,2.5/h)
+                    bio.seek(0); scale=min(3.0/w,2.25/h)
                     run=pcell.add_run(); run.add_picture(bio,width=Inches(w*scale),height=Inches(h*scale))
+                    pcell.paragraph_format.space_after=Pt(4)
                     cap=cell.add_paragraph(str(name)); cap.alignment=WD_ALIGN_PARAGRAPH.CENTER
+                    cap.paragraph_format.space_before=Pt(2); cap.paragraph_format.space_after=Pt(4)
                     for rr in cap.runs: rr.font.size=Pt(7); rr.font.italic=True
                 except Exception:
                     pass
@@ -775,10 +777,10 @@ def word_export(p:WordPayload):
         estimate_table=label_value_table([('Valeur centrale',p.estimation.get('centrale')),('Fourchette basse',p.estimation.get('basse')),('Fourchette haute',p.estimation.get('haute'))])
         for run in estimate_table.rows[0].cells[1].paragraphs[0].runs:
             run.font.size=Pt(14); run.bold=True; run.font.color.rgb=RGBColor.from_string(property_color)
-        for row in estimate_table.rows[:-1]:
+        for row in estimate_table.rows:
             for cell in row.cells:
                 for paragraph in cell.paragraphs: paragraph.paragraph_format.keep_with_next=True
-        doc.add_paragraph(str(p.estimation.get('texte') or 'Valeur statistique indicative issue des ventes DVF, sans ajustement qualitatif.'))
+        doc.add_paragraph(str(p.estimation.get('texte') or 'Valeur statistique indicative issue des ventes DVF, sans ajustement qualitatif.')).paragraph_format.keep_together=True
     else:
         heading('ESTIMATION DU BIEN')
         doc.add_paragraph('Estimation non calculée dans ce dossier.')
@@ -804,7 +806,7 @@ def word_export(p:WordPayload):
 
     # footer + page number field
     footer=sec.footer.paragraphs[0]; footer.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    fr=footer.add_run(_dossier_advisor(p)[1]+' • ESTIM’IA 14.15 / méthode 1.0 • Page '); fr.font.size=Pt(8); fr.font.color.rgb=RGBColor(0x77,0x77,0x77)
+    fr=footer.add_run(_dossier_advisor(p)[1]+' • ESTIM’IA 14.16 / méthode 1.0 • Page '); fr.font.size=Pt(8); fr.font.color.rgb=RGBColor(0x77,0x77,0x77)
     fld=OxmlElement('w:fldSimple'); fld.set(qn('w:instr'),'PAGE'); footer._p.append(fld)
     footer.add_run(' / ');total=OxmlElement('w:fldSimple');total.set(qn('w:instr'),'NUMPAGES');footer._p.append(total)
 
@@ -943,7 +945,7 @@ def pdf_export(p:WordPayload):
         story.append(KeepTogether(client_blocks[-2:]))
     # Individual paragraphs and table rows paginate naturally; headings stay with the next block.
     def footer(canvas,docx):
-        canvas.saveState();canvas.setFont('Helvetica',7);canvas.setFillColor(colors.HexColor('#777777'));canvas.drawCentredString(A4[0]/2,7*mm,f'{_dossier_advisor(p)[1]} - ESTIM’IA 14.15 / méthode 1.0 - Page {docx.page}');canvas.restoreState()
+        canvas.saveState();canvas.setFont('Helvetica',7);canvas.setFillColor(colors.HexColor('#777777'));canvas.drawCentredString(A4[0]/2,7*mm,f'{_dossier_advisor(p)[1]} - ESTIM’IA 14.16 / méthode 1.0 - Page {docx.page}');canvas.restoreState()
     doc.build(story,onFirstPage=footer,onLaterPages=footer);out.seek(0)
     safe=re.sub(r'[^A-Za-z0-9_-]+','_',p.owner or p.address or 'bien').strip('_') or 'bien'
     return StreamingResponse(out,media_type='application/pdf',headers={'Content-Disposition':f'attachment; filename="Dossier_estimation_{safe}.pdf"'})

@@ -372,7 +372,7 @@ label.conclusionInclusion{display:flex!important;align-items:center!important;ga
 button.progressFieldMissing,button.progressFieldReview{opacity:1;line-height:1.5}
 #essentialValidation .essentialSelect>summary,#essentialValidation select,#essentialValidation option{color:#203842}
 
-/* V14.15 — observations photo facultatives */
+/* V14.16 — observations photo facultatives */
 #photoObservationsPanel {margin-top:18px;background:#f2f5f2;color:#25382f}
 #photoObservationsPanel summary {cursor:pointer;padding:12px 0}
 #photoObservationsEditors fieldset {min-width:0;margin:14px 0;border:1px solid #b9c9bf;border-radius:9px;padding:12px}
@@ -380,9 +380,15 @@ button.progressFieldMissing,button.progressFieldReview{opacity:1;line-height:1.5
 #photoObservationsEditors textarea {width:100%;box-sizing:border-box;min-height:90px;resize:vertical;field-sizing:content}
 #photoObservationsPanel button {margin:6px 6px 6px 0;white-space:normal}
 
-/* V14.15 : une alerte = un accès direct, au clavier comme au toucher. */
+/* V14.16 : une alerte = un accès direct, au clavier comme au toucher. */
 #dossierChecks .preflightLink{display:block;width:100%;box-sizing:border-box;text-align:left;font:inherit;line-height:1.5;border:0;border-left:5px solid; border-radius:0;margin:10px 0;padding:12px;cursor:pointer;white-space:normal}
 #dossierChecks .preflightError{border-left-color:#ac2626;background:#fff0ee;color:#841b1b}
 #dossierChecks .preflightWarning{border-left-color:#b17616;background:#fff6df;color:#644307}
 #dossierChecks .preflightLink:hover{text-decoration:underline}
 #dossierChecks .preflightLink:focus-visible{outline:3px solid #245b88;outline-offset:3px}
+
+.photoReviewImport{padding:12px;border:1px solid #b9c9bf;border-radius:9px;margin:12px 0;background:#edf2ed}.photoReviewImport>label{display:inline-block;cursor:pointer}#photoReviewPreview details{padding:10px 0;border-top:1px solid #c4d0c6}#photoReviewPreview summary{font-weight:600;cursor:pointer}#photoReviewPreview .photoReviewOption{display:flex;align-items:center;gap:8px;margin:10px 0;font-weight:400}#photoReviewPreview .photoReviewOption input{width:20px;height:20px;flex:0 0 20px}#photoReviewPreview p{overflow-wrap:anywhere}#photoReviewPreview button{min-height:44px}
+
+.photoFinding{padding:14px;border:1px solid #b8c8be;border-radius:10px;background:#f5f5ed;margin:12px 0}.photoFinding[data-decision=yes]{background:#e3efe5;border-color:#558467}.photoFindingChoices{display:flex;flex-wrap:wrap;gap:8px}.photoFindingChoices button{min-width:72px;min-height:44px}.photoFindingChoices button[aria-pressed=true]{background:#1e6556;color:#fff}.photoFinding[data-decision=check]{background:#fbf2db}.photoFinding[data-decision=no]{opacity:.85}
+
+.photoFindingEvidence{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}.photoFindingEvidence figure{margin:8px 0;min-width:0}.photoFindingEvidence img{display:block;width:100%;max-height:220px;object-fit:contain}.photoFindingEvidence figcaption{font-size:13px;margin:5px 0}.photoFinding>details summary{cursor:pointer;padding:10px 0}
