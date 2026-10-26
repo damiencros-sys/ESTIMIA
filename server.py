@@ -9,10 +9,10 @@ import os, json, uuid, urllib.request, urllib.error, urllib.parse, mimetypes, re
 
 BASE=Path(__file__).resolve().parent
 DATA=BASE/"data"; DATA.mkdir(exist_ok=True)
-app=FastAPI(title="ESTIM’IA V14.13",docs_url=None,redoc_url=None,openapi_url=None)
+app=FastAPI(title="ESTIM’IA V14.14",docs_url=None,redoc_url=None,openapi_url=None)
 app.mount("/static",StaticFiles(directory=BASE/"static"),name="static")
 
-# V14.13: credentials stay in Render environment variables, never in the ZIP.
+# V14.14: credentials stay in Render environment variables, never in the ZIP.
 import base64, secrets, time, hmac, hashlib
 from collections import deque
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
@@ -795,7 +795,7 @@ def word_export(p:WordPayload):
 
     # footer + page number field
     footer=sec.footer.paragraphs[0]; footer.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    fr=footer.add_run(_dossier_advisor(p)[1]+' • ESTIM’IA 14.13 / méthode 1.0 • Page '); fr.font.size=Pt(8); fr.font.color.rgb=RGBColor(0x77,0x77,0x77)
+    fr=footer.add_run(_dossier_advisor(p)[1]+' • ESTIM’IA 14.14 / méthode 1.0 • Page '); fr.font.size=Pt(8); fr.font.color.rgb=RGBColor(0x77,0x77,0x77)
     fld=OxmlElement('w:fldSimple'); fld.set(qn('w:instr'),'PAGE'); footer._p.append(fld)
     footer.add_run(' / ');total=OxmlElement('w:fldSimple');total.set(qn('w:instr'),'NUMPAGES');footer._p.append(total)
 
@@ -934,7 +934,7 @@ def pdf_export(p:WordPayload):
         story.append(KeepTogether(client_blocks[-2:]))
     # Individual paragraphs and table rows paginate naturally; headings stay with the next block.
     def footer(canvas,docx):
-        canvas.saveState();canvas.setFont('Helvetica',7);canvas.setFillColor(colors.HexColor('#777777'));canvas.drawCentredString(A4[0]/2,7*mm,f'{_dossier_advisor(p)[1]} - ESTIM’IA 14.13 / méthode 1.0 - Page {docx.page}');canvas.restoreState()
+        canvas.saveState();canvas.setFont('Helvetica',7);canvas.setFillColor(colors.HexColor('#777777'));canvas.drawCentredString(A4[0]/2,7*mm,f'{_dossier_advisor(p)[1]} - ESTIM’IA 14.14 / méthode 1.0 - Page {docx.page}');canvas.restoreState()
     doc.build(story,onFirstPage=footer,onLaterPages=footer);out.seek(0)
     safe=re.sub(r'[^A-Za-z0-9_-]+','_',p.owner or p.address or 'bien').strip('_') or 'bien'
     return StreamingResponse(out,media_type='application/pdf',headers={'Content-Disposition':f'attachment; filename="Dossier_estimation_{safe}.pdf"'})

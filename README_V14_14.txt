@@ -1,0 +1,1 @@
+ESTIM’IA V14.14 — Synthèse manuelle des observations photo par logement. Facultative, enregistrée localement avec le dossier, exportée seulement après inclusion. Aucune analyse automatique des images. Aucun changement automatique des prix, surfaces ou états. Connexion V14.13 conservée. ZIP : 95 fichiers.

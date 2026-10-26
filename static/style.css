@@ -371,3 +371,11 @@ label.conclusionInclusion{display:flex!important;align-items:center!important;ga
 .progressFieldMissing{color:#7d251a!important}.progressFieldReview{color:#644307!important}
 button.progressFieldMissing,button.progressFieldReview{opacity:1;line-height:1.5}
 #essentialValidation .essentialSelect>summary,#essentialValidation select,#essentialValidation option{color:#203842}
+
+/* V14.14 — observations photo facultatives */
+#photoObservationsPanel {margin-top:18px;background:#f2f5f2;color:#25382f}
+#photoObservationsPanel summary {cursor:pointer;padding:12px 0}
+#photoObservationsEditors fieldset {min-width:0;margin:14px 0;border:1px solid #b9c9bf;border-radius:9px;padding:12px}
+#photoObservationsEditors legend {font-weight:700;padding:0 6px}
+#photoObservationsEditors textarea {width:100%;box-sizing:border-box;min-height:90px;resize:vertical;field-sizing:content}
+#photoObservationsPanel button {margin:6px 6px 6px 0;white-space:normal}
