@@ -9,10 +9,10 @@ import os, json, uuid, urllib.request, urllib.error, urllib.parse, mimetypes, re
 
 BASE=Path(__file__).resolve().parent
 DATA=BASE/"data"; DATA.mkdir(exist_ok=True)
-app=FastAPI(title="ESTIM’IA V14.16",docs_url=None,redoc_url=None,openapi_url=None)
+app=FastAPI(title="ESTIM’IA V14.17",docs_url=None,redoc_url=None,openapi_url=None)
 app.mount("/static",StaticFiles(directory=BASE/"static"),name="static")
 
-# V14.16: credentials stay in Render environment variables, never in the ZIP.
+# V14.17: credentials stay in Render environment variables, never in the ZIP.
 import base64, secrets, time, hmac, hashlib
 from collections import deque
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
@@ -806,7 +806,7 @@ def word_export(p:WordPayload):
 
     # footer + page number field
     footer=sec.footer.paragraphs[0]; footer.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    fr=footer.add_run(_dossier_advisor(p)[1]+' • ESTIM’IA 14.16 / méthode 1.0 • Page '); fr.font.size=Pt(8); fr.font.color.rgb=RGBColor(0x77,0x77,0x77)
+    fr=footer.add_run(_dossier_advisor(p)[1]+' • ESTIM’IA 14.17 / méthode 1.0 • Page '); fr.font.size=Pt(8); fr.font.color.rgb=RGBColor(0x77,0x77,0x77)
     fld=OxmlElement('w:fldSimple'); fld.set(qn('w:instr'),'PAGE'); footer._p.append(fld)
     footer.add_run(' / ');total=OxmlElement('w:fldSimple');total.set(qn('w:instr'),'NUMPAGES');footer._p.append(total)
 
@@ -945,7 +945,7 @@ def pdf_export(p:WordPayload):
         story.append(KeepTogether(client_blocks[-2:]))
     # Individual paragraphs and table rows paginate naturally; headings stay with the next block.
     def footer(canvas,docx):
-        canvas.saveState();canvas.setFont('Helvetica',7);canvas.setFillColor(colors.HexColor('#777777'));canvas.drawCentredString(A4[0]/2,7*mm,f'{_dossier_advisor(p)[1]} - ESTIM’IA 14.16 / méthode 1.0 - Page {docx.page}');canvas.restoreState()
+        canvas.saveState();canvas.setFont('Helvetica',7);canvas.setFillColor(colors.HexColor('#777777'));canvas.drawCentredString(A4[0]/2,7*mm,f'{_dossier_advisor(p)[1]} - ESTIM’IA 14.17 / méthode 1.0 - Page {docx.page}');canvas.restoreState()
     doc.build(story,onFirstPage=footer,onLaterPages=footer);out.seek(0)
     safe=re.sub(r'[^A-Za-z0-9_-]+','_',p.owner or p.address or 'bien').strip('_') or 'bien'
     return StreamingResponse(out,media_type='application/pdf',headers={'Content-Disposition':f'attachment; filename="Dossier_estimation_{safe}.pdf"'})
@@ -1770,43 +1770,55 @@ def urbanisme_parcelle(commune:str, section:str, numero:str):
     return result
 
 # V14.04 — état fibre à l’adresse exacte, source publique départementale.
-_FIBRE_DATASET='https://www.herault-data.fr/explore/dataset/deploiement-hd-thd-ipe-immeuble-herault/'
-_FIBRE_API='https://www.herault-data.fr/api/explore/v2.1/catalog/datasets/deploiement-hd-thd-ipe-immeuble-herault/records'
+_FIBRE_DATASET='https://www.herault-data.fr/explore/dataset/ipe-deploiement-fibre-optique-par-immeuble/'
+_FIBRE_API='https://www.herault-data.fr/api/explore/v2.1/catalog/datasets/ipe-deploiement-fibre-optique-par-immeuble/records'
 _fibre_cache={}
 def _fibre_address(value):
     text=_norm_name(re.sub(r'\s+\d{5}\b.*$','',value or ''))
     aliases={'av':'avenue','ave':'avenue','bd':'boulevard','bld':'boulevard','imp':'impasse','che':'chemin','rte':'route','st':'saint','ste':'sainte'}
+    text=re.sub(r'^(\d+)([a-z])\b',r'\1 \2',text)
     return ' '.join(aliases.get(word,word)for word in text.split())
 
 @app.get('/api/fibre/eligibilite')
-def fibre_eligibilite(address:str='',commune:str='',postcode:str=''):
+def fibre_eligibilite(address:str='',commune:str='',postcode:str='',insee:str=''):
     import time
-    address=address.strip()[:250];commune=commune.strip()[:120];postcode=postcode.strip()[:5]
+    address=address.strip()[:250];commune=commune.strip()[:120];postcode=postcode.strip()[:5];insee=insee.strip()[:5]
     checked=datetime.now().astimezone().isoformat(timespec='seconds')
-    source_url=_FIBRE_DATASET+'?'+urllib.parse.urlencode({'q':address,'refine.commune':commune})
-    base={'status':'inconnu','source':'Département de l’Hérault — Hérault Data (données IPE)','source_url':source_url,'checked_at':checked,'address_requested':address,'commune_requested':commune,'national_source_url':'https://maconnexioninternet.arcep.fr/'}
+    source_url=_FIBRE_DATASET+'raccordement/?'+urllib.parse.urlencode({'q':address+' '+commune})
+    base={'status':'inconnu','source':'Département de l’Hérault — Hérault Data (données IPE)','source_url':source_url,'checked_at':checked,'address_requested':address,'commune_requested':commune,'official_test_url':'https://numerique.herault.fr/1595-testez-votre-eligibilite.htm','national_source_url':'https://maconnexioninternet.arcep.fr/'}
     if not address or not commune:return {**base,'message':'Renseignez l’adresse complète et la commune avant la vérification.'}
     if postcode and not postcode.startswith('34'):return {**base,'status':'non_couvert','message':'La source automatique intégrée couvre l’Hérault. Consultez Ma connexion internet (Arcep) pour cette adresse.'}
-    city=re.sub(r'\b\d{5}\b','',commune).strip(' ,')
+    city=commune if re.fullmatch(r'34\d{3}',commune)else re.sub(r'\b\d{5}\b','',commune).strip(' ,')
     wanted=_fibre_address(address)
     city_norm=_fibre_address(city)
     if wanted.endswith(' '+city_norm):wanted=wanted[:-(len(city_norm)+1)].strip()
     if not re.match(r'^\d+[a-z]?\s+',wanted):return {**base,'message':'Une adresse avec numéro et voie est nécessaire pour éviter de confondre deux immeubles.'}
-    key=(wanted,_norm_name(city),postcode)
+    key=(wanted,_norm_name(city),postcode,insee)
     if key in _fibre_cache and time.monotonic()-_fibre_cache[key][0]<21600:return {**_fibre_cache[key][1],'cache_reused':True}
     # Recherche limitée à la commune et à un mot de la voie ; correspondance stricte ensuite.
     words=[w for w in wanted.split()if len(w)>3 and not w.isdigit()]
     token=words[-1]if words else wanted
-    where='commune='+json.dumps(city,ensure_ascii=False)+' AND search(adresse_complete, '+json.dumps(token,ensure_ascii=False)+')'
+    city_filter='codeinseeimmeuble='+str(int(insee))if re.fullmatch(r'34\d{3}',insee)else('codeinseeimmeuble='+str(int(city))if re.fullmatch(r'34\d{3}',city)else'search(communeimmeuble, '+json.dumps(city,ensure_ascii=False)+')')
+    where=city_filter+' AND search(adresse_complete, '+json.dumps(token,ensure_ascii=False)+')'
     try:
         data=get_json(_FIBRE_API+'?'+urllib.parse.urlencode({'where':where,'limit':100}),timeout=12)
         rows=data.get('results',[])
         if int(data.get('total_count',len(rows)))>len(rows):return {**base,'message':'Recherche trop large : adresse à préciser ; aucun résultat attribué automatiquement.'}
-        matches=[r for r in rows if _norm_name(r.get('commune',''))==_norm_name(city)and _fibre_address(r.get('adresse_complete',''))==wanted and(not postcode or re.search(r'\b'+re.escape(postcode)+r'\b',r.get('adresse_complete','')))]
-        if len(matches)!=1:return {**base,'status':'ambigu'if matches else'inconnu','message':('Plusieurs immeubles correspondent : vérifiez le bâtiment sur la carte officielle.'if matches else'Adresse exacte non retrouvée dans cette source. Cela ne signifie pas que le logement est inéligible.'),'matches':[{'address':r.get('adresse_complete'),'building':r.get('identifiant_immeuble'),'source_status':r.get('eligibilite')}for r in matches[:10]]}
+        def same_city(r):
+            return str(r.get('codeinseeimmeuble',''))==city if re.fullmatch(r'34\d{3}',city) else _norm_name(r.get('communeimmeuble',''))==_norm_name(city)
+        local=[r for r in rows if same_city(r)and(not postcode or re.search(r'\b'+re.escape(postcode)+r'\b',r.get('adresse_complete','')))]
+        matches=[r for r in local if _fibre_address(r.get('adresse_complete',''))==wanted]
+        def candidate(r):return {'address':r.get('adresse_complete')or'', 'building':r.get('identifiantimmeuble')or'Non précisé','source_status':r.get('eligibilite')or'', 'source_date':r.get('date_de_mise_a_jour')or'Non précisée','source_comment':r.get('commentaire')or''}
+        if not matches:
+            # Do not erase a building suffix. Ask the user to confirm the published address.
+            number=re.match(r'^\d+',wanted).group(0)
+            candidates=[r for r in local if re.match(r'^'+re.escape(number)+r'\b',_fibre_address(r.get('adresse_complete','')))]
+            if candidates:return {**base,'status':'adresse_a_confirmer','message':'Adresse non identique dans la source : confirmez l’adresse publiée et le bâtiment ci-dessous. Aucun statut attribué automatiquement.','matches':[candidate(r)for r in candidates[:10]]}
+
+        if len(matches)!=1:return {**base,'status':'ambigu'if matches else'inconnu','message':('Plusieurs immeubles correspondent : vérifiez le bâtiment sur la carte officielle.'if matches else'Adresse exacte non retrouvée dans cette source. Cela ne signifie pas que le logement est inéligible.'),'matches':[candidate(r)for r in matches[:10]]}
         row=matches[0];label=str(row.get('eligibilite')or'');norm=_norm_name(label)
         status='sur_demande'if'raccordable a la demande'in norm else'non_encore_eligible'if'non'in norm and'eligible'in norm else'eligible'if norm=='eligible'else'inconnu'
-        result={**base,'status':status,'source_status':label,'source_comment':row.get('commentaire')or'','source_date':row.get('date_de_mise_a_jour')or'Non précisée','source_address':row.get('adresse_complete')or'','building':row.get('identifiant_immeuble')or'Non précisé','message':'État publié à l’adresse par la source ; le raccordement dans le logement et les offres actuelles des opérateurs restent à vérifier.'}
+        result={**base,'status':status,'source_status':label,'source_comment':row.get('commentaire')or'','source_date':row.get('date_de_mise_a_jour')or'Non précisée','source_address':row.get('adresse_complete')or'','building':row.get('identifiantimmeuble')or'Non précisé','message':'État publié à l’adresse par la source ; le raccordement dans le logement et les offres actuelles des opérateurs restent à vérifier.'}
         if len(_fibre_cache)>=256:_fibre_cache.pop(next(iter(_fibre_cache)))
         _fibre_cache[key]=(time.monotonic(),result)
         return result
