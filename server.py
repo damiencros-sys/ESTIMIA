@@ -9,10 +9,10 @@ import os, json, uuid, urllib.request, urllib.error, urllib.parse, mimetypes, re
 
 BASE=Path(__file__).resolve().parent
 DATA=BASE/"data"; DATA.mkdir(exist_ok=True)
-app=FastAPI(title="ESTIM’IA V14.14",docs_url=None,redoc_url=None,openapi_url=None)
+app=FastAPI(title="ESTIM’IA V14.15",docs_url=None,redoc_url=None,openapi_url=None)
 app.mount("/static",StaticFiles(directory=BASE/"static"),name="static")
 
-# V14.14: credentials stay in Render environment variables, never in the ZIP.
+# V14.15: credentials stay in Render environment variables, never in the ZIP.
 import base64, secrets, time, hmac, hashlib
 from collections import deque
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
@@ -463,6 +463,7 @@ def cadastre_context_map(commune:str, section:str, numero:str):
     return StreamingResponse(bio,media_type="image/png",headers={"Cache-Control":"no-store"})
 
 class WordPayload(BaseModel):
+    owners:list=[]
     owner:str=""
     phone:str=""
     address:str=""
@@ -485,6 +486,14 @@ class WordPayload(BaseModel):
     roques_annonces:list=[]
     advisor:dict={}
     argumentaire:dict={}
+
+def _dossier_owner_names(p):
+    names=[]
+    for owner in p.owners:
+        if not isinstance(owner,dict):continue
+        name=' '.join(x for x in [str(owner.get('nom') or '').strip().upper(),str(owner.get('prenom') or '').strip()] if x)
+        if name:names.append(name)
+    return ' ; '.join(names) if names else p.owner
 
 def _property_color(t):
     s=(t or "").lower()
@@ -659,7 +668,7 @@ def word_export(p:WordPayload):
     doc.add_page_break()
     heading('SYNTHÈSE DU BIEN')
     heading('DOSSIER')
-    meta=[('Propriétaire',p.owner),('Téléphone',p.phone),('Adresse',p.address),('Commune',p.commune),
+    meta=[('Propriétaire(s)',_dossier_owner_names(p)),('Téléphone',p.phone),('Adresse',p.address),('Commune',p.commune),
           ('Cadastre',(' • '.join([str(x.get('section','')).upper()+' '+str(int(re.sub(r'\\D','',str(x.get('numero',''))) or '0')) for x in p.parcels if x.get('section') and x.get('numero')]) if p.parcels else (('Section '+p.section.upper()+' — Parcelle '+str(int(re.sub(r'\\D','',p.parcel) or '0'))) if p.section and p.parcel else ''))),
           ('Type',p.property_type),('Surface habitable',(p.surface+' m²') if p.surface else ''),('Surface Carrez',(p.surface_carrez+' m²') if p.surface_carrez else '')]
     label_value_table(meta)
@@ -795,7 +804,7 @@ def word_export(p:WordPayload):
 
     # footer + page number field
     footer=sec.footer.paragraphs[0]; footer.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    fr=footer.add_run(_dossier_advisor(p)[1]+' • ESTIM’IA 14.14 / méthode 1.0 • Page '); fr.font.size=Pt(8); fr.font.color.rgb=RGBColor(0x77,0x77,0x77)
+    fr=footer.add_run(_dossier_advisor(p)[1]+' • ESTIM’IA 14.15 / méthode 1.0 • Page '); fr.font.size=Pt(8); fr.font.color.rgb=RGBColor(0x77,0x77,0x77)
     fld=OxmlElement('w:fldSimple'); fld.set(qn('w:instr'),'PAGE'); footer._p.append(fld)
     footer.add_run(' / ');total=OxmlElement('w:fldSimple');total.set(qn('w:instr'),'NUMPAGES');footer._p.append(total)
 
@@ -851,7 +860,7 @@ def pdf_export(p:WordPayload):
     story.append(Paragraph('DOSSIER',h))
     refs=[x for x in p.parcels if isinstance(x,dict) and x.get('section') and x.get('numero')]
     cad=' • '.join(str(x.get('section','')).upper()+' '+re.sub(r'\D','',str(x.get('numero',''))) for x in refs)
-    add_table([('Propriétaire',p.owner),('Téléphone',p.phone),('Adresse',p.address),('Commune',p.commune),('Cadastre',cad),('Type',p.property_type),('Surface habitable',(p.surface+' m²') if p.surface else ''),('Surface Carrez',(p.surface_carrez+' m²') if p.surface_carrez else '')])
+    add_table([('Propriétaire(s)',_dossier_owner_names(p)),('Téléphone',p.phone),('Adresse',p.address),('Commune',p.commune),('Cadastre',cad),('Type',p.property_type),('Surface habitable',(p.surface+' m²') if p.surface else ''),('Surface Carrez',(p.surface_carrez+' m²') if p.surface_carrez else '')])
     if p.commune and refs:
         story.append(Paragraph('PLAN CADASTRAL',h))
         try:
@@ -934,7 +943,7 @@ def pdf_export(p:WordPayload):
         story.append(KeepTogether(client_blocks[-2:]))
     # Individual paragraphs and table rows paginate naturally; headings stay with the next block.
     def footer(canvas,docx):
-        canvas.saveState();canvas.setFont('Helvetica',7);canvas.setFillColor(colors.HexColor('#777777'));canvas.drawCentredString(A4[0]/2,7*mm,f'{_dossier_advisor(p)[1]} - ESTIM’IA 14.14 / méthode 1.0 - Page {docx.page}');canvas.restoreState()
+        canvas.saveState();canvas.setFont('Helvetica',7);canvas.setFillColor(colors.HexColor('#777777'));canvas.drawCentredString(A4[0]/2,7*mm,f'{_dossier_advisor(p)[1]} - ESTIM’IA 14.15 / méthode 1.0 - Page {docx.page}');canvas.restoreState()
     doc.build(story,onFirstPage=footer,onLaterPages=footer);out.seek(0)
     safe=re.sub(r'[^A-Za-z0-9_-]+','_',p.owner or p.address or 'bien').strip('_') or 'bien'
     return StreamingResponse(out,media_type='application/pdf',headers={'Content-Disposition':f'attachment; filename="Dossier_estimation_{safe}.pdf"'})

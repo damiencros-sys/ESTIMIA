@@ -1,0 +1,1 @@
+ESTIM’IA V14.15 — Alertes du contrôle avant export cliquables : onglet, rubrique dépliée et focus. Avertissements facultatifs non bloquants. Noms de famille en majuscules (prénoms conservés), saisie/dictée/restauration et exports. Toutes les fonctions V14.14 conservées. 95 fichiers.
